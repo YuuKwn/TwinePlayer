@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playing - Twine Player</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500&display=swap');
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Game layout container — switches between overlay and side-by-side */
+        #layout-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        #game-frame {
+            border: none;
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 100%;
+            display: block;
+            background: #fff;
+        }
+
+        .overlay-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 48px;
+            /* hidden by default, shown on hover */
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+            transform: translateY(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 9999;
+            box-sizing: border-box;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .hover-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 24px;
+            z-index: 9998;
+        }
+
+        .hover-zone:hover+.overlay-bar,
+        .overlay-bar:hover {
+            transform: translateY(0);
+        }
+
+        /* Pinned top bar mode */
+        body.bar-pinned .hover-zone {
+            display: none;
+        }
+
+        body.bar-pinned .overlay-bar {
+            position: relative;
+            transform: translateY(0);
+            flex-shrink: 0;
+            /* No hover needed — always visible */
+        }
+
+        body.bar-pinned .indicator {
+            display: none;
+        }
+
+        /* Body becomes a column so overlay-bar stacks above the game area */
+        body.bar-pinned {
+            display: flex;
+            flex-direction: column;
+        }
+
+        body.bar-pinned #layout-container {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        /* Game frame fills its container (layout-container is now smaller) */
+        body.bar-pinned #game-frame {
+            height: 100%;
+        }
+
+        /* Pin button style — matches layout-toggle-btn */
+        .pin-bar-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.55);
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+            margin-left: 6px;
+        }
+
+        .pin-bar-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* Highlight when pinned */
+        body.bar-pinned .pin-bar-btn {
+            color: #60a5fa;
+        }
+
+        .back-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(-2px);
+        }
+
+        .game-title {
+            color: #e2e8f0;
+            margin-left: 1rem;
+            font-size: 15px;
+            font-weight: 500;
+            flex-grow: 1;
+            text-align: center;
+            padding-right: 100px;
+            /* Offset to center title against the left button */
+        }
+
+        /* Reveal indicator */
+        .indicator {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 0 0 4px 4px;
+            z-index: 9997;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .hover-zone:hover~.indicator {
+            opacity: 0;
+        }
+
+        /* Console Styles */
+        #dev-console {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(16px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10000;
+            box-sizing: border-box;
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+        }
+
+        #dev-console.open {
+            transform: translateX(0);
+        }
+
+        /* Side-by-side mode: console becomes a flex sibling of the iframe */
+        body.console-side #dev-console {
+            position: relative;
+            flex: 0 0 400px;
+            transform: translateX(0);
+            height: 100%;
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+        }
+
+        body.console-side #dev-console:not(.open) {
+            display: none;
+        }
+
+        .console-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .console-header h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .close-console {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            border-radius: 4px;
+        }
+
+        .close-console:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .console-output {
+            flex-grow: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log-entry {
+            margin: 0;
+            word-break: break-all;
+        }
+
+        .log-entry.error {
+            color: #ef4444;
+        }
+
+        .log-entry.input {
+            color: #60a5fa;
+            opacity: 0.8;
+        }
+
+        .log-entry.result {
+            color: #a78bfa;
+        }
+
+        .saved-commands {
+            flex: 0 0 150px;
+            /* fixed height — never shrinks when log grows */
+            min-height: 80px;
+            max-height: 150px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.5);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .saved-header {
+            padding: 8px 1rem;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            position: sticky;
+            top: 0;
+            background: rgba(15, 23, 42, 0.95);
+        }
+
+        .saved-command-item {
+            padding: 8px 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #cbd5e1;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .saved-command-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .cmd-text {
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cmd-run,
+        .cmd-del {
+            background: none;
+            border: none;
+            padding: 6px;
+            cursor: pointer;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            opacity: 0.6;
+            transition: all 0.15s;
+        }
+
+        .cmd-run:hover {
+            color: #4ade80;
+            opacity: 1;
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .cmd-del:hover {
+            color: #ef4444;
+            opacity: 1;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .console-input-area {
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        #console-input {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        #console-input:focus {
+            outline: none;
+            border-color: #60a5fa;
+        }
+
+        .console-btn {
+            background: rgba(96, 165, 250, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(96, 165, 250, 0.4);
+            border-radius: 6px;
+            padding: 0 16px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .console-btn:hover {
+            background: #60a5fa;
+            color: #fff;
+        }
+
+        .toggle-console-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .toggle-console-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Layout toggle button inside console header */
+        .layout-toggle-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .layout-toggle-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Highlight layout icon when in side-by-side mode */
+        body.console-side .layout-toggle-btn {
+            color: #60a5fa;
+        }
+
+        /* Autocomplete Styles */
+        .input-wrapper {
+            position: relative;
+            flex-grow: 1;
+            display: flex;
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 0;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
+            list-style: none;
+            margin: 0;
+            padding: 4px 0;
+            z-index: 10001;
+            display: none;
+        }
+
+        .autocomplete-dropdown.active {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: 6px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #e2e8f0;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background: rgba(96, 165, 250, 0.3);
+            color: #fff;
+        }
+
+        .suggestion-match {
+            color: #60a5fa;
+            font-weight: bold;
+        }
+
+        /* Saves Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 20000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .saves-modal {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            width: 800px;
+            max-width: 90vw;
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .saves-modal {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #f8fafc;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            min-height: 400px;
+        }
+
+        .saves-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+
+        .save-slot {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            aspect-ratio: 4/3;
+        }
+
+        .save-slot:hover {
+            background: rgba(96, 165, 250, 0.1);
+            border-color: rgba(96, 165, 250, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .save-slot.empty {
+            border-style: dashed;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            gap: 8px;
+        }
+
+        .save-slot.empty:hover {
+            color: #e2e8f0;
+            border-color: #e2e8f0;
+        }
+
+        .slot-title {
+            font-weight: 500;
+            font-size: 1.125rem;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            word-break: break-all;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .slot-meta {
+            margin-top: auto;
+            font-size: 0.875rem;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slot-delete {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: none;
+            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s, background 0.2s;
+        }
+
+        .save-slot:hover .slot-delete {
+            opacity: 1;
+        }
+
+        .slot-delete:hover {
+            background: #ef4444;
+            color: #fff;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: #94a3b8;
+        }
+
+        .page-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Overlay loader during read/write */
+        .modal-loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #60a5fa;
+            border-radius: 16px;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-loader.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="hover-zone"></div>
+    <div class="overlay-bar">
+        <button id="back-btn" class="back-btn">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18">
+                </path>
+            </svg>
+            Library
+        </button>
+        <div id="game-title" class="game-title">Loading...</div>
+        <button id="toggle-console" class="toggle-console-btn">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 9l3 3-3 3m5 0h3M4 6h16a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"></path>
+            </svg>
+            Console
+        </button>
+        <!-- Pin / unpin the top bar so it stays visible without hovering -->
+        <button id="pin-bar-btn" class="pin-bar-btn" title="Pin top bar (keeps it always visible)">
+            <!-- Pushpin icon — filled look when active via CSS color -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="17" x2="12" y2="22" />
+                <path
+                    d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+            </svg>
+        </button>
+    </div>
+    <div class="indicator"></div>
+
+    <aside id="dev-console">
+        <div class="console-header">
+            <h3>Developer Console</h3>
+            <div style="display:flex;align-items:center;gap:4px;">
+                <!-- Layout toggle: overlay vs side-by-side -->
+                <button class="layout-toggle-btn" id="layout-toggle" title="Toggle: Overlay / Side-by-side">
+                    <!-- Icon: two vertical panels -->
+                    <svg id="layout-icon-side" width="20" height="20" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24" style="display:none">
+                        <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
+                        <line x1="12" y1="3" x2="12" y2="21" stroke-width="2" />
+                    </svg>
+                    <svg id="layout-icon-overlay" width="20" height="20" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
+                        <rect x="12" y="3" width="9" height="18" rx="1" fill="currentColor" opacity="0.3"
+                            stroke-width="0" />
+                        <line x1="12" y1="3" x2="12" y2="21" stroke-width="2" />
+                    </svg>
+                </button>
+                <button class="close-console" id="close-console" title="Close Console">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="console-output" id="console-output">
+            <div class="log-entry" style="color: #64748b;">// Console ready. Waiting for game identity...</div>
+        </div>
+
+        <div class="saved-commands">
+            <div class="saved-header">Saved Commands</div>
+            <div id="saved-list"></div>
+        </div>
+
+        <div class="console-input-area">
+            <div class="input-wrapper">
+                <input type="text" id="console-input" placeholder="Enter JavaScript..." autocomplete="off">
+                <ul id="autocomplete-list" class="autocomplete-dropdown"></ul>
+            </div>
+            <button id="console-save" class="console-btn" style="padding: 0 12px;" title="Save Command">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </button>
+            <button id="console-execute" class="console-btn">Run</button>
+        </div>
+    </aside>
+
+    <!-- Paginated Saves Modal Overal -->
+    <div id="saves-modal-overlay" class="modal-overlay">
+        <div class="saves-modal">
+            <div class="modal-loader" id="modal-loader">
+                <svg width="48" height="48" stroke="currentColor" viewBox="0 0 24 24" fill="none" class="spin">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                    </path>
+                </svg>
+                <p id="modal-loader-text" style="margin-top: 1rem;">Working...</p>
+            </div>
+
+            <div class="modal-header">
+                <h2 id="modal-title">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                        </path>
+                    </svg>
+                    Save Game
+                </h2>
+                <button class="close-console" id="close-modal-btn">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="saves-grid" id="saves-grid">
+                    <!-- Saves injected here -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div id="saves-info" style="color: #64748b; font-size: 13px;">0 saves found.</div>
+                <div class="pagination">
+                    <button class="page-btn" id="prev-page-btn">Previous</button>
+                    <span id="page-indicator">Page 1 / 1</span>
+                    <button class="page-btn" id="next-page-btn">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spin animation for loader -->
+    <style>
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <div id="layout-container">
+        <iframe id="game-frame"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"></iframe>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        let gameUrl = params.get('url');
+        const title = params.get('title') || 'Twine Game';
+
+        const CONSOLE_HISTORY_KEY = 'twine_player_console_history';
+        let currentIfid = null;
+        // memory architecture: { "ifid": ["cmd1", "cmd2"] }
+
+        if (gameUrl) {
+            gameUrl = gameUrl.replace(/\\/g, '/');
+            const embedUrl = 'file:///' + gameUrl;
+            document.getElementById('game-frame').src = embedUrl;
+        }
+        document.getElementById('game-title').innerText = title;
+
+        document.getElementById('back-btn').addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+        /* --- Console Logic --- */
+        const consoleEl = document.getElementById('dev-console');
+        const outputEl = document.getElementById('console-output');
+        const inputEl = document.getElementById('console-input');
+        const savedListEl = document.getElementById('saved-list');
+        const iframe = document.getElementById('game-frame');
+
+        document.getElementById('toggle-console').addEventListener('click', () => {
+            consoleEl.classList.add('open');
+            inputEl.focus();
+        });
+        document.getElementById('close-console').addEventListener('click', () => {
+            consoleEl.classList.remove('open');
+        });
+
+        /* --- Layout toggle: overlay vs side-by-side --- */
+        const LAYOUT_KEY = 'twine_player_console_layout';
+        let isSideMode = localStorage.getItem(LAYOUT_KEY) === 'side';
+        const iconSide = document.getElementById('layout-icon-side');
+        const iconOverlay = document.getElementById('layout-icon-overlay');
+        const layoutContainer = document.getElementById('layout-container');
+
+        const applyLayout = () => {
+            if (isSideMode) {
+                document.body.classList.add('console-side');
+                // Move console inside the layout container so it sits next to the iframe
+                layoutContainer.appendChild(consoleEl);
+                iconSide.style.display = 'block';
+                iconOverlay.style.display = 'none';
+            } else {
+                document.body.classList.remove('console-side');
+                // Move console back to body level so it can overlay freely
+                document.body.appendChild(consoleEl);
+                iconSide.style.display = 'none';
+                iconOverlay.style.display = 'block';
+            }
+        };
+
+        document.getElementById('layout-toggle').addEventListener('click', () => {
+            isSideMode = !isSideMode;
+            localStorage.setItem(LAYOUT_KEY, isSideMode ? 'side' : 'overlay');
+            applyLayout();
+        });
+
+        // Apply persisted layout on load
+        applyLayout();
+
+        /* --- Pin top bar toggle --- */
+        const BAR_PIN_KEY = 'twine_player_bar_pinned';
+        let isBarPinned = localStorage.getItem(BAR_PIN_KEY) === 'true';
+
+        const applyBarPin = () => {
+            if (isBarPinned) {
+                document.body.classList.add('bar-pinned');
+            } else {
+                document.body.classList.remove('bar-pinned');
+            }
+        };
+
+        document.getElementById('pin-bar-btn').addEventListener('click', () => {
+            isBarPinned = !isBarPinned;
+            localStorage.setItem(BAR_PIN_KEY, isBarPinned);
+            applyBarPin();
+        });
+
+        // Apply persisted pin state on load
+        applyBarPin();
+
+        // Hashing fallback for games without IFID
+        const hashString = (str) => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return hash.toString();
+        };
+
+        const printLog = (msg, type = 'normal') => {
+            const div = document.createElement('div');
+            div.className = `log-entry ${type}`;
+            div.textContent = msg;
+            outputEl.appendChild(div);
+            outputEl.scrollTop = outputEl.scrollHeight;
+        };
+
+        const getSavedCommandsForAllGames = () => {
+            return JSON.parse(localStorage.getItem(CONSOLE_HISTORY_KEY) || '{}');
+        };
+
+        const saveCommandsForAllGames = (data) => {
+            localStorage.setItem(CONSOLE_HISTORY_KEY, JSON.stringify(data));
+        };
+
+        const renderSavedCommands = () => {
+            savedListEl.innerHTML = '';
+            if (!currentIfid) return;
+
+            const allSaved = getSavedCommandsForAllGames();
+            const myCmds = allSaved[currentIfid] || [];
+
+            if (myCmds.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'saved-command-item';
+                empty.style.color = '#64748b';
+                empty.textContent = 'No saved commands yet.';
+                savedListEl.appendChild(empty);
+                return;
+            }
+
+            myCmds.forEach((cmd, idx) => {
+                const div = document.createElement('div');
+                div.className = 'saved-command-item';
+
+                const textSpan = document.createElement('span');
+                textSpan.className = 'cmd-text';
+                textSpan.textContent = cmd;
+                textSpan.title = cmd; // hover to see full text
+
+                textSpan.addEventListener('click', () => {
+                    inputEl.value = cmd;
+                    inputEl.focus();
+                });
+
+                const actions = document.createElement('div');
+                actions.style.display = 'flex';
+                actions.style.gap = '4px';
+
+                const runBtn = document.createElement('button');
+                runBtn.className = 'cmd-run';
+                runBtn.title = 'Run command';
+                runBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                runBtn.addEventListener('click', () => executeCommand(cmd));
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'cmd-del';
+                delBtn.title = 'Delete saved command';
+                delBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+                delBtn.addEventListener('click', () => {
+                    myCmds.splice(idx, 1);
+                    allSaved[currentIfid] = myCmds;
+                    saveCommandsForAllGames(allSaved);
+                    renderSavedCommands();
+                });
+
+                actions.appendChild(runBtn);
+                actions.appendChild(delBtn);
+
+                div.appendChild(textSpan);
+                div.appendChild(actions);
+                savedListEl.appendChild(div);
+            });
+        };
+
+        const executeCommand = (cmd) => {
+            if (!cmd.trim()) return;
+            printLog(`> ${cmd}`, 'input');
+            try {
+                const cw = iframe.contentWindow;
+                const result = cw.eval(cmd);
+
+                // Format objects nicely instead of [object Object]
+                if (typeof result === 'object' && result !== null) {
+                    printLog(`<- ${JSON.stringify(result, null, 2)}`, 'result');
+                } else if (result !== undefined) {
+                    printLog(`<- ${String(result)}`, 'result');
+                } else {
+                    printLog(`<- undefined`, 'result');
+                }
+            } catch (err) {
+                printLog(`Err: ${err.message}`, 'error');
+            }
+            inputEl.value = '';
+        };
+
+        document.getElementById('console-execute').addEventListener('click', () => executeCommand(inputEl.value));
+
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                executeCommand(inputEl.value);
+            }
+        });
+
+        document.getElementById('console-save').addEventListener('click', () => {
+            const cmd = inputEl.value.trim();
+            if (!cmd || !currentIfid) return;
+
+            const allSaved = getSavedCommandsForAllGames();
+            if (!allSaved[currentIfid]) {
+                allSaved[currentIfid] = [];
+            }
+
+            if (!allSaved[currentIfid].includes(cmd)) {
+                allSaved[currentIfid].push(cmd);
+                saveCommandsForAllGames(allSaved);
+                renderSavedCommands();
+                printLog(`// Command saved.`, 'normal');
+            }
+        });
+
+        // Initialize IFID on load
+        iframe.onload = () => {
+            try {
+                const cw = iframe.contentWindow;
+                const storyData = cw.document.querySelector('tw-storydata');
+
+                if (storyData && storyData.getAttribute('ifid')) {
+                    currentIfid = storyData.getAttribute('ifid');
+                    printLog(`// Game linked by IFID: ${currentIfid}`, 'result');
+                } else {
+                    currentIfid = 'fallback_' + hashString(gameUrl || title);
+                    printLog(`// No IFID found. Falling back to path hash: ${currentIfid}`, 'normal');
+                }
+                renderSavedCommands();
+            } catch (err) {
+                printLog(`Err reading game data (CORS?): ${err.message}`, 'error');
+                // Cross origin errors shouldn't happen via file:// but just in case
+            }
+        };
+
+        /* --- Autocomplete Logic --- */
+        const autocompleteList = document.getElementById('autocomplete-list');
+        let suggestions = [];
+        let selectedSuggestionIndex = -1;
+
+        const getCompletions = (inputText) => {
+            if (!inputText) return [];
+            try {
+                const cw = iframe.contentWindow;
+
+                // Matches "baseObject.property" or just "property"
+                const match = inputText.match(/(([a-zA-Z_$][0-9a-zA-Z_$]*\.)*)([a-zA-Z_$][0-9a-zA-Z_$]*)$/);
+
+                let baseObj = cw; // Default to window
+                let prefix = inputText;
+                let pathStr = "";
+
+                if (match) {
+                    pathStr = match[1] || "";     // "Math."
+                    const baseStr = pathStr.slice(0, -1); // "Math"
+                    prefix = match[3] || "";      // "pi"
+
+                    if (baseStr) {
+                        baseObj = cw.eval(baseStr);
+                    }
+                } else if (inputText.endsWith('.')) {
+                    // They just typed "Math."
+                    pathStr = inputText;
+                    const baseStr = pathStr.slice(0, -1);
+                    prefix = "";
+                    baseObj = cw.eval(baseStr);
+                }
+
+                if (baseObj == null) return [];
+
+                let props = [];
+                // Walk prototype chain to get all properties
+                let currentObj = baseObj;
+                while (currentObj) {
+                    props = props.concat(Object.getOwnPropertyNames(currentObj));
+                    currentObj = Object.getPrototypeOf(currentObj);
+                }
+
+                // Remove duplicates and filter by prefix
+                const uniqueProps = [...new Set(props)];
+                const filtered = uniqueProps.filter(p => p.startsWith(prefix) && p !== prefix);
+
+                // Sort alphabetically
+                filtered.sort();
+
+                // Format the suggestions to include the base path for easy replacement later
+                return filtered.map(prop => ({
+                    propName: prop,
+                    fullPath: pathStr + prop,
+                    prefix: prefix
+                })).slice(0, 50); // Limit to 50 suggestions
+
+            } catch (e) {
+                return []; // Ignore eval errors for autocomplete
+            }
+        };
+
+        const renderAutocomplete = () => {
+            const val = inputEl.value;
+            suggestions = getCompletions(val);
+            selectedSuggestionIndex = -1;
+
+            if (suggestions.length === 0) {
+                autocompleteList.classList.remove('active');
+                autocompleteList.innerHTML = '';
+                return;
+            }
+
+            autocompleteList.innerHTML = '';
+            suggestions.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = 'suggestion-item';
+
+                // Highlight the matched prefix part
+                const matchSpan = document.createElement('span');
+                matchSpan.className = 'suggestion-match';
+                matchSpan.textContent = item.prefix;
+
+                const restSpan = document.createElement('span');
+                restSpan.textContent = item.propName.substring(item.prefix.length);
+
+                li.appendChild(matchSpan);
+                li.appendChild(restSpan);
+
+                li.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // keep focus on input
+                    insertSuggestion(item.fullPath);
+                });
+
+                autocompleteList.appendChild(li);
+            });
+            autocompleteList.classList.add('active');
+        };
+
+        const updateSuggestionHighlight = () => {
+            const items = autocompleteList.querySelectorAll('.suggestion-item');
+            items.forEach((item, idx) => {
+                if (idx === selectedSuggestionIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        };
+
+        const insertSuggestion = (fullPath) => {
+            const val = inputEl.value;
+            // Replace the last typed keyword with the fullPath
+            // e.g., "console.log(wi" -> "console.log(window"
+            const match = val.match(/([a-zA-Z_$][0-9a-zA-Z_$.]*)$/);
+            if (match) {
+                inputEl.value = val.substring(0, val.length - match[0].length) + fullPath;
+            } else {
+                inputEl.value += fullPath;
+            }
+            autocompleteList.classList.remove('active');
+            inputEl.focus();
+        };
+
+        inputEl.addEventListener('input', () => {
+            renderAutocomplete();
+        });
+
+        // Replacing old keydown event to handle autocomplete keys
+        const oldKeydown = inputEl.onkeydown; // not used, just overriding
+        inputEl.addEventListener('keydown', (e) => {
+            if (autocompleteList.classList.contains('active')) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (selectedSuggestionIndex < suggestions.length - 1) {
+                        selectedSuggestionIndex++;
+                        updateSuggestionHighlight();
+                    }
+                    return;
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (selectedSuggestionIndex > 0) {
+                        selectedSuggestionIndex--;
+                        updateSuggestionHighlight();
+                    }
+                    return;
+                } else if (e.key === 'Tab') {
+                    if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestions.length) {
+                        e.preventDefault();
+                        insertSuggestion(suggestions[selectedSuggestionIndex].fullPath);
+                        return;
+                    }
+                } else if (e.key === 'Escape') {
+                    autocompleteList.classList.remove('active');
+                    return;
+                } else if (e.key === 'Enter') {
+                    if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestions.length) {
+                        e.preventDefault();
+                        insertSuggestion(suggestions[selectedSuggestionIndex].fullPath);
+                        return;
+                    }
+                }
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault(); // prevent double execution if we just selected a suggestion
+                executeCommand(inputEl.value);
+                autocompleteList.classList.remove('active');
+            }
+        });
+
+        // Hide autocomplete when clicking outside
+        document.addEventListener('click', (e) => {
+            if (e.target !== inputEl && !autocompleteList.contains(e.target)) {
+                autocompleteList.classList.remove('active');
+            }
+        });
+
+        /* --- Saves UI Integration --- */
+        const savesModal = document.getElementById('saves-modal-overlay');
+        const savesGrid = document.getElementById('saves-grid');
+        const modalTitle = document.getElementById('modal-title');
+        const modalLoader = document.getElementById('modal-loader');
+        const modalLoaderText = document.getElementById('modal-loader-text');
+
+        let pendingSaveBlob = null;
+        let pendingLoadInput = null;
+        let currentModalMode = 'save'; // 'save' or 'load'
+
+        let savesList = [];
+        let currentPage = 1;
+        const SAVES_PER_PAGE = 8;
+
+        const showLoader = (text) => {
+            modalLoaderText.textContent = text;
+            modalLoader.classList.add('active');
+        };
+        const hideLoader = () => modalLoader.classList.remove('active');
+
+        const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        const renderSavesPage = () => {
+            savesGrid.innerHTML = '';
+
+            const totalPages = Math.max(1, Math.ceil(savesList.length / SAVES_PER_PAGE));
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            document.getElementById('page-indicator').textContent = `Page ${currentPage} / ${totalPages}`;
+            document.getElementById('prev-page-btn').disabled = currentPage === 1;
+            document.getElementById('next-page-btn').disabled = currentPage === totalPages;
+            document.getElementById('saves-info').textContent = `${savesList.length} saves total`;
+
+            const startIdx = (currentPage - 1) * SAVES_PER_PAGE;
+            const pageSaves = savesList.slice(startIdx, startIdx + SAVES_PER_PAGE);
+
+            // Add Save Slot
+            if (currentModalMode === 'save' && currentPage === 1) {
+                const addSlot = document.createElement('div');
+                addSlot.className = 'save-slot empty';
+                // Initially show the basic empty state
+                addSlot.innerHTML = `
+                    <div class="empty-content" style="display:flex; flex-direction:column; align-items:center;">
+                        <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        <span style="font-weight: 500;">New Save</span>
+                    </div>
+                `;
+
+                const handleNewSaveClick = (e) => {
+                    // Prevent triggering again if we already changed it to input mode
+                    if (addSlot.querySelector('#new-save-input')) return;
+
+                    const defaultName = `save_${new Date().getTime()}.save`;
+                    addSlot.innerHTML = `
+                        <div style="display:flex; flex-direction:column; align-items:center; width:100%; gap:8px;">
+                            <input type="text" id="new-save-input" value="${defaultName}" style="width: 90%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 6px; border-radius: 4px; outline: none; text-align:center; font-family: inherit;" />
+                            <div style="display:flex; gap: 8px;">
+                                <button id="new-save-confirm" style="background: rgba(59, 130, 246, 0.8); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px; cursor: pointer;">Save</button>
+                                <button id="new-save-cancel" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px; cursor: pointer;">Cancel</button>
+                            </div>
+                        </div>
+                    `;
+
+                    const inputEl = addSlot.querySelector('#new-save-input');
+                    inputEl.focus();
+                    inputEl.select(); // Highlight the text so user can just type immediately
+
+                    const doSave = async () => {
+                        let name = inputEl.value.trim();
+                        if (!name) return;
+                        if (!name.endsWith('.save')) name += '.save';
+                        await executeSaveWrite(name);
+                    };
+
+                    addSlot.querySelector('#new-save-confirm').addEventListener('click', async (btnEvent) => {
+                        btnEvent.stopPropagation();
+                        await doSave();
+                    });
+
+                    addSlot.querySelector('#new-save-cancel').addEventListener('click', (btnEvent) => {
+                        btnEvent.stopPropagation();
+                        renderSavesPage(); // Re-renders the whole grid, resetting the slot
+                    });
+
+                    inputEl.addEventListener('keydown', async (keyEvent) => {
+                        if (keyEvent.key === 'Enter') {
+                            keyEvent.preventDefault();
+                            await doSave();
+                        } else if (keyEvent.key === 'Escape') {
+                            renderSavesPage();
+                        }
+                    });
+                };
+
+                addSlot.addEventListener('click', handleNewSaveClick);
+                savesGrid.appendChild(addSlot);
+            }
+
+            pageSaves.forEach(save => {
+                const slot = document.createElement('div');
+                slot.className = 'save-slot';
+
+                const dateStr = new Date(save.mtime).toLocaleString();
+                const displayName = save.filename.replace('.save', '');
+
+                slot.innerHTML = `
+                    <div class="slot-title" title="${save.filename}">${displayName}</div>
+                    <div class="slot-meta">
+                        <span>${dateStr}</span>
+                        <span>${formatBytes(save.size)}</span>
+                    </div>
+                    <button class="slot-delete" title="Delete Save">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                `;
+
+                slot.addEventListener('click', async (e) => {
+                    if (e.target.closest('.slot-delete')) {
+                        e.stopPropagation();
+                        if (confirm(`Delete save "${displayName}"?`)) {
+                            await window.electronAPI.deleteSave(gameUrl, save.filename);
+                            await refreshSaves();
+                        }
+                        return;
+                    }
+
+                    if (currentModalMode === 'save') {
+                        if (confirm(`Overwrite save "${displayName}"?`)) {
+                            await executeSaveWrite(save.filename);
+                        }
+                    } else if (currentModalMode === 'load') {
+                        await executeLoadRead(save.filename);
+                    }
+                });
+
+                savesGrid.appendChild(slot);
+            });
+
+            if (currentModalMode === 'load' && savesList.length === 0) {
+                savesGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 3rem;">No saves found. Play the game and save your progress!</div>';
+            }
+        };
+
+        const refreshSaves = async () => {
+            if (!gameUrl) return;
+            savesList = await window.electronAPI.listSaves(gameUrl);
+            renderSavesPage();
+        };
+
+        const openSavesModal = async (mode) => {
+            currentModalMode = mode;
+            modalTitle.innerHTML = mode === 'save'
+                ? '<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg> Save Game'
+                : '<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Load Game';
+
+            currentPage = 1;
+            await refreshSaves();
+            savesModal.classList.add('active');
+        };
+
+        const closeSavesModal = () => {
+            savesModal.classList.remove('active');
+            pendingSaveBlob = null;
+            pendingLoadInput = null;
+        };
+
+        document.getElementById('close-modal-btn').addEventListener('click', closeSavesModal);
+
+        document.getElementById('prev-page-btn').addEventListener('click', () => {
+            if (currentPage > 1) { currentPage--; renderSavesPage(); }
+        });
+
+        document.getElementById('next-page-btn').addEventListener('click', () => {
+            currentPage++; renderSavesPage();
+        });
+
+        const executeSaveWrite = async (filename) => {
+            if (!pendingSaveBlob) return closeSavesModal();
+            showLoader('Saving to disk...');
+
+            try {
+                // Convert blob to ArrayBuffer, then Uint8Array for IPC
+                const arrayBuffer = await pendingSaveBlob.arrayBuffer();
+                const bufferView = new Uint8Array(arrayBuffer);
+
+                const result = await window.electronAPI.writeSave(gameUrl, filename, bufferView);
+                if (result.success) {
+                    printLog(`// Saved successfully to ${filename}`, 'result');
+                } else {
+                    printLog(`Err saving: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                printLog(`Err reading save blob: ${err.message}`, 'error');
+            }
+
+            hideLoader();
+            closeSavesModal();
+        };
+
+        const executeLoadRead = async (filename) => {
+            if (!pendingLoadInput) return closeSavesModal();
+            showLoader('Loading from disk...');
+
+            const result = await window.electronAPI.readSave(gameUrl, filename);
+            if (result.success && result.data) {
+                try {
+                    // Reconstruct a File object for the iframe input
+                    const fileObj = new File([result.data], filename, { type: 'text/plain' }); // Assume twinery creates plain text saves usually
+
+                    // The only way to artificially populate a file input is via DataTransfer
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(fileObj);
+
+                    pendingLoadInput.files = dataTransfer.files;
+
+                    // Dispatch change event to trigger the game engine's load routine
+                    const event = new Event('change', { bubbles: true });
+                    pendingLoadInput.dispatchEvent(event);
+
+                    printLog(`// Loaded ${filename} into game engine.`, 'result');
+                } catch (e) {
+                    printLog(`Err mounting loaded file: ${e.message}`, 'error');
+                }
+            } else {
+                printLog(`Err loading file: ${result.error}`, 'error');
+            }
+
+            hideLoader();
+            closeSavesModal();
+        };
+
+        // --- Twine Logic Interceptor ---
+        iframe.addEventListener('load', () => {
+            try {
+                const cw = iframe.contentWindow;
+                const doc = cw.document;
+
+                // 1. Intercept "Save to Disk"
+                // Twine engines build an <a> element with `download` attribute and click it programmatically.
+                // Sometimes they use `.click()`, sometimes they use `dispatchEvent(...)`. We must intercept both.
+
+                // 1c. Catch-all URL.createObjectURL hook
+                cw.blobRegistry = new Map();
+                const originalCreateObjectURL = cw.URL.createObjectURL;
+                cw.URL.createObjectURL = function (obj) {
+                    const url = originalCreateObjectURL.call(this, obj);
+                    if (obj instanceof cw.Blob || obj instanceof Blob) {
+                        cw.blobRegistry.set(url, obj);
+                    }
+                    return url;
+                };
+
+                const processAnchorTrigger = (anchor) => {
+                    if (anchor.hasAttribute('download') && anchor.href) {
+                        try {
+                            if (cw.blobRegistry && cw.blobRegistry.has(anchor.href)) {
+                                pendingSaveBlob = cw.blobRegistry.get(anchor.href);
+                                openSavesModal('save');
+                                return true;
+                            }
+                            fetch(anchor.href).then(r => r.blob()).then(blob => {
+                                pendingSaveBlob = blob;
+                                openSavesModal('save');
+                            }).catch(err => {
+                                console.error("Failed to fetch internal save blob", err);
+                            });
+                            return true;
+                        } catch (e) {
+                            return false;
+                        }
+                    }
+                    return false;
+                };
+
+                const originalAnchorClick = cw.HTMLAnchorElement.prototype.click;
+                cw.HTMLAnchorElement.prototype.click = function () {
+                    if (processAnchorTrigger(this)) return;
+                    originalAnchorClick.call(this);
+                };
+
+                const originalDispatch = cw.EventTarget.prototype.dispatchEvent;
+                cw.EventTarget.prototype.dispatchEvent = function (event) {
+                    if (this instanceof cw.HTMLAnchorElement && (event.type === 'click' || event.type === 'mousedown')) {
+                        if (processAnchorTrigger(this)) {
+                            event.stopPropagation();
+                            event.preventDefault();
+                            return false;
+                        }
+                    }
+                    return originalDispatch.call(this, event);
+                };
+
+                // 1b. SugarCube Specific Direct Hook
+                // SugarCube uses `Save.export()` to generate the download
+                if (cw.window && cw.window.Save && typeof cw.window.Save.export === 'function') {
+                    const originalExport = cw.window.Save.export;
+                    cw.window.Save.export = function (fileName, metadata) {
+                        // SugarCube 2 usually returns a string of the HTML save
+                        const saveStr = originalExport.call(this, fileName, metadata);
+                        if (saveStr) {
+                            pendingSaveBlob = new Blob([saveStr], { type: 'text/html;charset=UTF-8' });
+                            openSavesModal('save');
+                        }
+                        // We return empty string or null to prevent SugarCube from doing its own download
+                        return "";
+                    };
+                    printLog(`// Hooked directly into SugarCube Save API.`, 'normal');
+                }
+
+                // 2. Intercept "Load from Disk"
+                const originalInputClick = cw.HTMLInputElement.prototype.click;
+                cw.HTMLInputElement.prototype.click = function () {
+                    if (this.type === 'file') {
+                        pendingLoadInput = this;
+                        openSavesModal('load');
+                        return; // Suppress native file picker
+                    }
+                    originalInputClick.call(this);
+                };
+
+                printLog(`// Intercepted Save/Load events on iframe.`, 'normal');
+            } catch (err) {
+                printLog(`Err injecting interceptors: ${err.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+
+</html>

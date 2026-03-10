@@ -1,0 +1,32 @@
+{
+  "name": "twine-player",
+  "version": "1.0.0",
+  "description": "An isolated desktop application for playing Twine HTML games.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --linux"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.twineplayer.app",
+    "productName": "Twine Player",
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "tar.gz",
+      "category": "Game"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
