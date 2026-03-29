@@ -7,3 +7,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readSave: (gamePath, filename) => ipcRenderer.invoke('save:read', gamePath, filename),
     deleteSave: (gamePath, filename) => ipcRenderer.invoke('save:delete', gamePath, filename)
 });
+
+// --- Illustrator Feature ---
+// Kept as a separate contextBridge entry so it can be removed independently
+// without touching electronAPI or breaking any existing functionality.
+contextBridge.exposeInMainWorld('illustratorAPI', {
+    ensureOutputDir: (gamePath) => ipcRenderer.invoke('illustrator:ensure-output-dir', gamePath),
+    generatePrompt: (sceneText) => ipcRenderer.invoke('illustrator:generate-prompt', sceneText),
+    queueComfyUI: (params) => ipcRenderer.invoke('illustrator:queue-comfyui', params),
+    pollImage: (params) => ipcRenderer.invoke('illustrator:poll-image', params),
+});
+// --- End Illustrator Feature ---
