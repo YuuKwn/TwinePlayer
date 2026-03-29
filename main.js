@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -41,7 +41,7 @@ const getIllustrationsDir = (gamePath) => {
   return path.join(parsed.dir, `${parsed.name}_illustrations`);
 };
 
-const buildComfyWorkflow = (prompt, outputDir, outputFilename, checkpoint) => ({
+const buildComfyWorkflow = (prompt, outputDir, outputFilename, checkpoint, width, height, negativePrompt, steps, cfg, seed) => ({
   prompt: {
     '1': {
       class_type: 'CheckpointLoaderSimple',
@@ -57,20 +57,20 @@ const buildComfyWorkflow = (prompt, outputDir, outputFilename, checkpoint) => ({
     '3': {
       class_type: 'CLIPTextEncode',
       inputs: {
-        text: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
+        text: negativePrompt || 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry',
         clip: ['1', 1]
       }
     },
     '4': {
       class_type: 'EmptyLatentImage',
-      inputs: { width: 832, height: 1216, batch_size: 1 }
+      inputs: { width: width || 832, height: height || 1216, batch_size: 1 }
     },
     '5': {
       class_type: 'KSampler',
       inputs: {
-        seed: Math.floor(Math.random() * 999999999),
-        steps: 25,
-        cfg: 7,
+        seed: (seed != null && seed >= 0) ? seed : Math.floor(Math.random() * 999999999),
+        steps: steps || 25,
+        cfg: cfg || 7,
         sampler_name: 'euler_ancestral',
         scheduler: 'normal',
         denoise: 1,
@@ -193,7 +193,17 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('illustrator:generate-prompt', async (event, sceneText) => {
+  ipcMain.handle('illustrator:open-folder', async (event, dirPath) => {
+    try {
+      await shell.openPath(dirPath);
+      return { success: true };
+    } catch (err) {
+      console.error('Illustrator: error opening folder', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('illustrator:generate-prompt', async (event, { sceneText, systemPrompt }) => {
     try {
       const response = await fetch(`${OLLAMA_URL}/api/generate`, {
         method: 'POST',
@@ -201,7 +211,7 @@ app.whenReady().then(() => {
         body: JSON.stringify({
           model: ILLUSTRATOR_OLLAMA_MODEL,
           stream: false,
-          system: 'You are an image prompt generator for Stable Diffusion. Convert game scene descriptions into vivid, concise image generation prompts. Focus only on visual details: setting, lighting, characters, mood, art style. Output only the prompt text itself — no explanations, no labels, no extra text.',
+          system: systemPrompt || 'You are an image prompt generator for Stable Diffusion. Convert game scene descriptions into vivid, concise image generation prompts. Focus only on visual details: setting, lighting, characters, mood, art style. Output only the prompt text itself — no explanations, no labels, no extra text.',
           prompt: sceneText
         })
       });
@@ -218,13 +228,19 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('illustrator:queue-comfyui', async (event, { imagePrompt, outputFilename, checkpoint }) => {
+  ipcMain.handle('illustrator:queue-comfyui', async (event, { imagePrompt, outputFilename, checkpoint, width, height, negativePrompt, steps, cfg, seed }) => {
     try {
       const workflow = buildComfyWorkflow(
         imagePrompt,
         null,
         outputFilename,
-        checkpoint || ILLUSTRATOR_DEFAULT_CHECKPOINT
+        checkpoint || ILLUSTRATOR_DEFAULT_CHECKPOINT,
+        width,
+        height,
+        negativePrompt,
+        steps,
+        cfg,
+        seed
       );
 
       const response = await fetch(`${COMFYUI_URL}/prompt`, {
@@ -289,9 +305,6 @@ app.whenReady().then(() => {
         return { success: false, pending: false, error: 'ComfyUI job completed but no output image found.' };
       }
 
-      // ComfyUI saves to its own output folder; read it back from the outputDir we specified
-      // The filename_prefix we set means the file should land in ComfyUI's output dir.
-      // We fetch it via the ComfyUI /view endpoint to avoid needing the absolute path.
       const imgResponse = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(imageFilename)}&type=output`);
       if (!imgResponse.ok) {
         return { success: false, pending: false, error: `Could not retrieve image from ComfyUI: HTTP ${imgResponse.status}` };
@@ -301,13 +314,11 @@ app.whenReady().then(() => {
       const base64 = Buffer.from(arrayBuffer).toString('base64');
       const dataUrl = `data:image/png;base64,${base64}`;
 
-      // Also save a copy to the game's illustrations folder
       try {
         const localPath = path.join(outputDir, imageFilename);
         fs.writeFileSync(localPath, Buffer.from(arrayBuffer));
       } catch (saveErr) {
         console.warn('Illustrator: could not save local copy', saveErr.message);
-        // Non-fatal — we still return the image
       }
 
       return { success: true, dataUrl, filename: imageFilename };
