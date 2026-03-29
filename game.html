@@ -77,14 +77,12 @@
             position: relative;
             transform: translateY(0);
             flex-shrink: 0;
-            /* No hover needed — always visible */
         }
 
         body.bar-pinned .indicator {
             display: none;
         }
 
-        /* Body becomes a column so overlay-bar stacks above the game area */
         body.bar-pinned {
             display: flex;
             flex-direction: column;
@@ -95,12 +93,10 @@
             min-height: 0;
         }
 
-        /* Game frame fills its container (layout-container is now smaller) */
         body.bar-pinned #game-frame {
             height: 100%;
         }
 
-        /* Pin button style — matches layout-toggle-btn */
         .pin-bar-btn {
             background: none;
             border: none;
@@ -119,7 +115,6 @@
             background: rgba(255, 255, 255, 0.12);
         }
 
-        /* Highlight when pinned */
         body.bar-pinned .pin-bar-btn {
             color: #60a5fa;
         }
@@ -152,10 +147,8 @@
             flex-grow: 1;
             text-align: center;
             padding-right: 100px;
-            /* Offset to center title against the left button */
         }
 
-        /* Reveal indicator */
         .indicator {
             position: absolute;
             top: 0;
@@ -198,7 +191,6 @@
             transform: translateX(0);
         }
 
-        /* Side-by-side mode: console becomes a flex sibling of the iframe */
         body.console-side #dev-console {
             position: relative;
             flex: 0 0 400px;
@@ -272,7 +264,6 @@
 
         .saved-commands {
             flex: 0 0 150px;
-            /* fixed height — never shrinks when log grows */
             min-height: 80px;
             max-height: 150px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -402,7 +393,6 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
-        /* Layout toggle button inside console header */
         .layout-toggle-btn {
             background: none;
             border: none;
@@ -419,12 +409,10 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
-        /* Highlight layout icon when in side-by-side mode */
         body.console-side .layout-toggle-btn {
             color: #60a5fa;
         }
 
-        /* Autocomplete Styles */
         .input-wrapper {
             position: relative;
             flex-grow: 1;
@@ -656,7 +644,6 @@
             cursor: not-allowed;
         }
 
-        /* Overlay loader during read/write */
         .modal-loader {
             position: absolute;
             top: 0;
@@ -680,6 +667,283 @@
             opacity: 1;
             pointer-events: auto;
         }
+
+        /* --- Illustrator Feature Styles --- */
+        #illustrator-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 20001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #illustrator-modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #illustrator-modal {
+            background: rgba(15, 23, 42, 0.97);
+            border: 1px solid rgba(167, 139, 250, 0.25);
+            border-radius: 16px;
+            width: 860px;
+            max-width: 94vw;
+            max-height: 90vh;
+            box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            transform: translateY(24px);
+            transition: transform 0.3s ease;
+            overflow: hidden;
+            color: #f8fafc;
+        }
+
+        #illustrator-modal-overlay.active #illustrator-modal {
+            transform: translateY(0);
+        }
+
+        #illustrator-modal .modal-header {
+            border-bottom-color: rgba(167, 139, 250, 0.2);
+        }
+
+        #illustrator-modal .modal-header h2 {
+            font-size: 1.2rem;
+        }
+
+        .illus-body {
+            display: flex;
+            gap: 1.25rem;
+            padding: 1.25rem;
+            overflow: hidden;
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* Left column: text inputs + controls */
+        .illus-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+            flex: 1 1 0;
+            min-width: 0;
+            overflow-y: auto;
+        }
+
+        .illus-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        .illus-textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #e2e8f0;
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
+            resize: vertical;
+            box-sizing: border-box;
+            line-height: 1.5;
+            transition: border-color 0.2s;
+        }
+
+        .illus-textarea:focus {
+            outline: none;
+            border-color: rgba(167, 139, 250, 0.5);
+        }
+
+        #illus-scene-text {
+            min-height: 100px;
+            max-height: 160px;
+        }
+
+        #illus-prompt-text {
+            min-height: 80px;
+            max-height: 130px;
+        }
+
+        .illus-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .illus-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #e2e8f0;
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        .illus-input:focus {
+            outline: none;
+            border-color: rgba(167, 139, 250, 0.5);
+        }
+
+        .illus-btn {
+            background: rgba(167, 139, 250, 0.2);
+            color: #a78bfa;
+            border: 1px solid rgba(167, 139, 250, 0.35);
+            border-radius: 8px;
+            padding: 9px 18px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .illus-btn:hover:not(:disabled) {
+            background: #a78bfa;
+            color: #0f172a;
+        }
+
+        .illus-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .illus-btn-primary {
+            background: rgba(167, 139, 250, 0.85);
+            color: #0f172a;
+            border-color: #a78bfa;
+            width: 100%;
+            padding: 11px;
+            font-size: 14px;
+        }
+
+        .illus-btn-primary:hover:not(:disabled) {
+            background: #c4b5fd;
+        }
+
+        .illus-status {
+            font-size: 12px;
+            min-height: 18px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .illus-status.idle { color: #64748b; }
+        .illus-status.working { color: #60a5fa; }
+        .illus-status.done { color: #4ade80; }
+        .illus-status.error { color: #ef4444; }
+
+        /* Right column: image display */
+        .illus-image-panel {
+            flex: 0 0 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .illus-image-box {
+            width: 100%;
+            aspect-ratio: 832 / 1216;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .illus-image-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 10px;
+        }
+
+        .illus-image-placeholder {
+            color: #334155;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .illus-spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(167, 139, 250, 0.2);
+            border-top-color: #a78bfa;
+            border-radius: 50%;
+            animation: illus-spin 0.9s linear infinite;
+            display: none;
+        }
+
+        @keyframes illus-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .illus-download-btn {
+            display: none;
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            width: 100%;
+            transition: all 0.2s;
+        }
+
+        .illus-download-btn:hover {
+            background: #4ade80;
+            color: #0f172a;
+        }
+
+        /* Illustrate button in overlay bar */
+        #toggle-illustrator {
+            background: rgba(167, 139, 250, 0.15);
+            border: 1px solid rgba(167, 139, 250, 0.25);
+            color: #c4b5fd;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            margin-left: 6px;
+        }
+
+        #toggle-illustrator:hover {
+            background: rgba(167, 139, 250, 0.3);
+            color: #fff;
+        }
+        /* --- End Illustrator Feature Styles --- */
     </style>
 </head>
 
@@ -701,9 +965,16 @@
             </svg>
             Console
         </button>
-        <!-- Pin / unpin the top bar so it stays visible without hovering -->
+        <!-- Illustrator Feature: button added to overlay bar -->
+        <button id="toggle-illustrator" title="Illustrate current scene with AI">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                </path>
+            </svg>
+            Illustrate
+        </button>
         <button id="pin-bar-btn" class="pin-bar-btn" title="Pin top bar (keeps it always visible)">
-            <!-- Pushpin icon — filled look when active via CSS color -->
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="17" x2="12" y2="22" />
@@ -718,9 +989,7 @@
         <div class="console-header">
             <h3>Developer Console</h3>
             <div style="display:flex;align-items:center;gap:4px;">
-                <!-- Layout toggle: overlay vs side-by-side -->
                 <button class="layout-toggle-btn" id="layout-toggle" title="Toggle: Overlay / Side-by-side">
-                    <!-- Icon: two vertical panels -->
                     <svg id="layout-icon-side" width="20" height="20" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24" style="display:none">
                         <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
@@ -766,7 +1035,7 @@
         </div>
     </aside>
 
-    <!-- Paginated Saves Modal Overal -->
+    <!-- Paginated Saves Modal -->
     <div id="saves-modal-overlay" class="modal-overlay">
         <div class="saves-modal">
             <div class="modal-loader" id="modal-loader">
@@ -796,9 +1065,7 @@
             </div>
 
             <div class="modal-body">
-                <div class="saves-grid" id="saves-grid">
-                    <!-- Saves injected here -->
-                </div>
+                <div class="saves-grid" id="saves-grid"></div>
             </div>
 
             <div class="modal-footer">
@@ -812,16 +1079,80 @@
         </div>
     </div>
 
-    <!-- Spin animation for loader -->
+    <!-- Illustrator Modal -->
+    <div id="illustrator-modal-overlay">
+        <div id="illustrator-modal">
+            <div class="modal-header">
+                <h2>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                        </path>
+                    </svg>
+                    Scene Illustrator
+                </h2>
+                <button class="close-console" id="close-illustrator-btn">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="illus-body">
+                <!-- Left: controls -->
+                <div class="illus-controls">
+                    <div>
+                        <div class="illus-label">Scene Text <span style="color:#475569;font-size:10px;text-transform:none;">(auto-captured or paste manually)</span></div>
+                        <textarea id="illus-scene-text" class="illus-textarea" placeholder="Scene text will appear here. You can also paste or type your own."></textarea>
+                    </div>
+
+                    <div class="illus-row">
+                        <button id="illus-generate-prompt-btn" class="illus-btn" style="flex:1">✦ Ask Ollama to write prompt</button>
+                    </div>
+
+                    <div>
+                        <div class="illus-label">Image Prompt <span style="color:#475569;font-size:10px;text-transform:none;">(edit freely before generating)</span></div>
+                        <textarea id="illus-prompt-text" class="illus-textarea" placeholder="The image generation prompt will appear here after Ollama processes the scene. You can edit it."></textarea>
+                    </div>
+
+                    <div>
+                        <div class="illus-label">Checkpoint Model</div>
+                        <input id="illus-checkpoint" class="illus-input" type="text" value="waiIllustriousSDXL_v160.safetensors" />
+                    </div>
+
+                    <button id="illus-generate-image-btn" class="illus-btn illus-btn-primary">Generate Image in ComfyUI</button>
+
+                    <div id="illus-status" class="illus-status idle">Ready. Capture the scene or paste text to begin.</div>
+                </div>
+
+                <!-- Right: image -->
+                <div class="illus-image-panel">
+                    <div class="illus-image-box" id="illus-image-box">
+                        <div class="illus-image-placeholder" id="illus-image-placeholder">
+                            <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="opacity:0.25">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                                </path>
+                            </svg>
+                            <span>Image will appear here</span>
+                        </div>
+                        <div class="illus-spinner" id="illus-spinner"></div>
+                        <img id="illus-result-img" src="" alt="Generated illustration" style="display:none;" />
+                    </div>
+                    <button class="illus-download-btn" id="illus-download-btn">&#8595; Save to illustrations folder</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- End Illustrator Modal -->
+
     <style>
         .spin {
             animation: spin 1s linear infinite;
         }
 
         @keyframes spin {
-            100% {
-                transform: rotate(360deg);
-            }
+            100% { transform: rotate(360deg); }
         }
     </style>
 
@@ -837,7 +1168,6 @@
 
         const CONSOLE_HISTORY_KEY = 'twine_player_console_history';
         let currentIfid = null;
-        // memory architecture: { "ifid": ["cmd1", "cmd2"] }
 
         if (gameUrl) {
             gameUrl = gameUrl.replace(/\\/g, '/');
@@ -865,7 +1195,6 @@
             consoleEl.classList.remove('open');
         });
 
-        /* --- Layout toggle: overlay vs side-by-side --- */
         const LAYOUT_KEY = 'twine_player_console_layout';
         let isSideMode = localStorage.getItem(LAYOUT_KEY) === 'side';
         const iconSide = document.getElementById('layout-icon-side');
@@ -875,13 +1204,11 @@
         const applyLayout = () => {
             if (isSideMode) {
                 document.body.classList.add('console-side');
-                // Move console inside the layout container so it sits next to the iframe
                 layoutContainer.appendChild(consoleEl);
                 iconSide.style.display = 'block';
                 iconOverlay.style.display = 'none';
             } else {
                 document.body.classList.remove('console-side');
-                // Move console back to body level so it can overlay freely
                 document.body.appendChild(consoleEl);
                 iconSide.style.display = 'none';
                 iconOverlay.style.display = 'block';
@@ -894,10 +1221,8 @@
             applyLayout();
         });
 
-        // Apply persisted layout on load
         applyLayout();
 
-        /* --- Pin top bar toggle --- */
         const BAR_PIN_KEY = 'twine_player_bar_pinned';
         let isBarPinned = localStorage.getItem(BAR_PIN_KEY) === 'true';
 
@@ -915,10 +1240,8 @@
             applyBarPin();
         });
 
-        // Apply persisted pin state on load
         applyBarPin();
 
-        // Hashing fallback for games without IFID
         const hashString = (str) => {
             let hash = 0;
             for (let i = 0; i < str.length; i++) {
@@ -967,7 +1290,7 @@
                 const textSpan = document.createElement('span');
                 textSpan.className = 'cmd-text';
                 textSpan.textContent = cmd;
-                textSpan.title = cmd; // hover to see full text
+                textSpan.title = cmd;
 
                 textSpan.addEventListener('click', () => {
                     inputEl.value = cmd;
@@ -1011,7 +1334,6 @@
                 const cw = iframe.contentWindow;
                 const result = cw.eval(cmd);
 
-                // Format objects nicely instead of [object Object]
                 if (typeof result === 'object' && result !== null) {
                     printLog(`<- ${JSON.stringify(result, null, 2)}`, 'result');
                 } else if (result !== undefined) {
@@ -1050,7 +1372,6 @@
             }
         });
 
-        // Initialize IFID on load
         iframe.onload = () => {
             try {
                 const cw = iframe.contentWindow;
@@ -1066,8 +1387,16 @@
                 renderSavedCommands();
             } catch (err) {
                 printLog(`Err reading game data (CORS?): ${err.message}`, 'error');
-                // Cross origin errors shouldn't happen via file:// but just in case
             }
+
+            // --- Illustrator Feature: init after iframe loads ---
+            try {
+                initIllustrator();
+            } catch (err) {
+                // Non-fatal: illustrator failure must never affect the game
+                console.warn('Illustrator init error (non-fatal):', err);
+            }
+            // --- End Illustrator Feature init ---
         };
 
         /* --- Autocomplete Logic --- */
@@ -1079,24 +1408,21 @@
             if (!inputText) return [];
             try {
                 const cw = iframe.contentWindow;
-
-                // Matches "baseObject.property" or just "property"
                 const match = inputText.match(/(([a-zA-Z_$][0-9a-zA-Z_$]*\.)*)([a-zA-Z_$][0-9a-zA-Z_$]*)$/);
 
-                let baseObj = cw; // Default to window
+                let baseObj = cw;
                 let prefix = inputText;
                 let pathStr = "";
 
                 if (match) {
-                    pathStr = match[1] || "";     // "Math."
-                    const baseStr = pathStr.slice(0, -1); // "Math"
-                    prefix = match[3] || "";      // "pi"
+                    pathStr = match[1] || "";
+                    const baseStr = pathStr.slice(0, -1);
+                    prefix = match[3] || "";
 
                     if (baseStr) {
                         baseObj = cw.eval(baseStr);
                     }
                 } else if (inputText.endsWith('.')) {
-                    // They just typed "Math."
                     pathStr = inputText;
                     const baseStr = pathStr.slice(0, -1);
                     prefix = "";
@@ -1106,29 +1432,24 @@
                 if (baseObj == null) return [];
 
                 let props = [];
-                // Walk prototype chain to get all properties
                 let currentObj = baseObj;
                 while (currentObj) {
                     props = props.concat(Object.getOwnPropertyNames(currentObj));
                     currentObj = Object.getPrototypeOf(currentObj);
                 }
 
-                // Remove duplicates and filter by prefix
                 const uniqueProps = [...new Set(props)];
                 const filtered = uniqueProps.filter(p => p.startsWith(prefix) && p !== prefix);
-
-                // Sort alphabetically
                 filtered.sort();
 
-                // Format the suggestions to include the base path for easy replacement later
                 return filtered.map(prop => ({
                     propName: prop,
                     fullPath: pathStr + prop,
                     prefix: prefix
-                })).slice(0, 50); // Limit to 50 suggestions
+                })).slice(0, 50);
 
             } catch (e) {
-                return []; // Ignore eval errors for autocomplete
+                return [];
             }
         };
 
@@ -1148,7 +1469,6 @@
                 const li = document.createElement('li');
                 li.className = 'suggestion-item';
 
-                // Highlight the matched prefix part
                 const matchSpan = document.createElement('span');
                 matchSpan.className = 'suggestion-match';
                 matchSpan.textContent = item.prefix;
@@ -1160,7 +1480,7 @@
                 li.appendChild(restSpan);
 
                 li.addEventListener('mousedown', (e) => {
-                    e.preventDefault(); // keep focus on input
+                    e.preventDefault();
                     insertSuggestion(item.fullPath);
                 });
 
@@ -1183,8 +1503,6 @@
 
         const insertSuggestion = (fullPath) => {
             const val = inputEl.value;
-            // Replace the last typed keyword with the fullPath
-            // e.g., "console.log(wi" -> "console.log(window"
             const match = val.match(/([a-zA-Z_$][0-9a-zA-Z_$.]*)$/);
             if (match) {
                 inputEl.value = val.substring(0, val.length - match[0].length) + fullPath;
@@ -1199,8 +1517,6 @@
             renderAutocomplete();
         });
 
-        // Replacing old keydown event to handle autocomplete keys
-        const oldKeydown = inputEl.onkeydown; // not used, just overriding
         inputEl.addEventListener('keydown', (e) => {
             if (autocompleteList.classList.contains('active')) {
                 if (e.key === 'ArrowDown') {
@@ -1236,13 +1552,12 @@
             }
 
             if (e.key === 'Enter') {
-                e.preventDefault(); // prevent double execution if we just selected a suggestion
+                e.preventDefault();
                 executeCommand(inputEl.value);
                 autocompleteList.classList.remove('active');
             }
         });
 
-        // Hide autocomplete when clicking outside
         document.addEventListener('click', (e) => {
             if (e.target !== inputEl && !autocompleteList.contains(e.target)) {
                 autocompleteList.classList.remove('active');
@@ -1258,7 +1573,7 @@
 
         let pendingSaveBlob = null;
         let pendingLoadInput = null;
-        let currentModalMode = 'save'; // 'save' or 'load'
+        let currentModalMode = 'save';
 
         let savesList = [];
         let currentPage = 1;
@@ -1292,11 +1607,9 @@
             const startIdx = (currentPage - 1) * SAVES_PER_PAGE;
             const pageSaves = savesList.slice(startIdx, startIdx + SAVES_PER_PAGE);
 
-            // Add Save Slot
             if (currentModalMode === 'save' && currentPage === 1) {
                 const addSlot = document.createElement('div');
                 addSlot.className = 'save-slot empty';
-                // Initially show the basic empty state
                 addSlot.innerHTML = `
                     <div class="empty-content" style="display:flex; flex-direction:column; align-items:center;">
                         <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
@@ -1305,7 +1618,6 @@
                 `;
 
                 const handleNewSaveClick = (e) => {
-                    // Prevent triggering again if we already changed it to input mode
                     if (addSlot.querySelector('#new-save-input')) return;
 
                     const defaultName = `save_${new Date().getTime()}.save`;
@@ -1319,12 +1631,12 @@
                         </div>
                     `;
 
-                    const inputEl = addSlot.querySelector('#new-save-input');
-                    inputEl.focus();
-                    inputEl.select(); // Highlight the text so user can just type immediately
+                    const newSaveInputEl = addSlot.querySelector('#new-save-input');
+                    newSaveInputEl.focus();
+                    newSaveInputEl.select();
 
                     const doSave = async () => {
-                        let name = inputEl.value.trim();
+                        let name = newSaveInputEl.value.trim();
                         if (!name) return;
                         if (!name.endsWith('.save')) name += '.save';
                         await executeSaveWrite(name);
@@ -1337,10 +1649,10 @@
 
                     addSlot.querySelector('#new-save-cancel').addEventListener('click', (btnEvent) => {
                         btnEvent.stopPropagation();
-                        renderSavesPage(); // Re-renders the whole grid, resetting the slot
+                        renderSavesPage();
                     });
 
-                    inputEl.addEventListener('keydown', async (keyEvent) => {
+                    newSaveInputEl.addEventListener('keydown', async (keyEvent) => {
                         if (keyEvent.key === 'Enter') {
                             keyEvent.preventDefault();
                             await doSave();
@@ -1437,7 +1749,6 @@
             showLoader('Saving to disk...');
 
             try {
-                // Convert blob to ArrayBuffer, then Uint8Array for IPC
                 const arrayBuffer = await pendingSaveBlob.arrayBuffer();
                 const bufferView = new Uint8Array(arrayBuffer);
 
@@ -1462,16 +1773,11 @@
             const result = await window.electronAPI.readSave(gameUrl, filename);
             if (result.success && result.data) {
                 try {
-                    // Reconstruct a File object for the iframe input
-                    const fileObj = new File([result.data], filename, { type: 'text/plain' }); // Assume twinery creates plain text saves usually
-
-                    // The only way to artificially populate a file input is via DataTransfer
+                    const fileObj = new File([result.data], filename, { type: 'text/plain' });
                     const dataTransfer = new DataTransfer();
                     dataTransfer.items.add(fileObj);
-
                     pendingLoadInput.files = dataTransfer.files;
 
-                    // Dispatch change event to trigger the game engine's load routine
                     const event = new Event('change', { bubbles: true });
                     pendingLoadInput.dispatchEvent(event);
 
@@ -1493,11 +1799,6 @@
                 const cw = iframe.contentWindow;
                 const doc = cw.document;
 
-                // 1. Intercept "Save to Disk"
-                // Twine engines build an <a> element with `download` attribute and click it programmatically.
-                // Sometimes they use `.click()`, sometimes they use `dispatchEvent(...)`. We must intercept both.
-
-                // 1c. Catch-all URL.createObjectURL hook
                 cw.blobRegistry = new Map();
                 const originalCreateObjectURL = cw.URL.createObjectURL;
                 cw.URL.createObjectURL = function (obj) {
@@ -1548,30 +1849,25 @@
                     return originalDispatch.call(this, event);
                 };
 
-                // 1b. SugarCube Specific Direct Hook
-                // SugarCube uses `Save.export()` to generate the download
                 if (cw.window && cw.window.Save && typeof cw.window.Save.export === 'function') {
                     const originalExport = cw.window.Save.export;
                     cw.window.Save.export = function (fileName, metadata) {
-                        // SugarCube 2 usually returns a string of the HTML save
                         const saveStr = originalExport.call(this, fileName, metadata);
                         if (saveStr) {
                             pendingSaveBlob = new Blob([saveStr], { type: 'text/html;charset=UTF-8' });
                             openSavesModal('save');
                         }
-                        // We return empty string or null to prevent SugarCube from doing its own download
                         return "";
                     };
                     printLog(`// Hooked directly into SugarCube Save API.`, 'normal');
                 }
 
-                // 2. Intercept "Load from Disk"
                 const originalInputClick = cw.HTMLInputElement.prototype.click;
                 cw.HTMLInputElement.prototype.click = function () {
                     if (this.type === 'file') {
                         pendingLoadInput = this;
                         openSavesModal('load');
-                        return; // Suppress native file picker
+                        return;
                     }
                     originalInputClick.call(this);
                 };
@@ -1581,6 +1877,253 @@
                 printLog(`Err injecting interceptors: ${err.message}`, 'error');
             }
         });
+
+        // =============================================================
+        // --- Illustrator Feature ---
+        // Self-contained. If window.illustratorAPI is missing or anything
+        // throws, it fails silently and never affects other features.
+        // =============================================================
+        const initIllustrator = () => {
+            if (!window.illustratorAPI) {
+                console.warn('Illustrator: illustratorAPI not available, feature disabled.');
+                document.getElementById('toggle-illustrator').style.display = 'none';
+                return;
+            }
+
+            const POLL_INTERVAL_MS = 2000;
+            const POLL_TIMEOUT_MS = 90000;
+
+            const overlay = document.getElementById('illustrator-modal-overlay');
+            const sceneTextEl = document.getElementById('illus-scene-text');
+            const promptTextEl = document.getElementById('illus-prompt-text');
+            const checkpointEl = document.getElementById('illus-checkpoint');
+            const statusEl = document.getElementById('illus-status');
+            const spinner = document.getElementById('illus-spinner');
+            const placeholder = document.getElementById('illus-image-placeholder');
+            const resultImg = document.getElementById('illus-result-img');
+            const downloadBtn = document.getElementById('illus-download-btn');
+            const generatePromptBtn = document.getElementById('illus-generate-prompt-btn');
+            const generateImageBtn = document.getElementById('illus-generate-image-btn');
+
+            let illustrationsDir = null;
+            let lastImageDataUrl = null;
+            let lastImageFilename = null;
+            let pollTimer = null;
+
+            const setStatus = (msg, type = 'idle') => {
+                statusEl.textContent = msg;
+                statusEl.className = `illus-status ${type}`;
+            };
+
+            const setWorking = (isWorking) => {
+                generatePromptBtn.disabled = isWorking;
+                generateImageBtn.disabled = isWorking;
+                spinner.style.display = isWorking ? 'block' : 'none';
+                if (!isWorking) spinner.style.display = 'none';
+            };
+
+            const showResultImage = (dataUrl, filename) => {
+                lastImageDataUrl = dataUrl;
+                lastImageFilename = filename;
+                placeholder.style.display = 'none';
+                spinner.style.display = 'none';
+                resultImg.src = dataUrl;
+                resultImg.style.display = 'block';
+                downloadBtn.style.display = 'block';
+            };
+
+            const resetImagePanel = () => {
+                placeholder.style.display = 'flex';
+                spinner.style.display = 'none';
+                resultImg.style.display = 'none';
+                resultImg.src = '';
+                downloadBtn.style.display = 'none';
+                lastImageDataUrl = null;
+                lastImageFilename = null;
+            };
+
+            // Capture scene text from the iframe
+            const captureSceneText = () => {
+                try {
+                    const cw = iframe.contentWindow;
+
+                    // Priority 1: selected text inside the iframe
+                    const sel = cw.getSelection();
+                    if (sel && sel.toString().trim().length > 20) {
+                        return sel.toString().trim();
+                    }
+
+                    // Priority 2: SugarCube passage content
+                    const scPassage = cw.document.getElementById('passage-content');
+                    if (scPassage) return scPassage.innerText.trim();
+
+                    // Priority 3: Generic Twine passage
+                    const twPassage = cw.document.querySelector('tw-passage');
+                    if (twPassage) return twPassage.innerText.trim();
+
+                    // Priority 4: body text as last resort
+                    return cw.document.body.innerText.trim().slice(0, 2000);
+                } catch (e) {
+                    return '';
+                }
+            };
+
+            // Open modal and auto-populate scene text
+            document.getElementById('toggle-illustrator').addEventListener('click', async () => {
+                overlay.classList.add('active');
+                setWorking(false);
+                resetImagePanel();
+                setStatus('Ready. Capture the scene or paste text to begin.');
+
+                const captured = captureSceneText();
+                if (captured) {
+                    sceneTextEl.value = captured;
+                }
+
+                // Ensure output folder exists (non-blocking, non-fatal)
+                if (gameUrl && !illustrationsDir) {
+                    try {
+                        const result = await window.illustratorAPI.ensureOutputDir(gameUrl);
+                        if (result.success) illustrationsDir = result.dir;
+                    } catch (e) {
+                        console.warn('Illustrator: could not create illustrations dir', e);
+                    }
+                }
+            });
+
+            document.getElementById('close-illustrator-btn').addEventListener('click', () => {
+                overlay.classList.remove('active');
+                if (pollTimer) {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                }
+                setWorking(false);
+            });
+
+            // Close on backdrop click
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+                    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                    setWorking(false);
+                }
+            });
+
+            // Step 1: Ask Ollama to convert scene text to image prompt
+            generatePromptBtn.addEventListener('click', async () => {
+                const sceneText = sceneTextEl.value.trim();
+                if (!sceneText) {
+                    setStatus('Please add some scene text first.', 'error');
+                    return;
+                }
+
+                setWorking(true);
+                setStatus('Asking Ollama to write an image prompt...', 'working');
+                spinner.style.display = 'block';
+
+                try {
+                    const result = await window.illustratorAPI.generatePrompt(sceneText);
+                    if (result.success) {
+                        promptTextEl.value = result.prompt;
+                        setStatus('Prompt ready. Edit it if you want, then hit Generate.', 'done');
+                    } else {
+                        setStatus(`Ollama error: ${result.error}`, 'error');
+                    }
+                } catch (e) {
+                    setStatus(`Unexpected error: ${e.message}`, 'error');
+                } finally {
+                    setWorking(false);
+                }
+            });
+
+            // Step 2: Send prompt to ComfyUI and poll for the result
+            generateImageBtn.addEventListener('click', async () => {
+                const imagePrompt = promptTextEl.value.trim();
+                if (!imagePrompt) {
+                    setStatus('Please generate or write an image prompt first.', 'error');
+                    return;
+                }
+
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+
+                setWorking(true);
+                resetImagePanel();
+                spinner.style.display = 'block';
+                placeholder.style.display = 'none';
+                setStatus('Sending to ComfyUI...', 'working');
+
+                const outputFilename = `twine_illus_${Date.now()}`;
+                const checkpoint = checkpointEl.value.trim() || 'waiIllustriousSDXL_v160.safetensors';
+
+                let queueResult;
+                try {
+                    queueResult = await window.illustratorAPI.queueComfyUI({
+                        imagePrompt,
+                        outputFilename,
+                        checkpoint
+                    });
+                } catch (e) {
+                    setStatus(`Unexpected error: ${e.message}`, 'error');
+                    setWorking(false);
+                    return;
+                }
+
+                if (!queueResult.success) {
+                    setStatus(`ComfyUI error: ${queueResult.error}`, 'error');
+                    setWorking(false);
+                    return;
+                }
+
+                const promptId = queueResult.promptId;
+                setStatus('Queued! Waiting for ComfyUI to generate...', 'working');
+
+                const startTime = Date.now();
+
+                pollTimer = setInterval(async () => {
+                    if (Date.now() - startTime > POLL_TIMEOUT_MS) {
+                        clearInterval(pollTimer);
+                        pollTimer = null;
+                        setStatus('ComfyUI took too long to respond. Check your setup.', 'error');
+                        setWorking(false);
+                        return;
+                    }
+
+                    try {
+                        const pollResult = await window.illustratorAPI.pollImage({
+                            promptId,
+                            outputDir: illustrationsDir || ''
+                        });
+
+                        if (pollResult.success) {
+                            clearInterval(pollTimer);
+                            pollTimer = null;
+                            showResultImage(pollResult.dataUrl, pollResult.filename);
+                            setStatus(`Done! Saved to illustrations folder as ${pollResult.filename}`, 'done');
+                            setWorking(false);
+                        } else if (!pollResult.pending) {
+                            clearInterval(pollTimer);
+                            pollTimer = null;
+                            setStatus(`ComfyUI error: ${pollResult.error}`, 'error');
+                            setWorking(false);
+                        }
+                        // pending: true = still generating, keep polling
+                    } catch (e) {
+                        // Transient poll error — keep trying until timeout
+                        console.warn('Illustrator poll error (will retry):', e);
+                    }
+                }, POLL_INTERVAL_MS);
+            });
+
+            // Download button: re-triggers save via IPC (image already saved, this just confirms)
+            downloadBtn.addEventListener('click', () => {
+                if (lastImageFilename && illustrationsDir) {
+                    setStatus(`Image saved to: ${illustrationsDir}`, 'done');
+                } else {
+                    setStatus('Image was displayed but output folder is not set.', 'idle');
+                }
+            });
+        };
+        // --- End Illustrator Feature ---
     </script>
 </body>
 
