@@ -13,9 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 // without touching electronAPI or breaking any existing functionality.
 contextBridge.exposeInMainWorld('illustratorAPI', {
     ensureOutputDir: (gamePath) => ipcRenderer.invoke('illustrator:ensure-output-dir', gamePath),
-    generatePrompt: (params) => ipcRenderer.invoke('illustrator:generate-prompt', params),
+    generatePrompt: (sceneText) => ipcRenderer.invoke('illustrator:generate-prompt', sceneText),
     queueComfyUI: (params) => ipcRenderer.invoke('illustrator:queue-comfyui', params),
     pollImage: (params) => ipcRenderer.invoke('illustrator:poll-image', params),
-    openFolder: (dirPath) => ipcRenderer.invoke('illustrator:open-folder', dirPath),
 });
 // --- End Illustrator Feature ---
