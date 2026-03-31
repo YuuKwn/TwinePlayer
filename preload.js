@@ -13,7 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 // without touching electronAPI or breaking any existing functionality.
 contextBridge.exposeInMainWorld('illustratorAPI', {
     ensureOutputDir: (gamePath) => ipcRenderer.invoke('illustrator:ensure-output-dir', gamePath),
-    generatePrompt: (sceneText) => ipcRenderer.invoke('illustrator:generate-prompt', sceneText),
+    listOllamaModels: () => ipcRenderer.invoke('illustrator:list-ollama-models'),
+    listComfyUIModels: () => ipcRenderer.invoke('illustrator:list-comfyui-models'),
+    generatePrompt: (sceneText, model) => ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model),
     queueComfyUI: (params) => ipcRenderer.invoke('illustrator:queue-comfyui', params),
     pollImage: (params) => ipcRenderer.invoke('illustrator:poll-image', params),
 });

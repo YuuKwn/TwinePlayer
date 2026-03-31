@@ -34,7 +34,7 @@ const ensureSavesDir = (dirPath) => {
 const OLLAMA_URL = 'http://localhost:11434';
 const COMFYUI_URL = 'http://127.0.0.1:8188';
 const ILLUSTRATOR_DEFAULT_CHECKPOINT = 'waiIllustriousSDXL_v160.safetensors';
-const ILLUSTRATOR_OLLAMA_MODEL = 'llama3.2';
+const ILLUSTRATOR_DEFAULT_OLLAMA_MODEL = 'llama3.2';
 
 const getIllustrationsDir = (gamePath) => {
   const parsed = path.parse(gamePath);
@@ -193,13 +193,46 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('illustrator:generate-prompt', async (event, sceneText) => {
+  ipcMain.handle('illustrator:list-ollama-models', async () => {
+    try {
+      const response = await fetch(`${OLLAMA_URL}/api/tags`);
+      if (!response.ok) {
+        return { success: false, error: `Ollama returned HTTP ${response.status}` };
+      }
+      const data = await response.json();
+      const models = (data.models || []).map(m => m.name);
+      return { success: true, models };
+    } catch (err) {
+      console.error('Illustrator: could not list Ollama models', err);
+      return { success: false, error: `Cannot reach Ollama at ${OLLAMA_URL}` };
+    }
+  });
+
+  ipcMain.handle('illustrator:list-comfyui-models', async () => {
+    try {
+      const response = await fetch(`${COMFYUI_URL}/object_info/CheckpointLoaderSimple`);
+      if (!response.ok) {
+        return { success: false, error: `ComfyUI returned HTTP ${response.status}` };
+      }
+      const data = await response.json();
+      // The checkpoint list lives at data.CheckpointLoaderSimple.input.required.ckpt_name[0]
+      const models = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] || [];
+      return { success: true, models };
+    } catch (err) {
+      console.error('Illustrator: could not list ComfyUI models', err);
+      return { success: false, error: `Cannot reach ComfyUI at ${COMFYUI_URL}` };
+    }
+  });
+
+  // model param replaces the hardcoded ILLUSTRATOR_DEFAULT_OLLAMA_MODEL constant
+  ipcMain.handle('illustrator:generate-prompt', async (event, sceneText, model) => {
+    const resolvedModel = model || ILLUSTRATOR_DEFAULT_OLLAMA_MODEL;
     try {
       const response = await fetch(`${OLLAMA_URL}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: ILLUSTRATOR_OLLAMA_MODEL,
+          model: resolvedModel,
           stream: false,
           system: 'You are an image prompt generator for Stable Diffusion. Convert game scene descriptions into vivid, concise image generation prompts. Focus only on visual details: setting, lighting, characters, mood, art style. Output only the prompt text itself — no explanations, no labels, no extra text.',
           prompt: sceneText
@@ -289,9 +322,6 @@ app.whenReady().then(() => {
         return { success: false, pending: false, error: 'ComfyUI job completed but no output image found.' };
       }
 
-      // ComfyUI saves to its own output folder; read it back from the outputDir we specified
-      // The filename_prefix we set means the file should land in ComfyUI's output dir.
-      // We fetch it via the ComfyUI /view endpoint to avoid needing the absolute path.
       const imgResponse = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(imageFilename)}&type=output`);
       if (!imgResponse.ok) {
         return { success: false, pending: false, error: `Could not retrieve image from ComfyUI: HTTP ${imgResponse.status}` };
@@ -301,7 +331,6 @@ app.whenReady().then(() => {
       const base64 = Buffer.from(arrayBuffer).toString('base64');
       const dataUrl = `data:image/png;base64,${base64}`;
 
-      // Also save a copy to the game's illustrations folder
       try {
         const localPath = path.join(outputDir, imageFilename);
         fs.writeFileSync(localPath, Buffer.from(arrayBuffer));
