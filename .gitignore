@@ -4,3 +4,4 @@ node_modules/
 # Compiled output and build artifacts
 dist/
 build/
+.roo/rules/rules.md
