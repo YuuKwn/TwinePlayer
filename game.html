@@ -1659,7 +1659,6 @@
         const modalLoaderText = document.getElementById('modal-loader-text');
 
         let pendingSaveBlob = null;
-        let pendingLoadInput = null;
         let currentModalMode = 'save';
 
         let savesList = [];
@@ -1818,7 +1817,6 @@
         const closeSavesModal = () => {
             savesModal.classList.remove('active');
             pendingSaveBlob = null;
-            pendingLoadInput = null;
         };
 
         document.getElementById('close-modal-btn').addEventListener('click', closeSavesModal);
@@ -1858,12 +1856,15 @@
             try {
                 const result = await window.electronAPI.readSave(gameUrl, filename);
                 if (result.success) {
-                    const blob = new Blob([new Uint8Array(result.data.data || result.data)]);
-                    const url = URL.createObjectURL(blob);
-                    if (pendingLoadInput) {
-                        pendingLoadInput.value = url;
-                        pendingLoadInput.dispatchEvent(new Event('change'));
-                    }
+                    // Deliver the raw bytes to the game iframe via postMessage.
+                    // The game listens for { type: 'twine-load-data', buffer: ArrayBuffer }.
+                    // We transfer the buffer for zero-copy delivery.
+                    const buffer = new Uint8Array(result.data.data || result.data).buffer;
+                    iframe.contentWindow.postMessage(
+                        { type: 'twine-load-data', buffer },
+                        '*',
+                        [buffer]
+                    );
                     printLog(`// Loaded save: ${filename}`, 'result');
                 } else {
                     printLog(`Err loading: ${result.error}`, 'error');
@@ -1883,14 +1884,30 @@
 
             // Save/load messages
             if (msg.type === 'twine-save') {
-                pendingSaveBlob = msg.blob || null;
-                if (!pendingSaveBlob && msg.dataUrl) {
-                    const res = await fetch(msg.dataUrl);
-                    pendingSaveBlob = await res.blob();
+                // Blobs and DOM elements cannot survive postMessage serialization.
+                // Accept the save data as a dataUrl (primary) or a base64 string fallback.
+                pendingSaveBlob = null;
+                if (msg.dataUrl) {
+                    try {
+                        const res = await fetch(msg.dataUrl);
+                        pendingSaveBlob = await res.blob();
+                    } catch (e) {
+                        printLog(`Err reading save data URL: ${e.message}`, 'error');
+                    }
+                } else if (msg.base64) {
+                    try {
+                        const byteStr = atob(msg.base64);
+                        const bytes = new Uint8Array(byteStr.length);
+                        for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+                        pendingSaveBlob = new Blob([bytes]);
+                    } catch (e) {
+                        printLog(`Err decoding base64 save: ${e.message}`, 'error');
+                    }
                 }
                 await openSavesModal('save');
             } else if (msg.type === 'twine-load') {
-                pendingLoadInput = msg.inputElement || null;
+                // Open the load slot picker. The game does not need to pass anything here —
+                // executeLoadRead will post the data back to the iframe once a slot is chosen.
                 await openSavesModal('load');
             }
 
