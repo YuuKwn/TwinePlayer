@@ -2008,12 +2008,23 @@
         document.getElementById('toggle-illustrator').addEventListener('click', async () => {
             illusOverlay.classList.add('active');
 
-            // Capture current scene text from the iframe
+            // Capture current scene text from the iframe, targeting only the story passage.
+            // Selector chain (most specific to least):
+            //   1. #passage        — SugarCube 1.x: the passage body div
+            //   2. #passages .passage — SugarCube 2.x: active passage inside the passages container
+            //   3. #passages       — SugarCube 2.x container fallback
+            //   4. document.body   — generic fallback for non-SugarCube engines
             try {
                 const cw = iframe.contentWindow;
-                const bodyText = cw.document.body ? cw.document.body.innerText : '';
-                if (bodyText.trim()) {
-                    document.getElementById('illus-scene-text').value = bodyText.trim().slice(0, 2000);
+                const doc = cw.document;
+                const passageEl =
+                    doc.querySelector('#passage') ||
+                    doc.querySelector('#passages .passage') ||
+                    doc.querySelector('#passages') ||
+                    doc.body;
+                const sceneText = passageEl ? passageEl.innerText : '';
+                if (sceneText.trim()) {
+                    document.getElementById('illus-scene-text').value = sceneText.trim().slice(0, 2000);
                 }
             } catch (e) { /* cross-origin — leave textarea as-is */ }
 
