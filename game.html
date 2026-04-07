@@ -1715,15 +1715,19 @@
         ================================================================ */
 
         const detectEngine = () => {
-            try {
-                const cw = iframe.contentWindow;
-                // SugarCube 2: exposes window.Save with serialize/deserialize
-                if (cw.Save && typeof cw.Save.serialize === 'function') return 'sc2';
-                // SugarCube 1: uses lowercase window.save namespace
-                if (cw.save && typeof cw.save.serialize === 'function') return 'sc1';
-            } catch (e) { /* cross-origin or not loaded yet */ }
-            return 'unknown';
-        };
+    try {
+        const cw = iframe.contentWindow;
+        // SugarCube 2 (legacy <=2.36): exposes window.Save.serialize
+        // SugarCube 2 (modern >=2.37): exposes window.Save.base64.export
+        if (cw.Save && (
+            typeof cw.Save.serialize === 'function' ||
+            (cw.Save.base64 && typeof cw.Save.base64.export === 'function')
+        )) return 'sc2';
+        // SugarCube 1: uses lowercase window.save namespace
+        if (cw.save && typeof cw.save.serialize === 'function') return 'sc1';
+    } catch (e) { /* cross-origin or not loaded yet */ }
+    return 'unknown';
+};
 
         const captureSaveData = () => {
             const cw = iframe.contentWindow;
@@ -1731,7 +1735,12 @@
 
             let serialized;
             if (engine === 'sc2') {
-                serialized = cw.Save.serialize();
+                // Prefer legacy serialize(); fall back to modern base64.export()
+                if (typeof cw.Save.serialize === 'function') {
+                    serialized = cw.Save.serialize();
+                } else {
+                    serialized = cw.Save.base64.export();
+                }
             } else if (engine === 'sc1') {
                 serialized = cw.save.serialize();
             } else {
@@ -1742,7 +1751,6 @@
                 throw new Error('Save serialization returned empty data. The game may not have a state to save yet.');
             }
 
-            // Store as a UTF-8 text Blob so electronAPI.writeSave can handle it.
             return new Blob([serialized], { type: 'text/plain;charset=utf-8' });
         };
 
@@ -1751,10 +1759,18 @@
             const engine = detectEngine();
 
             if (engine === 'sc2') {
-                const result = cw.Save.deserialize(text);
-                // SC2 deserialize returns true on success, null/false on failure
-                if (result === false || result === null) {
-                    throw new Error('SugarCube 2 rejected the save data. The file may be corrupted or from a different game.');
+                if (typeof cw.Save.deserialize === 'function') {
+                    // Legacy SC2 <=2.36
+                    const result = cw.Save.deserialize(text);
+                    if (result === false || result === null) {
+                        throw new Error('SugarCube 2 rejected the save data. The file may be corrupted or from a different game.');
+                    }
+                } else {
+                    // Modern SC2 >=2.37
+                    const result = cw.Save.base64.import(text);
+                    if (result === false || result === null) {
+                        throw new Error('SugarCube 2 rejected the save data. The file may be corrupted or from a different game.');
+                    }
                 }
             } else if (engine === 'sc1') {
                 cw.save.deserialize(text);
