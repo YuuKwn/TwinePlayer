@@ -167,6 +167,32 @@
             opacity: 0;
         }
 
+        /* Save/Load bar buttons */
+        .saveload-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            margin-left: 6px;
+        }
+
+        .saveload-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .saveload-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
         /* Console Styles */
         #dev-console {
             position: absolute;
@@ -1018,6 +1044,23 @@
             Library
         </button>
         <div id="game-title" class="game-title">Loading...</div>
+        <!-- Save / Load buttons -->
+        <button id="save-btn" class="saveload-btn" title="Save game state">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                </path>
+            </svg>
+            Save
+        </button>
+        <button id="load-btn" class="saveload-btn" title="Load a saved game">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12">
+                </path>
+            </svg>
+            Load
+        </button>
         <button id="toggle-console" class="toggle-console-btn">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1651,6 +1694,75 @@
             }
         });
 
+        /* ================================================================
+           SAVE / LOAD — SugarCube engine bridge
+           ================================================================
+
+           detectEngine(): inspects the iframe's contentWindow to identify
+           which SugarCube version is running.
+             Returns 'sc2' | 'sc1' | 'unknown'
+
+           captureSaveData(): reads the current game state directly from
+           the iframe via the SugarCube JS API and returns a Blob.
+             - SC2: window.Save.serialize() → base64 string → UTF-8 Blob
+             - SC1: window.save.serialize() (same pattern, different namespace)
+             Throws on failure so the caller can show an error.
+
+           restoreSaveData(text): writes save data back into the game.
+             - SC2: window.Save.deserialize(text)
+             - SC1: window.save.deserialize(text)
+             Throws on failure so the caller can show an error.
+        ================================================================ */
+
+        const detectEngine = () => {
+            try {
+                const cw = iframe.contentWindow;
+                // SugarCube 2: exposes window.Save with serialize/deserialize
+                if (cw.Save && typeof cw.Save.serialize === 'function') return 'sc2';
+                // SugarCube 1: uses lowercase window.save namespace
+                if (cw.save && typeof cw.save.serialize === 'function') return 'sc1';
+            } catch (e) { /* cross-origin or not loaded yet */ }
+            return 'unknown';
+        };
+
+        const captureSaveData = () => {
+            const cw = iframe.contentWindow;
+            const engine = detectEngine();
+
+            let serialized;
+            if (engine === 'sc2') {
+                serialized = cw.Save.serialize();
+            } else if (engine === 'sc1') {
+                serialized = cw.save.serialize();
+            } else {
+                throw new Error('Unsupported engine. Only SugarCube 1/2 games are supported for Save/Load.');
+            }
+
+            if (!serialized) {
+                throw new Error('Save serialization returned empty data. The game may not have a state to save yet.');
+            }
+
+            // Store as a UTF-8 text Blob so electronAPI.writeSave can handle it.
+            return new Blob([serialized], { type: 'text/plain;charset=utf-8' });
+        };
+
+        const restoreSaveData = (text) => {
+            const cw = iframe.contentWindow;
+            const engine = detectEngine();
+
+            if (engine === 'sc2') {
+                const result = cw.Save.deserialize(text);
+                // SC2 deserialize returns true on success, null/false on failure
+                if (result === false || result === null) {
+                    throw new Error('SugarCube 2 rejected the save data. The file may be corrupted or from a different game.');
+                }
+            } else if (engine === 'sc1') {
+                cw.save.deserialize(text);
+            } else {
+                throw new Error('Unsupported engine. Only SugarCube 1/2 games are supported for Save/Load.');
+            }
+        };
+
         /* --- Saves UI Integration --- */
         const savesModal = document.getElementById('saves-modal-overlay');
         const savesGrid = document.getElementById('saves-grid');
@@ -1829,6 +1941,30 @@
             currentPage++; renderSavesPage();
         });
 
+        /* --- Save button: capture state then open modal --- */
+        document.getElementById('save-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            try {
+                pendingSaveBlob = captureSaveData();
+                await openSavesModal('save');
+            } catch (err) {
+                printLog(`Err capturing save: ${err.message}`, 'error');
+                // Show error briefly in the button label, then restore
+                btn.textContent = 'Error';
+                setTimeout(() => {
+                    btn.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg> Save`;
+                }, 2000);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        /* --- Load button: just open the slot picker --- */
+        document.getElementById('load-btn').addEventListener('click', async () => {
+            await openSavesModal('load');
+        });
+
         const executeSaveWrite = async (filename) => {
             if (!pendingSaveBlob) return closeSavesModal();
             showLoader('Saving to disk...');
@@ -1856,15 +1992,10 @@
             try {
                 const result = await window.electronAPI.readSave(gameUrl, filename);
                 if (result.success) {
-                    // Deliver the raw bytes to the game iframe via postMessage.
-                    // The game listens for { type: 'twine-load-data', buffer: ArrayBuffer }.
-                    // We transfer the buffer for zero-copy delivery.
-                    const buffer = new Uint8Array(result.data.data || result.data).buffer;
-                    iframe.contentWindow.postMessage(
-                        { type: 'twine-load-data', buffer },
-                        '*',
-                        [buffer]
-                    );
+                    // Reconstruct the UTF-8 text string that was originally serialized
+                    const bytes = new Uint8Array(result.data.data || result.data);
+                    const text = new TextDecoder('utf-8').decode(bytes);
+                    restoreSaveData(text);
                     printLog(`// Loaded save: ${filename}`, 'result');
                 } else {
                     printLog(`Err loading: ${result.error}`, 'error');
@@ -1882,10 +2013,8 @@
             const msg = event.data;
             if (!msg || !msg.type) return;
 
-            // Save/load messages
+            // Save/load messages — kept as bonus path for patched games
             if (msg.type === 'twine-save') {
-                // Blobs and DOM elements cannot survive postMessage serialization.
-                // Accept the save data as a dataUrl (primary) or a base64 string fallback.
                 pendingSaveBlob = null;
                 if (msg.dataUrl) {
                     try {
@@ -1906,8 +2035,6 @@
                 }
                 await openSavesModal('save');
             } else if (msg.type === 'twine-load') {
-                // Open the load slot picker. The game does not need to pass anything here —
-                // executeLoadRead will post the data back to the iframe once a slot is chosen.
                 await openSavesModal('load');
             }
 
@@ -2026,11 +2153,6 @@
             illusOverlay.classList.add('active');
 
             // Capture current scene text from the iframe, targeting only the story passage.
-            // Selector chain (most specific to least):
-            //   1. #passage        — SugarCube 1.x: the passage body div
-            //   2. #passages .passage — SugarCube 2.x: active passage inside the passages container
-            //   3. #passages       — SugarCube 2.x container fallback
-            //   4. document.body   — generic fallback for non-SugarCube engines
             try {
                 const cw = iframe.contentWindow;
                 const doc = cw.document;
