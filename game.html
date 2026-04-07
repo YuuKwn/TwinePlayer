@@ -1787,6 +1787,7 @@
         const modalLoaderText = document.getElementById('modal-loader-text');
 
         let pendingSaveBlob = null;
+        let pendingLoadInput = null;
         let currentModalMode = 'save';
 
         let savesList = [];
@@ -1945,6 +1946,7 @@
         const closeSavesModal = () => {
             savesModal.classList.remove('active');
             pendingSaveBlob = null;
+            pendingLoadInput = null;
         };
 
         document.getElementById('close-modal-btn').addEventListener('click', closeSavesModal);
@@ -1978,6 +1980,7 @@
 
         /* --- Load button: just open the slot picker --- */
         document.getElementById('load-btn').addEventListener('click', async () => {
+            pendingLoadInput = null; // Clear to use top bar load specifically
             await openSavesModal('load');
         });
 
@@ -2007,12 +2010,22 @@
             showLoader('Loading save...');
             try {
                 const result = await window.electronAPI.readSave(gameUrl, filename);
-                if (result.success) {
-                    // Reconstruct the UTF-8 text string that was originally serialized
-                    const bytes = new Uint8Array(result.data.data || result.data);
-                    const text = new TextDecoder('utf-8').decode(bytes);
-                    restoreSaveData(text);
-                    printLog(`// Loaded save: ${filename}`, 'result');
+                if (result.success && result.data) {
+                    if (pendingLoadInput) {
+                        // Native in-game interceptor route
+                        const fileObj = new File([result.data], filename, { type: 'text/plain' });
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(fileObj);
+                        pendingLoadInput.files = dataTransfer.files;
+                        pendingLoadInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        printLog(`// Loaded ${filename} into game engine.`, 'result');
+                    } else {
+                        // Top bar fallback path route
+                        const bytes = new Uint8Array(result.data.data || result.data);
+                        const text = new TextDecoder('utf-8').decode(bytes);
+                        restoreSaveData(text);
+                        printLog(`// Loaded save: ${filename}`, 'result');
+                    }
                 } else {
                     printLog(`Err loading: ${result.error}`, 'error');
                 }
@@ -2060,6 +2073,94 @@
                 if (sceneEl && msg.text) {
                     sceneEl.value = msg.text;
                 }
+            }
+        });
+
+        // --- Twine Logic Interceptor ---
+        iframe.addEventListener('load', () => {
+            try {
+                const cw = iframe.contentWindow;
+                const doc = cw.document;
+
+                // 1c. Catch-all URL.createObjectURL hook
+                cw.blobRegistry = new Map();
+                const originalCreateObjectURL = cw.URL.createObjectURL;
+                cw.URL.createObjectURL = function (obj) {
+                    const url = originalCreateObjectURL.call(this, obj);
+                    if (obj instanceof cw.Blob || obj instanceof Blob) {
+                        cw.blobRegistry.set(url, obj);
+                    }
+                    return url;
+                };
+
+                const processAnchorTrigger = (anchor) => {
+                    if (anchor.hasAttribute('download') && anchor.href) {
+                        try {
+                            if (cw.blobRegistry && cw.blobRegistry.has(anchor.href)) {
+                                pendingSaveBlob = cw.blobRegistry.get(anchor.href);
+                                openSavesModal('save');
+                                return true;
+                            }
+                            fetch(anchor.href).then(r => r.blob()).then(blob => {
+                                pendingSaveBlob = blob;
+                                openSavesModal('save');
+                            }).catch(err => {
+                                console.error("Failed to fetch internal save blob", err);
+                            });
+                            return true;
+                        } catch (e) {
+                            return false;
+                        }
+                    }
+                    return false;
+                };
+
+                const originalAnchorClick = cw.HTMLAnchorElement.prototype.click;
+                cw.HTMLAnchorElement.prototype.click = function () {
+                    if (processAnchorTrigger(this)) return;
+                    originalAnchorClick.call(this);
+                };
+
+                const originalDispatch = cw.EventTarget.prototype.dispatchEvent;
+                cw.EventTarget.prototype.dispatchEvent = function (event) {
+                    if (this instanceof cw.HTMLAnchorElement && (event.type === 'click' || event.type === 'mousedown')) {
+                        if (processAnchorTrigger(this)) {
+                            event.stopPropagation();
+                            event.preventDefault();
+                            return false;
+                        }
+                    }
+                    return originalDispatch.call(this, event);
+                };
+
+                // 1b. SugarCube Specific Direct Hook
+                if (cw.window && cw.window.Save && typeof cw.window.Save.export === 'function') {
+                    const originalExport = cw.window.Save.export;
+                    cw.window.Save.export = function (fileName, metadata) {
+                        const saveStr = originalExport.call(this, fileName, metadata);
+                        if (saveStr) {
+                            pendingSaveBlob = new Blob([saveStr], { type: 'text/html;charset=UTF-8' });
+                            openSavesModal('save');
+                        }
+                        return "";
+                    };
+                    printLog(`// Hooked directly into SugarCube Save API.`, 'normal');
+                }
+
+                // 2. Intercept "Load from Disk"
+                const originalInputClick = cw.HTMLInputElement.prototype.click;
+                cw.HTMLInputElement.prototype.click = function () {
+                    if (this.type === 'file') {
+                        pendingLoadInput = this;
+                        openSavesModal('load');
+                        return; // Suppress native file picker
+                    }
+                    originalInputClick.call(this);
+                };
+
+                printLog(`// Intercepted Save/Load events on iframe.`, 'normal');
+            } catch (err) {
+                printLog(`Err injecting interceptors: ${err.message}`, 'error');
             }
         });
 
