@@ -1036,12 +1036,18 @@
 <body>
     <div class="hover-zone"></div>
     <div class="overlay-bar">
-        <button id="back-btn" class="back-btn">
+        <button id="back-btn" class="back-btn" title="Back to Library">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18">
                 </path>
             </svg>
             Library
+        </button>
+        <button id="undo-btn" class="back-btn" title="Undo / Go back one turn" style="margin-left: 8px;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l5 5m-5-5l5-5"></path>
+            </svg>
+            Back
         </button>
         <div id="game-title" class="game-title">Loading...</div>
         <!-- Save / Load buttons -->
@@ -1292,6 +1298,7 @@
     </div>
 
     <script>
+        const iframe = document.getElementById('game-frame');
         const params = new URLSearchParams(window.location.search);
         let gameUrl = params.get('url');
         const title = params.get('title') || 'Twine Game';
@@ -1299,10 +1306,133 @@
         const CONSOLE_HISTORY_KEY = 'twine_player_console_history';
         let currentIfid = null;
 
+        /**
+         * Prevents keyboard events from bubbling up to the game engine.
+         * Twine engines often capture keys at the global level, which can 
+         * block typing in our custom UI fields.
+         */
+        const isolateInput = (el) => {
+            if (!el) return;
+            ['keydown', 'keyup', 'keypress'].forEach(evt => {
+                el.addEventListener(evt, (e) => e.stopPropagation());
+            });
+        };
+
+        // --- Twine Logic Interceptor ---
+        // We attach this BEFORE setting iframe.src to ensure we never miss the 'load' event
+        iframe.addEventListener('load', () => {
+            try {
+                const cw = iframe.contentWindow;
+                const doc = cw.document;
+
+                // 1c. Catch-all URL.createObjectURL hook
+                cw.blobRegistry = new Map();
+                const win = cw.window || cw;
+
+                // --- Store Persistent Engine API Context ---
+                // We do this during setup so that the buttons can always find the engine later
+                const sc2 = win.Save || (win.SugarCube && win.SugarCube.Save);
+                const sc1 = win.save;
+
+                if (sc2) {
+                    cw.__twineEngineType = 'sc2';
+                    cw.__twineSaveApi = sc2;
+                } else if (sc1) {
+                    cw.__twineEngineType = 'sc1';
+                    cw.__twineSaveApi = sc1;
+                }
+
+                const originalCreateObjectURL = cw.URL.createObjectURL;
+                cw.URL.createObjectURL = function (obj) {
+                    const url = originalCreateObjectURL.call(this, obj);
+                    if (obj instanceof cw.Blob || obj instanceof Blob) {
+                        cw.blobRegistry.set(url, obj);
+                    }
+                    return url;
+                };
+
+                const processAnchorTrigger = (anchor) => {
+                    if (anchor.hasAttribute('download') && anchor.href) {
+                        try {
+                            if (cw.blobRegistry && cw.blobRegistry.has(anchor.href)) {
+                                pendingSaveBlob = cw.blobRegistry.get(anchor.href);
+                                openSavesModal('save');
+                                return true;
+                            }
+                            fetch(anchor.href).then(r => r.blob()).then(blob => {
+                                pendingSaveBlob = blob;
+                                openSavesModal('save');
+                            }).catch(err => {
+                                console.error("Failed to fetch internal save blob", err);
+                            });
+                            return true;
+                        } catch (e) {
+                            return false;
+                        }
+                    }
+                    return false;
+                };
+
+                const originalAnchorClick = cw.HTMLAnchorElement.prototype.click;
+                cw.HTMLAnchorElement.prototype.click = function () {
+                    if (processAnchorTrigger(this)) return;
+                    originalAnchorClick.call(this);
+                };
+
+                const originalDispatch = cw.EventTarget.prototype.dispatchEvent;
+                cw.EventTarget.prototype.dispatchEvent = function (event) {
+                    if (this instanceof cw.HTMLAnchorElement && (event.type === 'click' || event.type === 'mousedown')) {
+                        if (processAnchorTrigger(this)) {
+                            event.stopPropagation();
+                            event.preventDefault();
+                            return false;
+                        }
+                    }
+                    return originalDispatch.call(this, event);
+                };
+
+                // 1b. SugarCube Specific Direct Hook
+                if (cw.window && cw.window.Save && typeof cw.window.Save.export === 'function') {
+                    const originalExport = cw.window.Save.export;
+                    cw.window.Save.export = function (fileName, metadata) {
+                        const saveStr = originalExport.call(this, fileName, metadata);
+                        if (saveStr) {
+                            pendingSaveBlob = new Blob([saveStr], { type: 'text/html;charset=UTF-8' });
+                            openSavesModal('save');
+                        }
+                        return "";
+                    };
+                    printLog(`// Hooked directly into SugarCube Save API.`, 'normal');
+                }
+
+                // 2. Intercept "Load from Disk"
+                const originalInputClick = cw.HTMLInputElement.prototype.click;
+                cw.HTMLInputElement.prototype.click = function () {
+                    if (this.type === 'file') {
+                        // Capture the input object even if it is not in the DOM
+                        // (SugarCube creates and removes it on the same tick)
+                        pendingLoadInput = this;
+                        printLog(`// Intercepted file picker click. Ready for load injection.`, 'normal');
+                        
+                        // We open the modal if we are NOT already in it
+                        if (savesModal.style.display !== 'flex') {
+                            openSavesModal('load');
+                        }
+                        return; // Suppress native file picker
+                    }
+                    originalInputClick.call(this);
+                };
+
+                printLog(`// Intercepted Save/Load events on iframe.`, 'normal');
+            } catch (err) {
+                printLog(`Err injecting interceptors: ${err.message}`, 'error');
+            }
+        });
+
         if (gameUrl) {
             gameUrl = gameUrl.replace(/\\/g, '/');
             const embedUrl = 'file:///' + gameUrl;
-            document.getElementById('game-frame').src = embedUrl;
+            iframe.src = embedUrl;
         }
         document.getElementById('game-title').innerText = title;
 
@@ -1310,12 +1440,36 @@
             window.location.href = 'index.html';
         });
 
+        document.getElementById('undo-btn').addEventListener('click', () => {
+            try {
+                const cw = iframe.contentWindow;
+                // Try several paths for backward() in SugarCube and common Twine engines
+                const sc = cw.SugarCube || (cw.window && cw.window.SugarCube);
+                if (sc && sc.Engine && typeof sc.Engine.backward === 'function') {
+                    sc.Engine.backward();
+                } else {
+                    // Generic Engine.backward or history.back fallback
+                    if (cw.Engine && typeof cw.Engine.backward === 'function') {
+                        cw.Engine.backward();
+                    } else if (cw.history && typeof cw.history.back === 'function') {
+                        // Very last resort: browser history (rarely used in Twine as they are single-page)
+                        cw.history.back();
+                    }
+                }
+            } catch (e) {
+                printLog(`Undo failed: ${e.message}`, 'error');
+            }
+        });
+
         /* --- Console Logic --- */
         const consoleEl = document.getElementById('dev-console');
         const outputEl = document.getElementById('console-output');
         const inputEl = document.getElementById('console-input');
         const savedListEl = document.getElementById('saved-list');
-        const iframe = document.getElementById('game-frame');
+
+        isolateInput(inputEl);
+        isolateInput(document.getElementById('illus-scene-text'));
+        isolateInput(document.getElementById('illus-prompt-text'));
 
         document.getElementById('toggle-console').addEventListener('click', () => {
             consoleEl.classList.add('open');
@@ -1715,68 +1869,164 @@
         ================================================================ */
 
         const detectEngine = () => {
-    try {
-        const cw = iframe.contentWindow;
-        // SugarCube 2 (legacy <=2.36): exposes window.Save.serialize
-        // SugarCube 2 (modern >=2.37): exposes window.Save.base64.export
-        if (cw.Save && (
-            typeof cw.Save.serialize === 'function' ||
-            (cw.Save.base64 && typeof cw.Save.base64.export === 'function')
-        )) return 'sc2';
-        // SugarCube 1: uses lowercase window.save namespace
-        if (cw.save && typeof cw.save.serialize === 'function') return 'sc1';
-    } catch (e) { /* cross-origin or not loaded yet */ }
-    return 'unknown';
-};
+            const cw = iframe.contentWindow;
+            if (cw && cw.__twineEngineType) return cw.__twineEngineType;
 
-        const captureSaveData = () => {
+            try {
+                if (!cw) return 'unknown';
+                const win = cw.window || cw;
+                if (!win) return 'unknown';
+
+                // Check SC2 (including Sugarcube namespace fallback)
+                const sc2 = win.Save || (win.SugarCube && win.SugarCube.Save);
+                if (sc2 && (typeof sc2.serialize === 'function' || typeof sc2.export === 'function' || (sc2.base64 && typeof sc2.base64.export === 'function'))) {
+                    cw.__twineEngineType = 'sc2';
+                    cw.__twineSaveApi = sc2;
+                    return 'sc2';
+                }
+
+                // Check SC1
+                const sc1 = win.save;
+                if (sc1 && typeof sc1.serialize === 'function') {
+                    cw.__twineEngineType = 'sc1';
+                    cw.__twineSaveApi = sc1;
+                    return 'sc1';
+                }
+
+                // Diagnostics if unknown: help us identify the engine object
+                console.warn("Detection diagnostic: No standard Twine engine found on window.");
+            } catch (e) {
+                console.warn("Detection diagnostic: access error (likely CORS):", e.message);
+            }
+            return 'unknown';
+        };
+
+        const executeSaveCapture = async () => {
             const cw = iframe.contentWindow;
             const engine = detectEngine();
+            const api = cw.__twineSaveApi;
 
-            let serialized;
-            if (engine === 'sc2') {
-                // Prefer legacy serialize(); fall back to modern base64.export()
-                if (typeof cw.Save.serialize === 'function') {
-                    serialized = cw.Save.serialize();
-                } else {
-                    serialized = cw.Save.base64.export();
+            try {
+                if (engine === 'sc2' && api) {
+                    // Priority: Native Export (HTML wrapped)
+                    // This is essential for Strategy 2 (Dialog Proxy) load to work, 
+                    // as the engine's internal reader expects the HTML wrapper.
+                    if (typeof api.export === 'function') {
+                        printLog(`// Capturing via native Save.export...`, 'normal');
+                        const htmlData = api.export();
+                        return new Blob([htmlData], { type: 'text/html;charset=UTF-8' });
+                    }
+                    // Fallback: Base64 Serialization
+                    if (typeof api.serialize === 'function') {
+                        printLog(`// Capturing via native Save.serialize...`, 'normal');
+                        return new Blob([api.serialize()], { type: 'text/plain;charset=utf-8' });
+                    }
+                    if (api.base64 && typeof api.base64.export === 'function') {
+                        printLog(`// Capturing via native Save.base64.export...`, 'normal');
+                        return new Blob([api.base64.export()], { type: 'text/plain;charset=utf-8' });
+                    }
+                } else if (engine === 'sc1' && api) {
+                    return new Blob([api.serialize()], { type: 'text/plain;charset=utf-8' });
                 }
-            } else if (engine === 'sc1') {
-                serialized = cw.save.serialize();
-            } else {
-                throw new Error('Unsupported engine. Only SugarCube 1/2 games are supported for Save/Load.');
+            } catch (e) {
+                printLog(`Capture error: ${e.message}`, 'error');
+                throw e;
             }
 
-            if (!serialized) {
-                throw new Error('Save serialization returned empty data. The game may not have a state to save yet.');
-            }
-
-            return new Blob([serialized], { type: 'text/plain;charset=utf-8' });
+            throw new Error(`Unsupported engine. Engine detected as: ${engine}`);
         };
 
         const restoreSaveData = (text) => {
             const cw = iframe.contentWindow;
             const engine = detectEngine();
+            const api = cw.__twineSaveApi;
 
-            if (engine === 'sc2') {
-                if (typeof cw.Save.deserialize === 'function') {
-                    // Legacy SC2 <=2.36
-                    const result = cw.Save.deserialize(text);
-                    if (result === false || result === null) {
-                        throw new Error('SugarCube 2 rejected the save data. The file may be corrupted or from a different game.');
-                    }
+            let data = text.trim();
+            printLog(`// Restoring data (${data.length} chars)...`, 'normal');
+            
+            // Diagnostic logging for troubleshooting
+            const start = data.substring(0, 50).replace(/\r\n|\n/g, "\\n");
+            const end = data.substring(data.length - 50).replace(/\r\n|\n/g, "\\n");
+            printLog(`// Data envelope: [${start}...${end}]`, 'normal');
+
+            // --- Exhaustive Format Sanitization ---
+            
+            // 1. Detect and strip HTML wrappers (Classic SC2 .html saves)
+            if (data.includes('<html') || data.includes('<!DOCTYPE') || data.includes('<tw-serialized-save')) {
+                printLog(`// HTML boilerplate detected. Extracting payload...`, 'normal');
+                // Regex 1: Content from <tw-serialized-save> tag (most specific)
+                const twMatch = data.match(/<tw-serialized-save[^>]*>([\s\S]*?)<\/tw-serialized-save>/i);
+                if (twMatch) {
+                    data = twMatch[1].trim();
                 } else {
-                    // Modern SC2 >=2.37
-                    const result = cw.Save.base64.import(text);
-                    if (result === false || result === null) {
-                        throw new Error('SugarCube 2 rejected the save data. The file may be corrupted or from a different game.');
+                    // Regex 2: Longest contiguous block of Base64 or JSON-safe characters
+                    // This is more robust than a simple match because it avoids surrounding HTML
+                    const b64Match = data.match(/[A-Za-z0-9+/=]{100,}/);
+                    if (b64Match) {
+                       data = b64Match[0];
+                    } else {
+                       const jsonMatch = data.match(/\{[\s\S]*\}/);
+                       if (jsonMatch) data = jsonMatch[0];
                     }
                 }
-            } else if (engine === 'sc1') {
-                cw.save.deserialize(text);
-            } else {
-                throw new Error('Unsupported engine. Only SugarCube 1/2 games are supported for Save/Load.');
             }
+
+            // 2. Clear Whitespace/BOMs and Sanitize
+            data = data.replace(/^\s+|\s+$/g, ''); 
+            
+            try {
+                if (engine === 'sc2' && api) {
+                    let res = false;
+                    
+                    // Priority A: JSON Data (State Object)
+                    if (data.startsWith('{')) {
+                        try {
+                            const obj = JSON.parse(data);
+                            if (typeof api.deserialize === 'function') {
+                                printLog(`// Loading as JSON State Object...`, 'normal');
+                                res = api.deserialize(obj);
+                            }
+                        } catch (e) {
+                            console.warn("JSON parse failed, trying as string", e);
+                        }
+                    }
+
+                    // Priority B: Base64 String (Modern Standard)
+                    // We must filter for STRICT base64 characters only to avoid SC2 rejection
+                    if (res === false) {
+                        // Strip non-Base64 legal characters (Newlines, spaces, etc are NOT allowed in base64.import)
+                        const cleanB64 = data.replace(/[^A-Za-z0-9+/=]/g, '');
+                        if (api.base64 && typeof api.base64.import === 'function') {
+                            printLog(`// Loading via base64.import...`, 'normal');
+                            res = api.base64.import(cleanB64);
+                        } else if (typeof api.import === 'function') {
+                            printLog(`// Loading via Save.import(string)...`, 'normal');
+                            res = api.import(cleanB64);
+                        } else if (typeof api.deserialize === 'function') {
+                            printLog(`// Loading via Save.deserialize(string)...`, 'normal');
+                            res = api.deserialize(cleanB64);
+                        }
+                    }
+
+                    // Force refresh (SugarCube doesn't always redraw on manual restoration)
+                    if (res !== false && res !== null) {
+                        const win = cw.window || cw;
+                        if (win.Engine && typeof win.Engine.show === 'function') {
+                            printLog(`// Refreshing game UI...`, 'normal');
+                            win.Engine.show();
+                        }
+                        return;
+                    }
+                    throw new Error('Engine rejected the save data (missing id or state).');
+                } else if (engine === 'sc1' && api) {
+                    api.deserialize(data);
+                    return;
+                }
+            } catch (e) {
+                printLog(`Restore error: ${e.message}`, 'error');
+                throw e; // Rethrow to show in the UI
+            }
+            throw new Error(`Unsupported engine or restore failed. Engine: ${engine}`);
         };
 
         /* --- Saves UI Integration --- */
@@ -1847,6 +2097,7 @@
                     `;
 
                     const newSaveInputEl = addSlot.querySelector('#new-save-input');
+                    isolateInput(newSaveInputEl);
                     newSaveInputEl.focus();
                     newSaveInputEl.select();
 
@@ -1962,6 +2213,30 @@
         /* --- Save button: capture state then open modal --- */
         document.getElementById('save-btn').addEventListener('click', async () => {
             const btn = document.getElementById('save-btn');
+            const cw = iframe.contentWindow;
+            const engine = detectEngine();
+            const api = cw.__twineSaveApi;
+
+            // Use the API we found during setup
+            if (engine !== 'unknown' && cw.blobRegistry && api) {
+                try {
+                    printLog(`// Triggering engine save (${engine})...`, 'normal');
+                    if (engine === 'sc2') {
+                        if (typeof api.export === 'function') {
+                            api.export();
+                        } else if (api.base64 && typeof api.base64.export === 'function') {
+                            api.base64.export();
+                        }
+                    } else if (engine === 'sc1') {
+                        throw new Error("sc1 manual capture required");
+                    }
+                    return; 
+                } catch (e) {
+                    console.warn("Native Trigger failed, falling back to manual capture", e);
+                }
+            }
+
+            // Fallback: manual capture
             btn.disabled = true;
             try {
                 pendingSaveBlob = captureSaveData();
@@ -1978,9 +2253,71 @@
             }
         });
 
-        /* --- Load button: just open the slot picker --- */
+        /* --- Load button: always open modal for topbar load --- */
         document.getElementById('load-btn').addEventListener('click', async () => {
-            pendingLoadInput = null; // Clear to use top bar load specifically
+            const cw = iframe.contentWindow;
+            const doc = cw.document;
+            const sc = cw.SugarCube;
+
+            // --- Strategy 1: Exhaustive Native Proxy-Click ---
+            const findNativeLoad = () => {
+                const sc2Load = doc.getElementById('ui-bar-items-load') || doc.querySelector('a#ui-bar-items-load');
+                if (sc2Load) return sc2Load;
+                const candidates = Array.from(doc.querySelectorAll('button, a, [role="button"]'));
+                const exactMatch = candidates.find(el => el.textContent.trim().toLowerCase() === 'load');
+                if (exactMatch) return exactMatch;
+                return candidates.find(el => {
+                    const id = (el.id || '').toLowerCase();
+                    const cls = (el.className || '').toLowerCase();
+                    const text = el.textContent.trim().toLowerCase();
+                    return (id.includes('load') || cls.includes('load') || text.includes('load'));
+                });
+            };
+
+            const nativeLoad = findNativeLoad();
+            if (nativeLoad) {
+                printLog(`// Proxying load trigger via native button...`, 'normal');
+                nativeLoad.click();
+                return;
+            }
+
+            // --- Strategy 2: Dialog Proxy Strategy ---
+            // If the sidebar is hidden, we open the native engine dialog, 
+            // trigger its "Load from Disk" button, and then close it.
+            if (sc && sc.UI && typeof sc.UI.saves === 'function') {
+                try {
+                    printLog(`// Opening native saves dialog for trigger...`, 'normal');
+                    sc.UI.saves();
+                    
+                    // The dialog takes a moment to render.
+                    setTimeout(() => {
+                        // SugarCube native ID for the "Load from Disk" button
+                        const nativeImport = doc.getElementById('saves-import') || doc.querySelector('#saves-import button');
+                        if (nativeImport) {
+                            printLog(`// Triggering native dialog load button...`, 'normal');
+                            nativeImport.click();
+                            
+                            // Close the native dialog immediately so the user never sees it
+                            if (typeof sc.UI.close === 'function') {
+                                sc.UI.close();
+                            } else {
+                                const closeBtn = doc.getElementById('ui-overlay-close');
+                                if (closeBtn) closeBtn.click();
+                            }
+                        }
+                    }, 50);
+
+                    // Wait a bit to see if Strategy 2 succeeded (interceptor set pendingLoadInput)
+                    await new Promise(r => setTimeout(r, 150));
+                    if (pendingLoadInput) return;
+                } catch (e) {
+                    console.warn("Dialog Proxy failed", e);
+                }
+            }
+
+            // --- Strategy 3: Standalone Fallback ---
+            printLog(`// No engine trigger matched. Using standalone path.`, 'normal');
+            pendingLoadInput = null;
             await openSavesModal('load');
         });
 
@@ -2076,93 +2413,7 @@
             }
         });
 
-        // --- Twine Logic Interceptor ---
-        iframe.addEventListener('load', () => {
-            try {
-                const cw = iframe.contentWindow;
-                const doc = cw.document;
 
-                // 1c. Catch-all URL.createObjectURL hook
-                cw.blobRegistry = new Map();
-                const originalCreateObjectURL = cw.URL.createObjectURL;
-                cw.URL.createObjectURL = function (obj) {
-                    const url = originalCreateObjectURL.call(this, obj);
-                    if (obj instanceof cw.Blob || obj instanceof Blob) {
-                        cw.blobRegistry.set(url, obj);
-                    }
-                    return url;
-                };
-
-                const processAnchorTrigger = (anchor) => {
-                    if (anchor.hasAttribute('download') && anchor.href) {
-                        try {
-                            if (cw.blobRegistry && cw.blobRegistry.has(anchor.href)) {
-                                pendingSaveBlob = cw.blobRegistry.get(anchor.href);
-                                openSavesModal('save');
-                                return true;
-                            }
-                            fetch(anchor.href).then(r => r.blob()).then(blob => {
-                                pendingSaveBlob = blob;
-                                openSavesModal('save');
-                            }).catch(err => {
-                                console.error("Failed to fetch internal save blob", err);
-                            });
-                            return true;
-                        } catch (e) {
-                            return false;
-                        }
-                    }
-                    return false;
-                };
-
-                const originalAnchorClick = cw.HTMLAnchorElement.prototype.click;
-                cw.HTMLAnchorElement.prototype.click = function () {
-                    if (processAnchorTrigger(this)) return;
-                    originalAnchorClick.call(this);
-                };
-
-                const originalDispatch = cw.EventTarget.prototype.dispatchEvent;
-                cw.EventTarget.prototype.dispatchEvent = function (event) {
-                    if (this instanceof cw.HTMLAnchorElement && (event.type === 'click' || event.type === 'mousedown')) {
-                        if (processAnchorTrigger(this)) {
-                            event.stopPropagation();
-                            event.preventDefault();
-                            return false;
-                        }
-                    }
-                    return originalDispatch.call(this, event);
-                };
-
-                // 1b. SugarCube Specific Direct Hook
-                if (cw.window && cw.window.Save && typeof cw.window.Save.export === 'function') {
-                    const originalExport = cw.window.Save.export;
-                    cw.window.Save.export = function (fileName, metadata) {
-                        const saveStr = originalExport.call(this, fileName, metadata);
-                        if (saveStr) {
-                            pendingSaveBlob = new Blob([saveStr], { type: 'text/html;charset=UTF-8' });
-                            openSavesModal('save');
-                        }
-                        return "";
-                    };
-                    printLog(`// Hooked directly into SugarCube Save API.`, 'normal');
-                }
-
-                // 2. Intercept "Load from Disk"
-                const originalInputClick = cw.HTMLInputElement.prototype.click;
-                cw.HTMLInputElement.prototype.click = function () {
-                    if (this.type === 'file') {
-                        pendingLoadInput = this;
-                        openSavesModal('load');
-                        return; // Suppress native file picker
-                    }
-                    originalInputClick.call(this);
-                };
-
-                printLog(`// Intercepted Save/Load events on iframe.`, 'normal');
-            } catch (err) {
-                printLog(`Err injecting interceptors: ${err.message}`, 'error');
-            }
-        });
 
         /* ================================================================
            ILLUSTRATOR FEATURE
