@@ -1430,9 +1430,13 @@
         });
 
         if (gameUrl) {
-            gameUrl = gameUrl.replace(/\\/g, '/');
-            const embedUrl = 'file:///' + gameUrl;
-            iframe.src = embedUrl;
+            window.electronAPI.toFileUrl(gameUrl).then((res) => {
+                if (res.success) {
+                    iframe.src = res.url;
+                } else {
+                    printLog(`Err preparing game URL: ${res.error}`, 'error');
+                }
+            });
         }
         document.getElementById('game-title').innerText = title;
 
@@ -1856,7 +1860,7 @@
            which SugarCube version is running.
              Returns 'sc2' | 'sc1' | 'unknown'
 
-           captureSaveData(): reads the current game state directly from
+           executeSaveCapture(): reads the current game state directly from
            the iframe via the SugarCube JS API and returns a Blob.
              - SC2: window.Save.serialize() → base64 string → UTF-8 Blob
              - SC1: window.save.serialize() (same pattern, different namespace)
@@ -1905,6 +1909,7 @@
             const cw = iframe.contentWindow;
             const engine = detectEngine();
             const api = cw.__twineSaveApi;
+            const nativeSaveFilename = 'twineplayer-save';
 
             try {
                 if (engine === 'sc2' && api) {
@@ -1913,7 +1918,7 @@
                     // as the engine's internal reader expects the HTML wrapper.
                     if (typeof api.export === 'function') {
                         printLog(`// Capturing via native Save.export...`, 'normal');
-                        const htmlData = api.export();
+                        const htmlData = api.export(nativeSaveFilename);
                         return new Blob([htmlData], { type: 'text/html;charset=UTF-8' });
                     }
                     // Fallback: Base64 Serialization
@@ -1940,6 +1945,29 @@
             const cw = iframe.contentWindow;
             const engine = detectEngine();
             const api = cw.__twineSaveApi;
+
+            const applyDeserializedSave = (saveData) => {
+                if (!saveData || typeof saveData !== 'object') return false;
+
+                const win = cw.window || cw;
+                const sugarCube = win.SugarCube || {};
+                const stateApi = win.State || sugarCube.State;
+                const stateData = saveData.state || saveData;
+
+                if (stateApi && typeof stateApi.unmarshalForSave === 'function' && stateData && typeof stateData === 'object') {
+                    printLog(`// Applying decoded SugarCube state via unmarshalForSave...`, 'normal');
+                    stateApi.unmarshalForSave(stateData);
+                    return true;
+                }
+
+                if (stateApi && typeof stateApi.unmarshal === 'function' && stateData && typeof stateData === 'object') {
+                    printLog(`// Applying decoded SugarCube state via unmarshal...`, 'normal');
+                    stateApi.unmarshal(stateData);
+                    return true;
+                }
+
+                return false;
+            };
 
             let data = text.trim();
             printLog(`// Restoring data (${data.length} chars)...`, 'normal');
@@ -1982,10 +2010,8 @@
                     if (data.startsWith('{')) {
                         try {
                             const obj = JSON.parse(data);
-                            if (typeof api.deserialize === 'function') {
-                                printLog(`// Loading as JSON State Object...`, 'normal');
-                                res = api.deserialize(obj);
-                            }
+                            printLog(`// Loading as JSON State Object...`, 'normal');
+                            res = applyDeserializedSave(obj) ? true : obj;
                         } catch (e) {
                             console.warn("JSON parse failed, trying as string", e);
                         }
@@ -1996,15 +2022,21 @@
                     if (res === false) {
                         // Strip non-Base64 legal characters (Newlines, spaces, etc are NOT allowed in base64.import)
                         const cleanB64 = data.replace(/[^A-Za-z0-9+/=]/g, '');
-                        if (api.base64 && typeof api.base64.import === 'function') {
-                            printLog(`// Loading via base64.import...`, 'normal');
-                            res = api.base64.import(cleanB64);
-                        } else if (typeof api.import === 'function') {
-                            printLog(`// Loading via Save.import(string)...`, 'normal');
-                            res = api.import(cleanB64);
+                        if (api.base64 && typeof api.base64.decode === 'function') {
+                            printLog(`// Decoding via Save.base64.decode(string)...`, 'normal');
+                            res = api.base64.decode(cleanB64);
                         } else if (typeof api.deserialize === 'function') {
                             printLog(`// Loading via Save.deserialize(string)...`, 'normal');
                             res = api.deserialize(cleanB64);
+                        } else if (api.base64 && typeof api.base64.import === 'function') {
+                            printLog(`// Loading via base64.import...`, 'normal');
+                            res = api.base64.import(cleanB64);
+                        }
+                    }
+
+                    if (res && typeof res === 'object') {
+                        if (!applyDeserializedSave(res)) {
+                            throw new Error('Save decoded, but no SugarCube state API accepted it.');
                         }
                     }
 
@@ -2223,7 +2255,7 @@
                     printLog(`// Triggering engine save (${engine})...`, 'normal');
                     if (engine === 'sc2') {
                         if (typeof api.export === 'function') {
-                            api.export();
+                            api.export('twineplayer-save');
                         } else if (api.base64 && typeof api.base64.export === 'function') {
                             api.base64.export();
                         }
@@ -2239,7 +2271,7 @@
             // Fallback: manual capture
             btn.disabled = true;
             try {
-                pendingSaveBlob = captureSaveData();
+                pendingSaveBlob = await executeSaveCapture();
                 await openSavesModal('save');
             } catch (err) {
                 printLog(`Err capturing save: ${err.message}`, 'error');
@@ -2255,69 +2287,70 @@
 
         /* --- Load button: always open modal for topbar load --- */
         document.getElementById('load-btn').addEventListener('click', async () => {
-            const cw = iframe.contentWindow;
-            const doc = cw.document;
-            const sc = cw.SugarCube;
-
-            // --- Strategy 1: Exhaustive Native Proxy-Click ---
-            const findNativeLoad = () => {
-                const sc2Load = doc.getElementById('ui-bar-items-load') || doc.querySelector('a#ui-bar-items-load');
-                if (sc2Load) return sc2Load;
-                const candidates = Array.from(doc.querySelectorAll('button, a, [role="button"]'));
-                const exactMatch = candidates.find(el => el.textContent.trim().toLowerCase() === 'load');
-                if (exactMatch) return exactMatch;
-                return candidates.find(el => {
-                    const id = (el.id || '').toLowerCase();
-                    const cls = (el.className || '').toLowerCase();
-                    const text = el.textContent.trim().toLowerCase();
-                    return (id.includes('load') || cls.includes('load') || text.includes('load'));
-                });
-            };
-
-            const nativeLoad = findNativeLoad();
-            if (nativeLoad) {
-                printLog(`// Proxying load trigger via native button...`, 'normal');
-                nativeLoad.click();
-                return;
-            }
-
-            // --- Strategy 2: Dialog Proxy Strategy ---
-            // If the sidebar is hidden, we open the native engine dialog, 
-            // trigger its "Load from Disk" button, and then close it.
-            if (sc && sc.UI && typeof sc.UI.saves === 'function') {
-                try {
-                    printLog(`// Opening native saves dialog for trigger...`, 'normal');
-                    sc.UI.saves();
-                    
-                    // The dialog takes a moment to render.
-                    setTimeout(() => {
-                        // SugarCube native ID for the "Load from Disk" button
-                        const nativeImport = doc.getElementById('saves-import') || doc.querySelector('#saves-import button');
-                        if (nativeImport) {
-                            printLog(`// Triggering native dialog load button...`, 'normal');
-                            nativeImport.click();
-                            
-                            // Close the native dialog immediately so the user never sees it
-                            if (typeof sc.UI.close === 'function') {
-                                sc.UI.close();
-                            } else {
-                                const closeBtn = doc.getElementById('ui-overlay-close');
-                                if (closeBtn) closeBtn.click();
-                            }
-                        }
-                    }, 50);
-
-                    // Wait a bit to see if Strategy 2 succeeded (interceptor set pendingLoadInput)
-                    await new Promise(r => setTimeout(r, 150));
-                    if (pendingLoadInput) return;
-                } catch (e) {
-                    console.warn("Dialog Proxy failed", e);
-                }
-            }
-
-            // --- Strategy 3: Standalone Fallback ---
-            printLog(`// No engine trigger matched. Using standalone path.`, 'normal');
             pendingLoadInput = null;
+
+            try {
+                const cw = iframe.contentWindow;
+                const doc = cw.document;
+                const sc = cw.SugarCube || (cw.window && cw.window.SugarCube);
+
+                if (sc && sc.UI && typeof sc.UI.saves === 'function') {
+                    printLog(`// Opening native saves dialog for load bridge...`, 'normal');
+                    sc.UI.saves();
+
+                    const findNativeDiskLoad = () => {
+                        const dialogRoot =
+                            doc.getElementById('ui-dialog-body') ||
+                            doc.getElementById('ui-dialog') ||
+                            doc;
+
+                        const exactLoad =
+                            dialogRoot.querySelector('#saves-disk-load') ||
+                            dialogRoot.querySelector('[id$="saves-disk-load"]') ||
+                            dialogRoot.querySelector('#saves-load') ||
+                            dialogRoot.querySelector('[id$="saves-load"]');
+                        if (exactLoad && !(exactLoad.id || '').toLowerCase().includes('import')) {
+                            return exactLoad;
+                        }
+
+                        const candidates = Array.from(dialogRoot.querySelectorAll('button, a, input[type="button"], [role="button"]'));
+                        return candidates.find(el => {
+                            const text = ((el.textContent || el.value || '') + '').trim().toLowerCase().replace(/\s+/g, ' ');
+                            const id = (el.id || '').toLowerCase();
+                            const className = (el.className || '').toString().toLowerCase();
+                            const label = `${id} ${className} ${text}`;
+
+                            return label.includes('load') &&
+                                label.includes('disk') &&
+                                !label.includes('import') &&
+                                !label.includes('export');
+                        });
+                    };
+
+                    const waitForNativeDiskLoad = async () => {
+                        const startedAt = Date.now();
+                        while (Date.now() - startedAt < 1000) {
+                            const button = findNativeDiskLoad();
+                            if (button) return button;
+                            await new Promise(r => setTimeout(r, 50));
+                        }
+                        return null;
+                    };
+
+                    const nativeDiskLoad = await waitForNativeDiskLoad();
+                    if (nativeDiskLoad) {
+                        printLog(`// Triggering native on-disk load button...`, 'normal');
+                        nativeDiskLoad.click();
+
+                        await new Promise(r => setTimeout(r, 150));
+                        if (pendingLoadInput) return;
+                    }
+                }
+            } catch (e) {
+                console.warn("Native load bridge failed", e);
+            }
+
+            printLog(`// Opening TwinePlayer load manager.`, 'normal');
             await openSavesModal('load');
         });
 
@@ -2350,12 +2383,28 @@
                 if (result.success && result.data) {
                     if (pendingLoadInput) {
                         // Native in-game interceptor route
+                        const loadInput = pendingLoadInput;
                         const fileObj = new File([result.data], filename, { type: 'text/plain' });
                         const dataTransfer = new DataTransfer();
                         dataTransfer.items.add(fileObj);
-                        pendingLoadInput.files = dataTransfer.files;
-                        pendingLoadInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        loadInput.files = dataTransfer.files;
+                        loadInput.dispatchEvent(new Event('change', { bubbles: true }));
                         printLog(`// Loaded ${filename} into game engine.`, 'result');
+
+                        setTimeout(() => {
+                            try {
+                                const cw = iframe.contentWindow;
+                                const sc = cw.SugarCube || (cw.window && cw.window.SugarCube);
+                                if (sc && sc.UI && typeof sc.UI.close === 'function') {
+                                    sc.UI.close();
+                                } else {
+                                    const closeBtn = cw.document.getElementById('ui-overlay-close');
+                                    if (closeBtn) closeBtn.click();
+                                }
+                            } catch (e) {
+                                console.warn("Could not close native saves dialog", e);
+                            }
+                        }, 100);
                     } else {
                         // Top bar fallback path route
                         const bytes = new Uint8Array(result.data.data || result.data);
@@ -2538,7 +2587,7 @@
             // Ensure output dir exists
             if (gameUrl && !illusOutputDir) {
                 const dirRes = await window.illustratorAPI.ensureOutputDir(gameUrl);
-                if (dirRes.success) illusOutputDir = dirRes.dir;
+                if (dirRes.success) illusOutputDir = dirRes.path;
             }
 
             // Populate model dropdowns (parallel)
@@ -2592,7 +2641,7 @@
 
             if (!illusOutputDir && gameUrl) {
                 const dirRes = await window.illustratorAPI.ensureOutputDir(gameUrl);
-                if (dirRes.success) illusOutputDir = dirRes.dir;
+                if (dirRes.success) illusOutputDir = dirRes.path;
             }
 
             const outputFilename = `illus_${Date.now()}`;

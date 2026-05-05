@@ -1,6 +1,14 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const {
+  coerceByteBuffer,
+  getGameSidecarDir,
+  normalizeImageFilename,
+  resolveChildPath,
+  resolveSavePath,
+  toFileUrl,
+} = require('./src/main/file-utils');
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
@@ -19,8 +27,7 @@ const createWindow = () => {
 };
 
 const getSavesDir = (gamePath) => {
-  const parsed = path.parse(gamePath);
-  return path.join(parsed.dir, `${parsed.name}_saves`);
+  return getGameSidecarDir(gamePath, 'saves');
 };
 
 const ensureSavesDir = (dirPath) => {
@@ -52,12 +59,20 @@ ipcMain.handle('dialog:openFile', async () => {
   return result.filePaths[0];
 });
 
+ipcMain.handle('path:toFileUrl', async (event, filePath) => {
+  try {
+    return { success: true, url: toFileUrl(filePath) };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('save:list', async (event, gamePath) => {
   try {
     const dir = getSavesDir(gamePath);
     if (!fs.existsSync(dir)) return [];
 
-    const files = fs.readdirSync(dir).filter(f => f.endsWith('.save'));
+    const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.save'));
     return files.map(file => {
       const stats = fs.statSync(path.join(dir, file));
       return {
@@ -74,14 +89,12 @@ ipcMain.handle('save:list', async (event, gamePath) => {
 
 ipcMain.handle('save:write', async (event, gamePath, filename, bufferArray) => {
   try {
-    const dir = getSavesDir(gamePath);
-    ensureSavesDir(dir);
-    const fullPath = path.join(dir, filename.endsWith('.save') ? filename : filename + '.save');
-    // bufferArray arrives from the renderer as a plain object {0:n, 1:n, ...}
-    // after Electron IPC serialisation of the Uint8Array — use Object.values()
-    // to reconstruct the correct byte sequence before writing.
-    fs.writeFileSync(fullPath, Buffer.from(Object.values(bufferArray)));
-    return { success: true, path: fullPath };
+    const { savesDir, filename: safeFilename, fullPath } = resolveSavePath(gamePath, filename);
+    ensureSavesDir(savesDir);
+    // Electron IPC can serialise Uint8Array as a plain object, so coerce it
+    // back to bytes before writing.
+    fs.writeFileSync(fullPath, coerceByteBuffer(bufferArray));
+    return { success: true, path: fullPath, filename: safeFilename };
   } catch (err) {
     console.error("Error writing save", err);
     return { success: false, error: err.message };
@@ -90,10 +103,9 @@ ipcMain.handle('save:write', async (event, gamePath, filename, bufferArray) => {
 
 ipcMain.handle('save:read', async (event, gamePath, filename) => {
   try {
-    const dir = getSavesDir(gamePath);
-    const fullPath = path.join(dir, filename);
+    const { filename: safeFilename, fullPath } = resolveSavePath(gamePath, filename);
     if (fs.existsSync(fullPath)) {
-      return { success: true, data: fs.readFileSync(fullPath), filename: filename };
+      return { success: true, data: fs.readFileSync(fullPath), filename: safeFilename };
     }
     return { success: false, error: 'File not found' };
   } catch (err) {
@@ -104,8 +116,7 @@ ipcMain.handle('save:read', async (event, gamePath, filename) => {
 
 ipcMain.handle('save:delete', async (event, gamePath, filename) => {
   try {
-    const dir = getSavesDir(gamePath);
-    const fullPath = path.join(dir, filename);
+    const { fullPath } = resolveSavePath(gamePath, filename);
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
       return { success: true };
@@ -121,12 +132,11 @@ ipcMain.handle('save:delete', async (event, gamePath, filename) => {
 
 ipcMain.handle('illustrator:ensure-output-dir', async (event, gamePath) => {
   try {
-    const parsed = path.parse(gamePath);
-    const outputDir = path.join(parsed.dir, `${parsed.name}_illustrations`);
+    const outputDir = getGameSidecarDir(gamePath, 'illustrations');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
-    return { success: true, path: outputDir };
+    return { success: true, path: outputDir, dir: outputDir };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -142,7 +152,7 @@ ipcMain.handle('illustrator:list-ollama-models', async () => {
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            resolve((json.models || []).map(m => m.name));
+            resolve({ success: true, models: (json.models || []).map(m => m.name).filter(Boolean) });
           } catch (e) { reject(e); }
         });
       });
@@ -151,7 +161,7 @@ ipcMain.handle('illustrator:list-ollama-models', async () => {
     });
   } catch (err) {
     console.error('Ollama model list error:', err.message);
-    return [];
+    return { success: false, models: [], error: err.message };
   }
 });
 
@@ -167,9 +177,9 @@ ipcMain.handle('illustrator:list-comfyui-models', async () => {
             const json = JSON.parse(data);
             const inputs = json.CheckpointLoaderSimple?.input?.required?.ckpt_name;
             if (inputs && Array.isArray(inputs[0])) {
-              resolve(inputs[0]);
+              resolve({ success: true, models: inputs[0] });
             } else {
-              resolve([]);
+              resolve({ success: true, models: [] });
             }
           } catch (e) { reject(e); }
         });
@@ -179,7 +189,7 @@ ipcMain.handle('illustrator:list-comfyui-models', async () => {
     });
   } catch (err) {
     console.error('ComfyUI model list error:', err.message);
-    return [];
+    return { success: false, models: [], error: err.message };
   }
 });
 
@@ -301,16 +311,19 @@ ipcMain.handle('illustrator:poll-image', async (event, { promptId, outputDir }) 
             }).on('error', reject);
           });
 
-          const localPath = path.join(outputDir, img.filename);
+          const imageFilename = normalizeImageFilename(img.filename);
+          const localPath = outputDir ? resolveChildPath(outputDir, imageFilename) : null;
           try {
-            fs.writeFileSync(localPath, Buffer.from(imageBuffer));
+            if (localPath) {
+              fs.writeFileSync(localPath, Buffer.from(imageBuffer));
+            }
           } catch (saveErr) {
             console.warn('Illustrator: could not save local copy', saveErr.message);
           }
 
           // Convert to base64 data URL for display in renderer
           const base64 = imageBuffer.toString('base64');
-          return { success: true, dataUrl: `data:image/png;base64,${base64}`, filename: img.filename, localPath };
+          return { success: true, dataUrl: `data:image/png;base64,${base64}`, filename: imageFilename, localPath };
         } catch (downloadErr) {
           console.error('Illustrator: image download error', downloadErr.message);
           return { success: false, error: downloadErr.message };
