@@ -153,6 +153,14 @@ body {
   box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
 }
 
+.history-item.missing-game {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.history-item.missing-game .history-date {
+  color: #fca5a5;
+}
+
 .history-item.empty-state {
   grid-column: 1 / -1;
   text-align: center;

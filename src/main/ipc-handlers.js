@@ -3,6 +3,7 @@ const {
 } = require('./file-utils');
 const {
   deleteSave,
+  fileExists,
   listSaves,
   readSave,
   writeSave,
@@ -38,9 +39,17 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
     }
   });
 
+  ipcMain.handle('file:exists', async (event, filePath) => {
+    try {
+      return { success: true, exists: await fileExists(assertString(filePath, 'File path')) };
+    } catch (err) {
+      return { success: false, exists: false, error: getErrorMessage(err) };
+    }
+  });
+
   ipcMain.handle('save:list', async (event, gamePath) => {
     try {
-      return listSaves(gamePath);
+      return await listSaves(gamePath);
     } catch (err) {
       console.error('Error listing saves', err);
       return [];
@@ -49,7 +58,7 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('save:write', async (event, gamePath, filename, bufferArray) => {
     try {
-      const result = writeSave(gamePath, filename, bufferArray);
+      const result = await writeSave(gamePath, filename, bufferArray);
       return { success: true, ...result };
     } catch (err) {
       console.error('Error writing save', err);
@@ -59,7 +68,7 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('save:read', async (event, gamePath, filename) => {
     try {
-      const result = readSave(gamePath, filename);
+      const result = await readSave(gamePath, filename);
       if (result) {
         return { success: true, ...result };
       }
@@ -72,7 +81,7 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('save:delete', async (event, gamePath, filename) => {
     try {
-      if (deleteSave(gamePath, filename)) {
+      if (await deleteSave(gamePath, filename)) {
         return { success: true };
       }
       return { success: false, error: 'File not found' };

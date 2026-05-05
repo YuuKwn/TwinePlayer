@@ -81,11 +81,12 @@
         };
 
         const getSavedCommandsForAllGames = () => {
-            return JSON.parse(localStorage.getItem(CONSOLE_HISTORY_KEY) || '{}');
+            const saved = window.TwinePlayerStorage.readJson(localStorage, CONSOLE_HISTORY_KEY, {});
+            return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
         };
 
         const saveCommandsForAllGames = (data) => {
-            localStorage.setItem(CONSOLE_HISTORY_KEY, JSON.stringify(data));
+            window.TwinePlayerStorage.writeJson(localStorage, CONSOLE_HISTORY_KEY, data);
         };
 
         const renderSavedCommands = () => {

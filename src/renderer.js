@@ -1,7 +1,12 @@
 // Store game history locally
 const HISTORY_KEY = 'twine_player_history';
+const { readJson, writeJson } = window.TwinePlayerStorage;
 
-let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+let history = readJson(localStorage, HISTORY_KEY, []);
+if (!Array.isArray(history)) {
+    history = [];
+}
+const missingGamePaths = new Set();
 
 const loadGameBtn = document.getElementById('load-game-btn');
 const historyGrid = document.getElementById('history-grid');
@@ -46,26 +51,45 @@ const renderHistory = () => {
         const delay = Math.min(displayIndex * 0.1, 0.5); // max delay 0.5s to avoid feeling slow
 
         const card = document.createElement('div');
-        card.className = 'history-item glass-panel';
+        card.className = missingGamePaths.has(item.path)
+            ? 'history-item glass-panel missing-game'
+            : 'history-item glass-panel';
         card.style.animationDelay = `${delay}s`;
 
-        card.innerHTML = `
-      <div class="history-title">${item.title}</div>
-      <div class="history-path" title="${item.path}">...${item.path.slice(-30)}</div>
-      <div class="history-date">Last played: ${formatDate(item.lastPlayed)}</div>
-      <div class="remove-btn" title="Remove from Library">
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-      </div>
-    `;
+        const titleEl = document.createElement('div');
+        titleEl.className = 'history-title';
+        titleEl.textContent = item.title || 'Unknown Game';
 
-        card.addEventListener('click', (e) => {
+        const pathEl = document.createElement('div');
+        pathEl.className = 'history-path';
+        pathEl.title = item.path;
+        pathEl.textContent = `...${item.path.slice(-30)}`;
+
+        const dateEl = document.createElement('div');
+        dateEl.className = 'history-date';
+        dateEl.textContent = missingGamePaths.has(item.path)
+            ? 'Missing file. Remove it or load the game from its new location.'
+            : `Last played: ${formatDate(item.lastPlayed)}`;
+
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'remove-btn';
+        removeBtn.title = 'Remove from Library';
+        removeBtn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+
+        card.appendChild(titleEl);
+        card.appendChild(pathEl);
+        card.appendChild(dateEl);
+        card.appendChild(removeBtn);
+
+        card.addEventListener('click', async (e) => {
             if (e.target.closest('.remove-btn')) {
                 e.stopPropagation();
                 history.splice(originalIndex, 1);
-                localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+                missingGamePaths.delete(item.path);
+                writeJson(localStorage, HISTORY_KEY, history);
                 renderHistory();
             } else {
-                playGame(item.path, item.title);
+                await playGame(item.path, item.title);
             }
         });
 
@@ -73,7 +97,16 @@ const renderHistory = () => {
     });
 };
 
-const playGame = (filePath, title) => {
+const playGame = async (filePath, title) => {
+    if (window.electronAPI.fileExists) {
+        const existsResult = await window.electronAPI.fileExists(filePath);
+        if (!existsResult.success || !existsResult.exists) {
+            missingGamePaths.add(filePath);
+            renderHistory();
+            return;
+        }
+    }
+
     // Update last played
     const existingIndex = history.findIndex(h => h.path === filePath);
     if (existingIndex >= 0) {
@@ -85,7 +118,8 @@ const playGame = (filePath, title) => {
             lastPlayed: new Date().toISOString()
         });
     }
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    missingGamePaths.delete(filePath);
+    writeJson(localStorage, HISTORY_KEY, history);
 
     // Transition to game window
     window.location.href = `game.html?url=${encodeURIComponent(filePath)}&title=${encodeURIComponent(title)}`;

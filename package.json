@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node test/run-tests.js",
-    "check": "node --check main.js && node --check preload.js && node --check src/main/file-utils.js && node --check src/main/validation.js && node --check src/main/save-service.js && node --check src/main/illustrator-service.js && node --check src/main/ipc-handlers.js && node --check src/game/player.js && node --check src/game/twine-bridge.js && node --check src/game/dev-console.js && node --check src/game/save-engine.js && node --check src/game/save-modal.js && node --check src/game/illustrator-ui.js && node --check src/game/bootstrap.js && npm test",
+    "check": "node --check main.js && node --check preload.js && node --check src/storage-utils.js && node --check src/main/file-utils.js && node --check src/main/validation.js && node --check src/main/save-service.js && node --check src/main/illustrator-service.js && node --check src/main/ipc-handlers.js && node --check src/game/player.js && node --check src/game/twine-bridge.js && node --check src/game/dev-console.js && node --check src/game/save-engine.js && node --check src/game/save-modal.js && node --check src/game/illustrator-ui.js && node --check src/game/bootstrap.js && npm test",
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder --win --linux"

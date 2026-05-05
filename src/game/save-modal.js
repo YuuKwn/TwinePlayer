@@ -12,6 +12,7 @@
         let savesList = [];
         let currentPage = 1;
         const SAVES_PER_PAGE = 8;
+        const RESERVED_SAVE_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
         const showLoader = (text) => {
             modalLoaderText.textContent = text;
@@ -25,6 +26,25 @@
             const sizes = ['Bytes', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        const getSaveNameError = (filename) => {
+            const trimmed = filename.trim();
+            if (!trimmed) return 'Enter a save name.';
+
+            const withExtension = trimmed.toLowerCase().endsWith('.save') ? trimmed : `${trimmed}.save`;
+            if (
+                withExtension.includes('/') ||
+                withExtension.includes('\\') ||
+                withExtension.includes('\0') ||
+                withExtension === '.' ||
+                withExtension === '..' ||
+                RESERVED_SAVE_NAMES.test(withExtension)
+            ) {
+                return 'Use a plain save filename.';
+            }
+
+            return '';
         };
 
         const renderSavesPage = () => {
@@ -58,6 +78,7 @@
                     addSlot.innerHTML = `
                         <div style="display:flex; flex-direction:column; align-items:center; width:100%; gap:8px;">
                             <input type="text" id="new-save-input" value="${defaultName}" style="width: 90%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 6px; border-radius: 4px; outline: none; text-align:center; font-family: inherit;" />
+                            <div id="new-save-error" class="save-name-error"></div>
                             <div style="display:flex; gap: 8px;">
                                 <button id="new-save-confirm" style="background: rgba(59, 130, 246, 0.8); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px; cursor: pointer;">Save</button>
                                 <button id="new-save-cancel" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px; cursor: pointer;">Cancel</button>
@@ -66,16 +87,26 @@
                     `;
 
                     const newSaveInputEl = addSlot.querySelector('#new-save-input');
+                    const newSaveErrorEl = addSlot.querySelector('#new-save-error');
                     isolateInput(newSaveInputEl);
                     newSaveInputEl.focus();
                     newSaveInputEl.select();
 
+                    const validateNewSaveName = () => {
+                        const message = getSaveNameError(newSaveInputEl.value);
+                        newSaveErrorEl.textContent = message;
+                        newSaveInputEl.classList.toggle('invalid-save-name', Boolean(message));
+                        return message;
+                    };
+
                     const doSave = async () => {
                         let name = newSaveInputEl.value.trim();
-                        if (!name) return;
+                        if (validateNewSaveName()) return;
                         if (!name.endsWith('.save')) name += '.save';
                         await executeSaveWrite(name);
                     };
+
+                    newSaveInputEl.addEventListener('input', validateNewSaveName);
 
                     addSlot.querySelector('#new-save-confirm').addEventListener('click', async (btnEvent) => {
                         btnEvent.stopPropagation();
@@ -148,7 +179,12 @@
 
         const refreshSaves = async () => {
             if (!gameUrl) return;
-            savesList = await window.electronAPI.listSaves(gameUrl);
+            try {
+                savesList = await window.electronAPI.listSaves(gameUrl);
+            } catch (err) {
+                savesList = [];
+                printLog(`Err listing saves: ${err.message}`, 'error');
+            }
             renderSavesPage();
         };
 
@@ -294,6 +330,7 @@
         const executeSaveWrite = async (filename) => {
             if (!pendingSaveBlob) return closeSavesModal();
             showLoader('Saving to disk...');
+            let saved = false;
 
             try {
                 const arrayBuffer = await pendingSaveBlob.arrayBuffer();
@@ -302,6 +339,7 @@
                 const result = await window.electronAPI.writeSave(gameUrl, filename, bufferView);
                 if (result.success) {
                     printLog(`// Saved successfully to ${filename}`, 'result');
+                    saved = true;
                 } else {
                     printLog(`Err saving: ${result.error}`, 'error');
                 }
@@ -309,12 +347,15 @@
                 printLog(`Err saving: ${err.message}`, 'error');
             } finally {
                 hideLoader();
-                closeSavesModal();
+                if (saved) {
+                    closeSavesModal();
+                }
             }
         };
 
         const executeLoadRead = async (filename) => {
             showLoader('Loading save...');
+            let loaded = false;
             try {
                 const result = await window.electronAPI.readSave(gameUrl, filename);
                 if (result.success && result.data) {
@@ -327,6 +368,7 @@
                         loadInput.files = dataTransfer.files;
                         loadInput.dispatchEvent(new Event('change', { bubbles: true }));
                         printLog(`// Loaded ${filename} into game engine.`, 'result');
+                        loaded = true;
 
                         setTimeout(() => {
                             try {
@@ -348,6 +390,7 @@
                         const text = new TextDecoder('utf-8').decode(bytes);
                         restoreSaveData(text);
                         printLog(`// Loaded save: ${filename}`, 'result');
+                        loaded = true;
                     }
                 } else {
                     printLog(`Err loading: ${result.error}`, 'error');
@@ -356,7 +399,9 @@
                 printLog(`Err loading: ${err.message}`, 'error');
             } finally {
                 hideLoader();
-                closeSavesModal();
+                if (loaded) {
+                    closeSavesModal();
+                }
             }
         };
 

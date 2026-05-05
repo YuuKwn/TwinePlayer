@@ -80,7 +80,7 @@ Done:
 - Added syntax checks for all extracted renderer scripts to `npm run check`.
 
 Notes:
-- `src/game/storage.js` was intentionally deferred to Phase 4 because hardening localStorage parsing changes behavior and should be tested as a reliability slice.
+- Phase 4 added `src/storage-utils.js`; storage parsing is now hardened for the library and console command stores.
 - Manual GUI smoke testing is still recommended after checkout because the automated check only covers syntax and Node tests.
 
 Focused test plan:
@@ -93,55 +93,33 @@ Focused test plan:
 - Toggle pinned top bar.
 - Open Illustrator with local AI services offline; verify graceful fallback.
 
-## Remaining Work
+### Phase 4: Reliability Improvements
 
-## Phase 4: Reliability Improvements
+Done:
+- Added `src/storage-utils.js` with safe JSON parsing, storage read/write helpers, and one-time corrupt-value backup keys.
+- Hardened library history and saved console command parsing so corrupt `localStorage` values fall back safely instead of breaking startup.
+- Converted `src/main/save-service.js` filesystem operations to async `fs.promises`.
+- Made save writes atomic by writing to a same-directory temp file and renaming into place after successful write.
+- Added opportunistic stale temp save cleanup.
+- Added a main/preload `file:exists` bridge and renderer checks so missing library items show a clear missing state instead of silently navigating to a broken player.
+- Added missing-file handling in `game.html` bootstrap for direct player loads.
+- Added renderer-side save filename validation with immediate feedback while keeping main-process validation authoritative.
+- Improved save/load failure behavior so failed operations keep the modal open and log the failure.
+- Added tests for storage fallback/backup behavior, async save service behavior, atomic temp cleanup, and file existence checks.
 
-Goal: reduce corrupted state, partial writes, and main-process blocking.
-
-Tasks:
-
-1. Harden localStorage parsing.
-   - Current history and console command stores should not break the app when localStorage contains invalid JSON.
-   - Add `safeJsonParse` and default fallback behavior.
-   - Consider a one-time backup key for corrupted values.
-
-2. Make save writes atomic.
-   - Write to a temp file in the save directory.
-   - Rename into place after successful write.
-   - Clean up stale temp files opportunistically.
-
-3. Move save service filesystem operations to async APIs.
-   - Replace sync `fs` calls in `src/main/save-service.js` with `fs.promises`.
-   - Update IPC handlers to await service calls.
-   - Keep tests deterministic.
-
-4. Improve missing game handling.
-   - If a library item points to a missing file, show a clear missing state.
-   - Provide remove/relink options later if UI scope allows.
-
-5. Improve save name validation in renderer before IPC.
-   - Keep main-process validation authoritative.
-   - Add immediate UI feedback for invalid filenames.
-
-6. Add better failure states.
-   - Save failed.
-   - Load failed.
-   - Unsupported Twine engine.
-   - Illustrator service unreachable.
-
-Acceptance criteria:
-- Corrupt localStorage does not break startup.
-- Save writes cannot leave partial final files.
-- Save service tests cover atomic write behavior.
-- Missing game files do not navigate to a broken player silently.
+Notes:
+- The library now offers the existing remove action for missing entries; a richer relink flow remains a good Phase 5 UI task.
+- Illustrator offline/error states already surface through the Illustrator UI and remain part of the deeper Phase 6 cleanup for configuration, cancellation, and HTTP behavior.
+- Manual GUI smoke testing is still recommended after checkout because the automated check covers syntax and Node-level reliability behavior.
 
 Focused test plan:
-- Manually corrupt `twine_player_history` in localStorage and reload app.
-- Save over an existing slot.
-- Kill/restart app after saving and verify slot remains readable.
-- Load a missing game from library and verify graceful handling.
-- Try invalid save names and confirm UI/main-process behavior.
+- Manually corrupt `twine_player_history` and `twine_player_console_commands` in localStorage and reload app/game.
+- Save over an existing slot and verify the final `.save` remains readable.
+- Create a stale `.tmp-` save file in a saves directory, save again, and verify stale temp cleanup.
+- Load a library item whose game file has been moved/deleted and verify the missing state appears.
+- Try invalid save names such as `../bad`, `con`, and blank input and confirm immediate UI feedback plus main-process rejection.
+
+## Remaining Work
 
 ## Phase 5: UI and UX Improvements
 
@@ -150,8 +128,8 @@ Goal: make the app easier and safer to use without changing its identity.
 Tasks:
 
 1. Replace risky `innerHTML` usage where user-controlled data enters markup.
-   - Library card title/path in `src/renderer.js`.
-   - Save slot filename/date in `game.html` or extracted save modal module.
+   - Save slot filename/date in extracted save modal module.
+   - Re-check any new library UI added for search/sort/relink.
    - Prefer `document.createElement` and `textContent`.
 
 2. Improve library management.
@@ -292,13 +270,13 @@ Focused test plan:
 ## Suggested Continuation Strategy
 
 Recommended next slice:
-1. Start Phase 4 with hardened localStorage parsing in the extracted renderer modules.
-2. Add focused tests or a small testable helper for `safeJsonParse` behavior.
-3. Then move save writes in `src/main/save-service.js` toward atomic writes.
+1. Start Phase 5 by replacing remaining user-controlled `innerHTML` surfaces in the save modal and any library leftovers.
+2. Add search/sort and a fuller missing-file management flow for the library.
+3. Improve modal keyboard behavior and focus restoration.
 4. Run `npm run check` and perform the focused manual smoke test.
 5. Review the diff and provide a focused test plan before merge approval.
 
-Avoid combining Phase 4 reliability work with broader UI rewrites. The renderer is now split enough that each reliability improvement should land as a small, reviewable behavior change.
+Avoid combining Phase 5 UI/UX work with the deeper Illustrator service cleanup. The renderer is now split enough that each UX improvement should land as a small, reviewable behavior change.
 
 ## Standing Rules for Future Chats
 
