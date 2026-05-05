@@ -8,6 +8,7 @@
         let pendingSaveBlob = null;
         let pendingLoadInput = null;
         let currentModalMode = 'save';
+        let previouslyFocusedElement = null;
 
         let savesList = [];
         let currentPage = 1;
@@ -19,6 +20,70 @@
             modalLoader.classList.add('active');
         };
         const hideLoader = () => modalLoader.classList.remove('active');
+
+        const createSvg = (attributes, paths) => {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            Object.entries(attributes).forEach(([key, value]) => svg.setAttribute(key, value));
+            paths.forEach(pathData => {
+                const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                Object.entries(pathData).forEach(([key, value]) => pathEl.setAttribute(key, value));
+                svg.appendChild(pathEl);
+            });
+            return svg;
+        };
+
+        const getFocusableElements = (container) => {
+            return Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+                .filter(el => !el.disabled && el.offsetParent !== null);
+        };
+
+        const focusFirstModalControl = () => {
+            const firstControl = getFocusableElements(savesModal)[0];
+            if (firstControl) firstControl.focus();
+        };
+
+        const setModalTitle = (mode) => {
+            modalTitle.textContent = '';
+            const isSaveMode = mode === 'save';
+            modalTitle.appendChild(createSvg(
+                {
+                    width: '24',
+                    height: '24',
+                    fill: 'none',
+                    stroke: 'currentColor',
+                    viewBox: '0 0 24 24',
+                },
+                [{
+                    'stroke-linecap': 'round',
+                    'stroke-linejoin': 'round',
+                    'stroke-width': '2',
+                    d: isSaveMode
+                        ? 'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4'
+                        : 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12',
+                }]
+            ));
+            modalTitle.appendChild(document.createTextNode(isSaveMode ? ' Save Game' : ' Load Game'));
+        };
+
+        const restoreTopBarSaveButton = (btn) => {
+            btn.textContent = '';
+            btn.appendChild(createSvg(
+                {
+                    width: '15',
+                    height: '15',
+                    fill: 'none',
+                    stroke: 'currentColor',
+                    viewBox: '0 0 24 24',
+                },
+                [{
+                    'stroke-linecap': 'round',
+                    'stroke-linejoin': 'round',
+                    'stroke-width': '2',
+                    d: 'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4',
+                }]
+            ));
+            btn.appendChild(document.createTextNode(' Save'));
+        };
 
         const formatBytes = (bytes) => {
             if (bytes === 0) return '0 Bytes';
@@ -48,7 +113,7 @@
         };
 
         const renderSavesPage = () => {
-            savesGrid.innerHTML = '';
+            savesGrid.textContent = '';
 
             const totalPages = Math.max(1, Math.ceil(savesList.length / SAVES_PER_PAGE));
             if (currentPage > totalPages) currentPage = totalPages;
@@ -64,27 +129,69 @@
             if (currentModalMode === 'save' && currentPage === 1) {
                 const addSlot = document.createElement('div');
                 addSlot.className = 'save-slot empty';
-                addSlot.innerHTML = `
-                    <div class="empty-content" style="display:flex; flex-direction:column; align-items:center;">
-                        <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        <span style="font-weight: 500;">New Save</span>
-                    </div>
-                `;
+                const addSlotContent = document.createElement('div');
+                addSlotContent.className = 'empty-content new-save-content';
+                addSlotContent.appendChild(createSvg(
+                    {
+                        width: '32',
+                        height: '32',
+                        fill: 'none',
+                        stroke: 'currentColor',
+                        viewBox: '0 0 24 24',
+                    },
+                    [{
+                        'stroke-linecap': 'round',
+                        'stroke-linejoin': 'round',
+                        'stroke-width': '2',
+                        d: 'M12 4v16m8-8H4',
+                    }]
+                ));
+                const addSlotText = document.createElement('span');
+                addSlotText.className = 'new-save-label';
+                addSlotText.textContent = 'New Save';
+                addSlotContent.appendChild(addSlotText);
+                addSlot.appendChild(addSlotContent);
 
                 const handleNewSaveClick = (e) => {
                     if (addSlot.querySelector('#new-save-input')) return;
 
                     const defaultName = `save_${new Date().getTime()}.save`;
-                    addSlot.innerHTML = `
-                        <div style="display:flex; flex-direction:column; align-items:center; width:100%; gap:8px;">
-                            <input type="text" id="new-save-input" value="${defaultName}" style="width: 90%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 6px; border-radius: 4px; outline: none; text-align:center; font-family: inherit;" />
-                            <div id="new-save-error" class="save-name-error"></div>
-                            <div style="display:flex; gap: 8px;">
-                                <button id="new-save-confirm" style="background: rgba(59, 130, 246, 0.8); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px; cursor: pointer;">Save</button>
-                                <button id="new-save-cancel" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 4px; cursor: pointer;">Cancel</button>
-                            </div>
-                        </div>
-                    `;
+                    addSlot.textContent = '';
+
+                    const form = document.createElement('div');
+                    form.className = 'new-save-form';
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = 'new-save-input';
+                    input.className = 'new-save-input';
+                    input.value = defaultName;
+
+                    const error = document.createElement('div');
+                    error.id = 'new-save-error';
+                    error.className = 'save-name-error';
+
+                    const actions = document.createElement('div');
+                    actions.className = 'new-save-actions';
+
+                    const saveButton = document.createElement('button');
+                    saveButton.id = 'new-save-confirm';
+                    saveButton.className = 'new-save-confirm';
+                    saveButton.type = 'button';
+                    saveButton.textContent = 'Save';
+
+                    const cancelButton = document.createElement('button');
+                    cancelButton.id = 'new-save-cancel';
+                    cancelButton.className = 'new-save-cancel';
+                    cancelButton.type = 'button';
+                    cancelButton.textContent = 'Cancel';
+
+                    actions.appendChild(saveButton);
+                    actions.appendChild(cancelButton);
+                    form.appendChild(input);
+                    form.appendChild(error);
+                    form.appendChild(actions);
+                    addSlot.appendChild(form);
 
                     const newSaveInputEl = addSlot.querySelector('#new-save-input');
                     const newSaveErrorEl = addSlot.querySelector('#new-save-error');
@@ -108,12 +215,12 @@
 
                     newSaveInputEl.addEventListener('input', validateNewSaveName);
 
-                    addSlot.querySelector('#new-save-confirm').addEventListener('click', async (btnEvent) => {
+                    saveButton.addEventListener('click', async (btnEvent) => {
                         btnEvent.stopPropagation();
                         await doSave();
                     });
 
-                    addSlot.querySelector('#new-save-cancel').addEventListener('click', (btnEvent) => {
+                    cancelButton.addEventListener('click', (btnEvent) => {
                         btnEvent.stopPropagation();
                         renderSavesPage();
                     });
@@ -123,6 +230,7 @@
                             keyEvent.preventDefault();
                             await doSave();
                         } else if (keyEvent.key === 'Escape') {
+                            keyEvent.stopPropagation();
                             renderSavesPage();
                         }
                     });
@@ -139,16 +247,44 @@
                 const dateStr = new Date(save.mtime).toLocaleString();
                 const displayName = save.filename.replace('.save', '');
 
-                slot.innerHTML = `
-                    <div class="slot-title" title="${save.filename}">${displayName}</div>
-                    <div class="slot-meta">
-                        <span>${dateStr}</span>
-                        <span>${formatBytes(save.size)}</span>
-                    </div>
-                    <button class="slot-delete" title="Delete Save">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    </button>
-                `;
+                const title = document.createElement('div');
+                title.className = 'slot-title';
+                title.title = save.filename;
+                title.textContent = displayName;
+
+                const meta = document.createElement('div');
+                meta.className = 'slot-meta';
+                const date = document.createElement('span');
+                date.textContent = dateStr;
+                const size = document.createElement('span');
+                size.textContent = formatBytes(save.size);
+                meta.appendChild(date);
+                meta.appendChild(size);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'slot-delete';
+                deleteBtn.type = 'button';
+                deleteBtn.title = 'Delete Save';
+                deleteBtn.setAttribute('aria-label', `Delete save ${displayName}`);
+                deleteBtn.appendChild(createSvg(
+                    {
+                        width: '16',
+                        height: '16',
+                        fill: 'none',
+                        stroke: 'currentColor',
+                        viewBox: '0 0 24 24',
+                    },
+                    [{
+                        'stroke-linecap': 'round',
+                        'stroke-linejoin': 'round',
+                        'stroke-width': '2',
+                        d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+                    }]
+                ));
+
+                slot.appendChild(title);
+                slot.appendChild(meta);
+                slot.appendChild(deleteBtn);
 
                 slot.addEventListener('click', async (e) => {
                     if (e.target.closest('.slot-delete')) {
@@ -173,7 +309,11 @@
             });
 
             if (currentModalMode === 'load' && savesList.length === 0) {
-                savesGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 3rem;">No saves found. Play the game and save your progress!</div>';
+                savesGrid.textContent = '';
+                const empty = document.createElement('div');
+                empty.className = 'saves-empty-state';
+                empty.textContent = 'No saves found. Play the game and save your progress!';
+                savesGrid.appendChild(empty);
             }
         };
 
@@ -190,19 +330,23 @@
 
         const openSavesModal = async (mode) => {
             currentModalMode = mode;
-            modalTitle.innerHTML = mode === 'save'
-                ? '<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg> Save Game'
-                : '<svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Load Game';
+            previouslyFocusedElement = document.activeElement;
+            setModalTitle(mode);
 
             currentPage = 1;
             await refreshSaves();
             savesModal.classList.add('active');
+            requestAnimationFrame(focusFirstModalControl);
         };
 
         const closeSavesModal = () => {
             savesModal.classList.remove('active');
             pendingSaveBlob = null;
             pendingLoadInput = null;
+            if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
+                previouslyFocusedElement.focus();
+            }
+            previouslyFocusedElement = null;
         };
 
         document.getElementById('close-modal-btn').addEventListener('click', closeSavesModal);
@@ -213,6 +357,30 @@
 
         document.getElementById('next-page-btn').addEventListener('click', () => {
             currentPage++; renderSavesPage();
+        });
+
+        savesModal.addEventListener('keydown', (e) => {
+            if (!savesModal.classList.contains('active')) return;
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeSavesModal();
+                return;
+            }
+
+            if (e.key !== 'Tab') return;
+            const focusable = getFocusableElements(savesModal);
+            if (focusable.length === 0) return;
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
         });
 
         /* --- Save button: capture state then open modal --- */
@@ -251,7 +419,7 @@
                 // Show error briefly in the button label, then restore
                 btn.textContent = 'Error';
                 setTimeout(() => {
-                    btn.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg> Save`;
+                    restoreTopBarSaveButton(btn);
                 }, 2000);
             } finally {
                 btn.disabled = false;

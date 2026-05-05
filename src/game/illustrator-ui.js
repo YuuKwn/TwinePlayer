@@ -21,6 +21,7 @@
 
         let illusOutputDir = null;
         let illusLastFilename = null;
+        let previouslyFocusedIllustratorElement = null;
 
         /* ---------- helpers ---------- */
 
@@ -32,6 +33,24 @@
         const setIllusLoading = (on) => {
             illusSpinner.style.display = on ? 'block' : 'none';
             illusPlaceholder.style.display = on ? 'none' : (illusResultImg.style.display === 'none' ? 'flex' : 'none');
+        };
+
+        const getFocusableElements = (container) => {
+            return Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+                .filter(el => !el.disabled && el.offsetParent !== null);
+        };
+
+        const focusFirstIllustratorControl = () => {
+            const firstControl = getFocusableElements(illusOverlay)[0];
+            if (firstControl) firstControl.focus();
+        };
+
+        const closeIllustratorModal = () => {
+            illusOverlay.classList.remove('active');
+            if (previouslyFocusedIllustratorElement && typeof previouslyFocusedIllustratorElement.focus === 'function') {
+                previouslyFocusedIllustratorElement.focus();
+            }
+            previouslyFocusedIllustratorElement = null;
         };
 
         /** Populate a <select> with a list of strings. Shows an error option on failure. */
@@ -101,6 +120,7 @@
         /* ---------- open / close ---------- */
 
         document.getElementById('toggle-illustrator').addEventListener('click', async () => {
+            previouslyFocusedIllustratorElement = document.activeElement;
             illusOverlay.classList.add('active');
 
             // Capture current scene text from the iframe, targeting only the story passage.
@@ -126,14 +146,39 @@
 
             // Populate model dropdowns (parallel)
             await Promise.all([loadOllamaModels(), loadComfyUIModels()]);
+            requestAnimationFrame(focusFirstIllustratorControl);
         });
 
         document.getElementById('close-illustrator-btn').addEventListener('click', () => {
-            illusOverlay.classList.remove('active');
+            closeIllustratorModal();
         });
 
         illusOverlay.addEventListener('click', (e) => {
-            if (e.target === illusOverlay) illusOverlay.classList.remove('active');
+            if (e.target === illusOverlay) closeIllustratorModal();
+        });
+
+        illusOverlay.addEventListener('keydown', (e) => {
+            if (!illusOverlay.classList.contains('active')) return;
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeIllustratorModal();
+                return;
+            }
+
+            if (e.key !== 'Tab') return;
+            const focusable = getFocusableElements(illusOverlay);
+            if (focusable.length === 0) return;
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
         });
 
         /* ---------- generate prompt via Ollama ---------- */

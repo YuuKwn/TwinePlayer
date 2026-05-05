@@ -2,6 +2,9 @@ const {
   toFileUrl,
 } = require('./file-utils');
 const {
+  extractGameMetadata,
+} = require('./game-metadata');
+const {
   deleteSave,
   fileExists,
   listSaves,
@@ -44,6 +47,14 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
       return { success: true, exists: await fileExists(assertString(filePath, 'File path')) };
     } catch (err) {
       return { success: false, exists: false, error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('game:metadata', async (event, filePath) => {
+    try {
+      return { success: true, ...(await extractGameMetadata(assertString(filePath, 'File path'))) };
+    } catch (err) {
+      return { success: false, error: getErrorMessage(err) };
     }
   });
 

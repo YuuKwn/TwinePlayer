@@ -588,6 +588,53 @@
             border-color: #e2e8f0;
         }
 
+        .new-save-content,
+        .new-save-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            gap: 8px;
+        }
+
+        .new-save-label {
+            font-weight: 500;
+        }
+
+        .new-save-input {
+            width: 90%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #f8fafc;
+            padding: 6px;
+            border-radius: 4px;
+            outline: none;
+            text-align: center;
+            font-family: inherit;
+        }
+
+        .new-save-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .new-save-confirm,
+        .new-save-cancel {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            padding: 4px 12px;
+        }
+
+        .new-save-confirm {
+            background: rgba(59, 130, 246, 0.8);
+        }
+
+        .new-save-cancel {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
         .save-name-error {
             min-height: 14px;
             color: #fca5a5;
@@ -598,6 +645,13 @@
 
         .invalid-save-name {
             border-color: #ef4444 !important;
+        }
+
+        .saves-empty-state {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #94a3b8;
+            padding: 3rem;
         }
 
         .slot-title {

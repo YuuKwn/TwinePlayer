@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         assertString(filePath, 'File path');
         return ipcRenderer.invoke('file:exists', filePath);
     },
+    getGameMetadata: (filePath) => {
+        assertString(filePath, 'File path');
+        return ipcRenderer.invoke('game:metadata', filePath);
+    },
     listSaves: (gamePath) => {
         assertString(gamePath, 'Game path');
         return ipcRenderer.invoke('save:list', gamePath);

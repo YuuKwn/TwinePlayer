@@ -119,51 +119,36 @@ Focused test plan:
 - Load a library item whose game file has been moved/deleted and verify the missing state appears.
 - Try invalid save names such as `../bad`, `con`, and blank input and confirm immediate UI feedback plus main-process rejection.
 
-## Remaining Work
+### Phase 5: UI and UX Improvements
 
-## Phase 5: UI and UX Improvements
+Done:
+- Removed user-controlled markup interpolation from library cards and save slots.
+- Replaced save modal save-slot rendering with DOM construction and `textContent` for filenames, dates, and sizes.
+- Added library search by title/path.
+- Added library sorting by last played, title, and path.
+- Added missing-file scanning for library entries on startup.
+- Added a missing-game relink action that opens the existing Twine file picker, updates the library entry, and launches the relinked game.
+- Added main-process game metadata extraction from `<tw-storydata name>` and `<title>`, with filename fallback.
+- Added preload/IPC metadata access and tests for metadata parsing.
+- Added Escape close, focus trap, and focus restoration for the saves modal.
+- Added Escape close, focus trap, and focus restoration for the Illustrator modal.
+- Added accessible labels/titles for modal close buttons and dynamic save/delete/remove controls.
 
-Goal: make the app easier and safer to use without changing its identity.
-
-Tasks:
-
-1. Replace risky `innerHTML` usage where user-controlled data enters markup.
-   - Save slot filename/date in extracted save modal module.
-   - Re-check any new library UI added for search/sort/relink.
-   - Prefer `document.createElement` and `textContent`.
-
-2. Improve library management.
-   - Search by title/path.
-   - Sort by last played/title.
-   - Show missing-file state.
-
-3. Extract better game metadata.
-   - Current title extraction mostly uses filename.
-   - Add main-process metadata extraction from `<title>` and `tw-storydata name`.
-
-4. Improve modal accessibility.
-   - Escape closes modals.
-   - Focus trap inside active modal.
-   - Restore focus after close.
-   - Accessible labels for icon buttons.
-
-5. Add settings surface.
-   - Top bar pinned mode.
-   - Console layout.
-   - Default Illustrator model/checkpoint.
-   - Save directory mode, if supported later.
-
-Acceptance criteria:
-- User-controlled title/path/save names are not injected through `innerHTML`.
-- Library remains usable with many games.
-- Keyboard-only modal operation is reasonable.
+Notes:
+- A broader settings surface was not introduced in this slice because Illustrator defaults/configuration belong to Phase 6 and top-bar/console preferences already have direct controls.
+- Remaining inline SVG/button markup in static HTML is not user-controlled. Save and library user data now render through DOM APIs.
+- Manual GUI smoke testing is still recommended because keyboard focus and Electron dialog behavior are best verified in the app.
 
 Focused test plan:
-- Load games with special characters in filename/title.
-- Confirm library cards render text safely.
-- Add enough history entries to test search/sort.
-- Open/close modals by keyboard.
-- Verify focus does not get lost behind modals.
+- Load games with special characters in filename, `<title>`, and `tw-storydata name`.
+- Confirm library cards and save slots render text safely.
+- Add enough history entries to test search and each sort mode.
+- Move/delete a library game file and confirm the missing state appears after startup.
+- Use Relink on a missing game and verify the entry updates and launches.
+- Open/close saves and Illustrator modals by keyboard.
+- Tab through each modal and verify focus wraps inside, then returns to the triggering button after close.
+
+## Remaining Work
 
 ## Phase 6: Illustrator Feature Cleanup
 
@@ -270,13 +255,13 @@ Focused test plan:
 ## Suggested Continuation Strategy
 
 Recommended next slice:
-1. Start Phase 5 by replacing remaining user-controlled `innerHTML` surfaces in the save modal and any library leftovers.
-2. Add search/sort and a fuller missing-file management flow for the library.
-3. Improve modal keyboard behavior and focus restoration.
+1. Start Phase 6 by moving hardcoded Illustrator defaults/endpoints into configuration.
+2. Add cancellation and timeout behavior for ComfyUI polling.
+3. Harden Illustrator HTTP status, JSON-shape, and image response handling.
 4. Run `npm run check` and perform the focused manual smoke test.
 5. Review the diff and provide a focused test plan before merge approval.
 
-Avoid combining Phase 5 UI/UX work with the deeper Illustrator service cleanup. The renderer is now split enough that each UX improvement should land as a small, reviewable behavior change.
+Avoid combining Phase 6 Illustrator cleanup with packaging/release work. The Illustrator feature is experimental enough that configuration, cancellation, and HTTP hardening should stay reviewable.
 
 ## Standing Rules for Future Chats
 

@@ -10,6 +10,11 @@ const missingGamePaths = new Set();
 
 const loadGameBtn = document.getElementById('load-game-btn');
 const historyGrid = document.getElementById('history-grid');
+const librarySearch = document.getElementById('library-search');
+const librarySort = document.getElementById('library-sort');
+
+let searchQuery = '';
+let sortMode = 'lastPlayed';
 
 // Formatting dates
 const formatDate = (isoString) => {
@@ -21,30 +26,103 @@ const formatDate = (isoString) => {
 };
 
 const extractTitleFromHtml = async (filePath) => {
+    const fallbackTitle = getTitleFromPath(filePath);
+    if (!window.electronAPI.getGameMetadata) {
+        return fallbackTitle;
+    }
+
+    const metadata = await window.electronAPI.getGameMetadata(filePath);
+    return metadata.success && metadata.title ? metadata.title : fallbackTitle;
+};
+
+const getTitleFromPath = (filePath) => {
     try {
         const filename = filePath.split('\\').pop().split('/').pop();
         const cleanName = filename.replace(/\.html?$/i, '').replace(/[-_]/g, ' ');
-        // capitalize first letters
-        return cleanName.replace(/\b\w/g, l => l.toUpperCase());
-    } catch (e) {
-        return "Unknown Game";
+        return cleanName.replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown Game';
+    } catch (err) {
+        return 'Unknown Game';
     }
+};
+
+const createSvg = (attributes, paths) => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    Object.entries(attributes).forEach(([key, value]) => svg.setAttribute(key, value));
+    paths.forEach(pathData => {
+        const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        Object.entries(pathData).forEach(([key, value]) => pathEl.setAttribute(key, value));
+        svg.appendChild(pathEl);
+    });
+    return svg;
+};
+
+const renderEmptyState = (message) => {
+    historyGrid.textContent = '';
+    const emptyState = document.createElement('div');
+    emptyState.className = 'history-item glass-panel empty-state';
+
+    const icon = createSvg(
+        {
+            width: '48',
+            height: '48',
+            fill: 'none',
+            stroke: 'currentColor',
+            viewBox: '0 0 24 24',
+            style: 'opacity:0.5',
+        },
+        [{
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'stroke-width': '1.5',
+            d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+        }]
+    );
+
+    const text = document.createElement('p');
+    text.textContent = message;
+
+    emptyState.appendChild(icon);
+    emptyState.appendChild(text);
+    historyGrid.appendChild(emptyState);
+};
+
+const getFilteredHistory = () => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filtered = normalizedQuery
+        ? history.filter(item => {
+            const title = (item.title || '').toLowerCase();
+            const itemPath = (item.path || '').toLowerCase();
+            return title.includes(normalizedQuery) || itemPath.includes(normalizedQuery);
+        })
+        : [...history];
+
+    filtered.sort((a, b) => {
+        if (sortMode === 'title') {
+            return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
+        }
+        if (sortMode === 'path') {
+            return (a.path || '').localeCompare(b.path || '', undefined, { sensitivity: 'base' });
+        }
+        return new Date(b.lastPlayed || 0) - new Date(a.lastPlayed || 0);
+    });
+
+    return filtered;
 };
 
 const renderHistory = () => {
     if (history.length === 0) {
-        historyGrid.innerHTML = `
-      <div class="history-item glass-panel empty-state">
-        <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="opacity:0.5"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-        <p>No games in your library yet. Load a Twine HTML file to start playing!</p>
-      </div>
-    `;
+        renderEmptyState('No games in your library yet. Load a Twine HTML file to start playing!');
         return;
     }
 
-    historyGrid.innerHTML = '';
+    historyGrid.textContent = '';
 
-    const sortedHistory = [...history].sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed));
+    const sortedHistory = getFilteredHistory();
+
+    if (sortedHistory.length === 0) {
+        renderEmptyState('No games match your search.');
+        return;
+    }
 
     sortedHistory.forEach((item, displayIndex) => {
         const originalIndex = history.findIndex(h => h.path === item.path);
@@ -71,14 +149,49 @@ const renderHistory = () => {
             ? 'Missing file. Remove it or load the game from its new location.'
             : `Last played: ${formatDate(item.lastPlayed)}`;
 
-        const removeBtn = document.createElement('div');
+        const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-btn';
+        removeBtn.type = 'button';
         removeBtn.title = 'Remove from Library';
-        removeBtn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+        removeBtn.setAttribute('aria-label', `Remove ${item.title || 'game'} from Library`);
+        removeBtn.appendChild(createSvg(
+            {
+                width: '16',
+                height: '16',
+                fill: 'none',
+                stroke: 'currentColor',
+                viewBox: '0 0 24 24',
+            },
+            [{
+                'stroke-linecap': 'round',
+                'stroke-linejoin': 'round',
+                'stroke-width': '2',
+                d: 'M6 18L18 6M6 6l12 12',
+            }]
+        ));
 
         card.appendChild(titleEl);
         card.appendChild(pathEl);
         card.appendChild(dateEl);
+
+        if (missingGamePaths.has(item.path)) {
+            const actions = document.createElement('div');
+            actions.className = 'history-actions';
+
+            const relinkBtn = document.createElement('button');
+            relinkBtn.className = 'history-action-btn';
+            relinkBtn.type = 'button';
+            relinkBtn.textContent = 'Relink';
+
+            relinkBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await relinkGame(item.path);
+            });
+
+            actions.appendChild(relinkBtn);
+            card.appendChild(actions);
+        }
+
         card.appendChild(removeBtn);
 
         card.addEventListener('click', async (e) => {
@@ -95,6 +208,48 @@ const renderHistory = () => {
 
         historyGrid.appendChild(card);
     });
+};
+
+const refreshMissingGameStates = async () => {
+    if (!window.electronAPI.fileExists || history.length === 0) return;
+
+    const missingBefore = new Set(missingGamePaths);
+    missingGamePaths.clear();
+
+    for (const item of history) {
+        const existsResult = await window.electronAPI.fileExists(item.path);
+        if (!existsResult.success || !existsResult.exists) {
+            missingGamePaths.add(item.path);
+        }
+    }
+
+    const changed =
+        missingBefore.size !== missingGamePaths.size ||
+        [...missingBefore].some(itemPath => !missingGamePaths.has(itemPath));
+
+    if (changed) {
+        renderHistory();
+    }
+};
+
+const relinkGame = async (oldPath) => {
+    const newPath = await window.electronAPI.openFile();
+    if (!newPath) return;
+
+    const existingIndex = history.findIndex(h => h.path === oldPath);
+    if (existingIndex < 0) return;
+
+    const title = await extractTitleFromHtml(newPath);
+    history[existingIndex] = {
+        ...history[existingIndex],
+        path: newPath,
+        title,
+        lastPlayed: new Date().toISOString(),
+    };
+
+    missingGamePaths.delete(oldPath);
+    writeJson(localStorage, HISTORY_KEY, history);
+    await playGame(newPath, title);
 };
 
 const playGame = async (filePath, title) => {
@@ -129,9 +284,20 @@ loadGameBtn.addEventListener('click', async () => {
     const filePath = await window.electronAPI.openFile();
     if (filePath) {
         const title = await extractTitleFromHtml(filePath);
-        playGame(filePath, title);
+        await playGame(filePath, title);
     }
+});
+
+librarySearch.addEventListener('input', () => {
+    searchQuery = librarySearch.value;
+    renderHistory();
+});
+
+librarySort.addEventListener('change', () => {
+    sortMode = librarySort.value;
+    renderHistory();
 });
 
 // Init
 renderHistory();
+refreshMissingGameStates();
