@@ -5,8 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node test/file-utils.test.js",
-    "check": "node --check main.js && node --check preload.js && node --check src/main/file-utils.js && npm test",
+    "test": "node test/run-tests.js",
+    "check": "node --check main.js && node --check preload.js && node --check src/main/file-utils.js && node --check src/main/validation.js && node --check src/main/save-service.js && node --check src/main/illustrator-service.js && node --check src/main/ipc-handlers.js && npm test",
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder --win --linux"
