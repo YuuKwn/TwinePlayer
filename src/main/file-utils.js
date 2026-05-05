@@ -2,6 +2,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const RESERVED_WINDOWS_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+const MAX_SAVE_BYTES = 50 * 1024 * 1024;
 
 const assertNonEmptyString = (value, label) => {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -58,12 +59,37 @@ const resolveSavePath = (gamePath, filename) => {
   return { savesDir, filename: safeFilename, fullPath };
 };
 
+const assertByteValues = (values) => {
+  for (const value of values) {
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      throw new Error('Save data must contain only byte values');
+    }
+  }
+};
+
 const coerceByteBuffer = (value) => {
-  if (Buffer.isBuffer(value)) return value;
-  if (value instanceof Uint8Array) return Buffer.from(value);
-  if (Array.isArray(value)) return Buffer.from(value);
-  if (value && typeof value === 'object') return Buffer.from(Object.values(value));
-  throw new Error('Save data must be a byte array');
+  let buffer;
+  if (Buffer.isBuffer(value)) buffer = value;
+  else if (value instanceof Uint8Array) buffer = Buffer.from(value);
+  else if (Array.isArray(value)) {
+    assertByteValues(value);
+    buffer = Buffer.from(value);
+  } else if (value && typeof value === 'object') {
+    const values = Object.values(value);
+    assertByteValues(values);
+    buffer = Buffer.from(values);
+  }
+  else throw new Error('Save data must be a byte array');
+
+  if (buffer.length === 0) {
+    throw new Error('Save data cannot be empty');
+  }
+
+  if (buffer.length > MAX_SAVE_BYTES) {
+    throw new Error('Save data exceeds the 50 MB limit');
+  }
+
+  return buffer;
 };
 
 const normalizeImageFilename = (filename) => {

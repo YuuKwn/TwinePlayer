@@ -10,6 +10,42 @@ const {
   toFileUrl,
 } = require('./src/main/file-utils');
 
+const MAX_SCENE_TEXT_LENGTH = 10000;
+const MAX_IMAGE_PROMPT_LENGTH = 5000;
+const MAX_MODEL_NAME_LENGTH = 256;
+const MAX_PROMPT_ID_LENGTH = 128;
+
+const assertString = (value, label, maxLength = Infinity) => {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+
+  if (value.length > maxLength) {
+    throw new Error(`${label} is too long`);
+  }
+
+  return value.trim();
+};
+
+const assertPlainObject = (value, label) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+
+  return value;
+};
+
+const assertPromptId = (value) => {
+  const promptId = assertString(value, 'Prompt ID', MAX_PROMPT_ID_LENGTH);
+  if (!/^[A-Za-z0-9_-]+$/.test(promptId)) {
+    throw new Error('Prompt ID contains unsupported characters');
+  }
+
+  return promptId;
+};
+
+const getErrorMessage = (err) => err instanceof Error ? err.message : String(err);
+
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -61,9 +97,9 @@ ipcMain.handle('dialog:openFile', async () => {
 
 ipcMain.handle('path:toFileUrl', async (event, filePath) => {
   try {
-    return { success: true, url: toFileUrl(filePath) };
+    return { success: true, url: toFileUrl(assertString(filePath, 'File path')) };
   } catch (err) {
-    return { success: false, error: err.message };
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 
@@ -97,7 +133,7 @@ ipcMain.handle('save:write', async (event, gamePath, filename, bufferArray) => {
     return { success: true, path: fullPath, filename: safeFilename };
   } catch (err) {
     console.error("Error writing save", err);
-    return { success: false, error: err.message };
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 
@@ -110,7 +146,7 @@ ipcMain.handle('save:read', async (event, gamePath, filename) => {
     return { success: false, error: 'File not found' };
   } catch (err) {
     console.error("Error reading save", err);
-    return { success: false, error: err.message };
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 
@@ -124,7 +160,7 @@ ipcMain.handle('save:delete', async (event, gamePath, filename) => {
     return { success: false, error: 'File not found' };
   } catch (err) {
     console.error("Error deleting save", err);
-    return { success: false, error: err.message };
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 
@@ -138,7 +174,7 @@ ipcMain.handle('illustrator:ensure-output-dir', async (event, gamePath) => {
     }
     return { success: true, path: outputDir, dir: outputDir };
   } catch (err) {
-    return { success: false, error: err.message };
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 
@@ -160,8 +196,8 @@ ipcMain.handle('illustrator:list-ollama-models', async () => {
       req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
     });
   } catch (err) {
-    console.error('Ollama model list error:', err.message);
-    return { success: false, models: [], error: err.message };
+    console.error('Ollama model list error:', getErrorMessage(err));
+    return { success: false, models: [], error: getErrorMessage(err) };
   }
 });
 
@@ -188,17 +224,19 @@ ipcMain.handle('illustrator:list-comfyui-models', async () => {
       req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
     });
   } catch (err) {
-    console.error('ComfyUI model list error:', err.message);
-    return { success: false, models: [], error: err.message };
+    console.error('ComfyUI model list error:', getErrorMessage(err));
+    return { success: false, models: [], error: getErrorMessage(err) };
   }
 });
 
 ipcMain.handle('illustrator:generate-prompt', async (event, sceneText, model) => {
   try {
     const http = require('node:http');
+    const safeSceneText = assertString(sceneText, 'Scene text', MAX_SCENE_TEXT_LENGTH);
+    const safeModel = assertString(model, 'Ollama model', MAX_MODEL_NAME_LENGTH);
     const body = JSON.stringify({
-      model: model,
-      prompt: `You are a visual art director. Given the following scene from a text adventure game, write a concise image generation prompt (under 100 words) describing the visual scene. Focus on: setting, lighting, mood, colors, and any key characters or objects. Do not include any explanation — only the prompt text.\n\nScene:\n${sceneText}`,
+      model: safeModel,
+      prompt: `You are a visual art director. Given the following scene from a text adventure game, write a concise image generation prompt (under 100 words) describing the visual scene. Focus on: setting, lighting, mood, colors, and any key characters or objects. Do not include any explanation - only the prompt text.\n\nScene:\n${safeSceneText}`,
       stream: false
     });
 
@@ -225,23 +263,27 @@ ipcMain.handle('illustrator:generate-prompt', async (event, sceneText, model) =>
       req.end();
     });
   } catch (err) {
-    console.error('Ollama generate error:', err.message);
-    return { success: false, error: err.message };
+    console.error('Ollama generate error:', getErrorMessage(err));
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 
-ipcMain.handle('illustrator:queue-comfyui', async (event, { imagePrompt, outputFilename, checkpoint }) => {
+ipcMain.handle('illustrator:queue-comfyui', async (event, params) => {
   try {
     const http = require('node:http');
+    const { imagePrompt, outputFilename, checkpoint } = assertPlainObject(params, 'ComfyUI queue params');
+    const safePrompt = assertString(imagePrompt, 'Image prompt', MAX_IMAGE_PROMPT_LENGTH);
+    const safeCheckpoint = assertString(checkpoint, 'ComfyUI checkpoint', MAX_MODEL_NAME_LENGTH);
+    const outputPrefix = normalizeImageFilename(`${assertString(outputFilename, 'Output filename', 128).replace(/\.png$/i, '')}.png`).replace(/\.png$/i, '');
 
     const workflow = {
-      "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": checkpoint } },
-      "2": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": imagePrompt } },
+      "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": safeCheckpoint } },
+      "2": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": safePrompt } },
       "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": "blurry, low quality, watermark, text, ugly" } },
       "4": { "class_type": "EmptyLatentImage", "inputs": { "batch_size": 1, "height": 1216, "width": 832 } },
       "5": { "class_type": "KSampler", "inputs": { "cfg": 7, "denoise": 1, "latent_image": ["4", 0], "model": ["1", 0], "negative": ["3", 0], "positive": ["2", 0], "sampler_name": "euler", "scheduler": "normal", "seed": Math.floor(Math.random() * 1e9), "steps": 20 } },
       "6": { "class_type": "VAEDecode", "inputs": { "samples": ["5", 0], "vae": ["1", 2] } },
-      "7": { "class_type": "SaveImage", "inputs": { "filename_prefix": outputFilename.replace('.png', ''), "images": ["6", 0] } }
+      "7": { "class_type": "SaveImage", "inputs": { "filename_prefix": outputPrefix, "images": ["6", 0] } }
     };
 
     const body = JSON.stringify({ prompt: workflow });
@@ -269,17 +311,20 @@ ipcMain.handle('illustrator:queue-comfyui', async (event, { imagePrompt, outputF
       req.end();
     });
   } catch (err) {
-    console.error('ComfyUI queue error:', err.message);
-    return { success: false, error: err.message };
+    console.error('ComfyUI queue error:', getErrorMessage(err));
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 
-ipcMain.handle('illustrator:poll-image', async (event, { promptId, outputDir }) => {
+ipcMain.handle('illustrator:poll-image', async (event, params) => {
   try {
     const http = require('node:http');
+    const { promptId, gamePath } = assertPlainObject(params, 'ComfyUI poll params');
+    const safePromptId = assertPromptId(promptId);
+    const outputDir = gamePath ? getGameSidecarDir(assertString(gamePath, 'Game path'), 'illustrations') : null;
 
     const historyData = await new Promise((resolve, reject) => {
-      const req = http.get(`http://localhost:8188/history/${promptId}`, (res) => {
+      const req = http.get(`http://localhost:8188/history/${encodeURIComponent(safePromptId)}`, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
@@ -290,7 +335,7 @@ ipcMain.handle('illustrator:poll-image', async (event, { promptId, outputDir }) 
       req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
     });
 
-    const entry = historyData[promptId];
+    const entry = historyData[safePromptId];
     if (!entry) return { success: false, pending: true };
 
     const outputs = entry.outputs;
@@ -315,26 +360,27 @@ ipcMain.handle('illustrator:poll-image', async (event, { promptId, outputDir }) 
           const localPath = outputDir ? resolveChildPath(outputDir, imageFilename) : null;
           try {
             if (localPath) {
+              ensureSavesDir(outputDir);
               fs.writeFileSync(localPath, Buffer.from(imageBuffer));
             }
           } catch (saveErr) {
-            console.warn('Illustrator: could not save local copy', saveErr.message);
+            console.warn('Illustrator: could not save local copy', getErrorMessage(saveErr));
           }
 
           // Convert to base64 data URL for display in renderer
           const base64 = imageBuffer.toString('base64');
           return { success: true, dataUrl: `data:image/png;base64,${base64}`, filename: imageFilename, localPath };
         } catch (downloadErr) {
-          console.error('Illustrator: image download error', downloadErr.message);
-          return { success: false, error: downloadErr.message };
+          console.error('Illustrator: image download error', getErrorMessage(downloadErr));
+          return { success: false, error: getErrorMessage(downloadErr) };
         }
       }
     }
 
     return { success: false, pending: true };
   } catch (err) {
-    console.error('Illustrator poll error:', err.message);
-    return { success: false, error: err.message };
+    console.error('Illustrator poll error:', getErrorMessage(err));
+    return { success: false, error: getErrorMessage(err) };
   }
 });
 

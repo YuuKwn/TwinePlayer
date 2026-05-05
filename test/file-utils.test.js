@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
   coerceByteBuffer,
   getGameSidecarDir,
+  normalizeImageFilename,
   normalizeSaveFilename,
   resolveChildPath,
   resolveSavePath,
@@ -49,6 +50,23 @@ test('coerceByteBuffer handles common IPC byte shapes', () => {
   assert.deepEqual([...coerceByteBuffer(new Uint8Array([1, 2, 3]))], [1, 2, 3]);
   assert.deepEqual([...coerceByteBuffer([4, 5, 6])], [4, 5, 6]);
   assert.deepEqual([...coerceByteBuffer({ 0: 7, 1: 8, 2: 9 })], [7, 8, 9]);
+});
+
+test('coerceByteBuffer rejects empty and oversized saves', () => {
+  assert.throws(() => coerceByteBuffer([]), /cannot be empty/);
+  assert.throws(() => coerceByteBuffer(new Uint8Array((50 * 1024 * 1024) + 1)), /50 MB limit/);
+});
+
+test('coerceByteBuffer rejects non-byte array values', () => {
+  assert.throws(() => coerceByteBuffer([256]), /only byte values/);
+  assert.throws(() => coerceByteBuffer({ 0: -1 }), /only byte values/);
+  assert.throws(() => coerceByteBuffer({ 0: 'x' }), /only byte values/);
+});
+
+test('normalizeImageFilename rejects path-like image names', () => {
+  assert.equal(normalizeImageFilename('illustration.png'), 'illustration.png');
+  assert.throws(() => normalizeImageFilename('../illustration.png'), /plain filename/);
+  assert.throws(() => normalizeImageFilename('nested/illustration.png'), /plain filename/);
 });
 
 test('toFileUrl returns an encoded file URL', () => {

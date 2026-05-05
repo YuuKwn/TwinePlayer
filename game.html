@@ -3,6 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: file: http://localhost:8188; connect-src 'self' data: blob: file: http://localhost:11434 http://localhost:8188; frame-src file:; object-src 'none'; base-uri 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Playing - Twine Player</title>
     <style>
@@ -241,6 +243,13 @@
             margin: 0;
             font-size: 16px;
             font-weight: 500;
+        }
+
+        .console-scope {
+            margin-top: 4px;
+            color: #fbbf24;
+            font-size: 11px;
+            letter-spacing: 0.2px;
         }
 
         .close-console {
@@ -1096,7 +1105,10 @@
 
     <aside id="dev-console">
         <div class="console-header">
-            <h3>Developer Console</h3>
+            <div>
+                <h3>Developer Console</h3>
+                <div class="console-scope">Runs JavaScript inside the loaded game</div>
+            </div>
             <div style="display:flex;align-items:center;gap:4px;">
                 <button class="layout-toggle-btn" id="layout-toggle" title="Toggle: Overlay / Side-by-side">
                     <svg id="layout-icon-side" width="20" height="20" fill="none" stroke="currentColor"
@@ -1305,6 +1317,10 @@
 
         const CONSOLE_HISTORY_KEY = 'twine_player_console_history';
         let currentIfid = null;
+        const TRUSTED_MESSAGE_TYPES = new Set(['twine-save', 'twine-load', 'twine-scene-text']);
+        const MAX_MESSAGE_TEXT_LENGTH = 2000;
+        const MAX_MESSAGE_DATA_URL_LENGTH = 50 * 1024 * 1024;
+        const MAX_MESSAGE_BASE64_LENGTH = 50 * 1024 * 1024;
 
         /**
          * Prevents keyboard events from bubbling up to the game engine.
@@ -2425,20 +2441,22 @@
 
         /* --- Message bridge from iframe (saves + illustrator scene capture) --- */
         window.addEventListener('message', async (event) => {
+            if (event.source !== iframe.contentWindow) return;
+
             const msg = event.data;
-            if (!msg || !msg.type) return;
+            if (!msg || typeof msg !== 'object' || Array.isArray(msg) || !TRUSTED_MESSAGE_TYPES.has(msg.type)) return;
 
             // Save/load messages — kept as bonus path for patched games
             if (msg.type === 'twine-save') {
                 pendingSaveBlob = null;
-                if (msg.dataUrl) {
+                if (typeof msg.dataUrl === 'string' && msg.dataUrl.length <= MAX_MESSAGE_DATA_URL_LENGTH && msg.dataUrl.startsWith('data:')) {
                     try {
                         const res = await fetch(msg.dataUrl);
                         pendingSaveBlob = await res.blob();
                     } catch (e) {
                         printLog(`Err reading save data URL: ${e.message}`, 'error');
                     }
-                } else if (msg.base64) {
+                } else if (typeof msg.base64 === 'string' && msg.base64.length <= MAX_MESSAGE_BASE64_LENGTH) {
                     try {
                         const byteStr = atob(msg.base64);
                         const bytes = new Uint8Array(byteStr.length);
@@ -2448,7 +2466,9 @@
                         printLog(`Err decoding base64 save: ${e.message}`, 'error');
                     }
                 }
-                await openSavesModal('save');
+                if (pendingSaveBlob) {
+                    await openSavesModal('save');
+                }
             } else if (msg.type === 'twine-load') {
                 await openSavesModal('load');
             }
@@ -2456,8 +2476,8 @@
             // Illustrator scene capture
             if (msg.type === 'twine-scene-text') {
                 const sceneEl = document.getElementById('illus-scene-text');
-                if (sceneEl && msg.text) {
-                    sceneEl.value = msg.text;
+                if (sceneEl && typeof msg.text === 'string') {
+                    sceneEl.value = msg.text.slice(0, MAX_MESSAGE_TEXT_LENGTH);
                 }
             }
         });
@@ -2673,7 +2693,7 @@
             const pollInterval = setInterval(async () => {
                 const pollRes = await window.illustratorAPI.pollImage({
                     promptId,
-                    outputDir: illusOutputDir || ''
+                    gamePath: gameUrl
                 });
 
                 if (pollRes.pending) return; // still working

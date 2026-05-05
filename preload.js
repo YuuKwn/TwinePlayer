@@ -1,23 +1,66 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+const assertString = (value, label) => {
+    if (typeof value !== 'string' || value.trim() === '') {
+        throw new TypeError(`${label} must be a non-empty string`);
+    }
+};
+
+const assertPlainObject = (value, label) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new TypeError(`${label} must be an object`);
+    }
+};
+
 contextBridge.exposeInMainWorld('electronAPI', {
     openFile: () => ipcRenderer.invoke('dialog:openFile'),
-    toFileUrl: (filePath) => ipcRenderer.invoke('path:toFileUrl', filePath),
-    listSaves: (gamePath) => ipcRenderer.invoke('save:list', gamePath),
-    writeSave: (gamePath, filename, bufferArray) => ipcRenderer.invoke('save:write', gamePath, filename, bufferArray),
-    readSave: (gamePath, filename) => ipcRenderer.invoke('save:read', gamePath, filename),
-    deleteSave: (gamePath, filename) => ipcRenderer.invoke('save:delete', gamePath, filename)
+    toFileUrl: (filePath) => {
+        assertString(filePath, 'File path');
+        return ipcRenderer.invoke('path:toFileUrl', filePath);
+    },
+    listSaves: (gamePath) => {
+        assertString(gamePath, 'Game path');
+        return ipcRenderer.invoke('save:list', gamePath);
+    },
+    writeSave: (gamePath, filename, bufferArray) => {
+        assertString(gamePath, 'Game path');
+        assertString(filename, 'Save filename');
+        return ipcRenderer.invoke('save:write', gamePath, filename, bufferArray);
+    },
+    readSave: (gamePath, filename) => {
+        assertString(gamePath, 'Game path');
+        assertString(filename, 'Save filename');
+        return ipcRenderer.invoke('save:read', gamePath, filename);
+    },
+    deleteSave: (gamePath, filename) => {
+        assertString(gamePath, 'Game path');
+        assertString(filename, 'Save filename');
+        return ipcRenderer.invoke('save:delete', gamePath, filename);
+    }
 });
 
 // --- Illustrator Feature ---
 // Kept as a separate contextBridge entry so it can be removed independently
 // without touching electronAPI or breaking any existing functionality.
 contextBridge.exposeInMainWorld('illustratorAPI', {
-    ensureOutputDir: (gamePath) => ipcRenderer.invoke('illustrator:ensure-output-dir', gamePath),
+    ensureOutputDir: (gamePath) => {
+        assertString(gamePath, 'Game path');
+        return ipcRenderer.invoke('illustrator:ensure-output-dir', gamePath);
+    },
     listOllamaModels: () => ipcRenderer.invoke('illustrator:list-ollama-models'),
     listComfyUIModels: () => ipcRenderer.invoke('illustrator:list-comfyui-models'),
-    generatePrompt: (sceneText, model) => ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model),
-    queueComfyUI: (params) => ipcRenderer.invoke('illustrator:queue-comfyui', params),
-    pollImage: (params) => ipcRenderer.invoke('illustrator:poll-image', params),
+    generatePrompt: (sceneText, model) => {
+        assertString(sceneText, 'Scene text');
+        assertString(model, 'Ollama model');
+        return ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model);
+    },
+    queueComfyUI: (params) => {
+        assertPlainObject(params, 'ComfyUI queue params');
+        return ipcRenderer.invoke('illustrator:queue-comfyui', params);
+    },
+    pollImage: (params) => {
+        assertPlainObject(params, 'ComfyUI poll params');
+        return ipcRenderer.invoke('illustrator:poll-image', params);
+    },
 });
 // --- End Illustrator Feature ---
