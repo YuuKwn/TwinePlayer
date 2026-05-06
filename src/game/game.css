@@ -830,6 +830,7 @@
         }
 
         .illus-label {
+            display: block;
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -867,13 +868,29 @@
             max-height: 130px;
         }
 
+        .illus-textarea-small {
+            min-height: 56px;
+            max-height: 90px;
+        }
+
         .illus-row {
             display: flex;
             gap: 8px;
             align-items: center;
         }
 
+        .illus-settings-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .illus-settings-grid-compact {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
         .illus-input {
+            width: 100%;
             flex: 1;
             background: rgba(0, 0, 0, 0.35);
             border: 1px solid rgba(255, 255, 255, 0.12);
@@ -892,6 +909,7 @@
 
         /* Model select dropdown â€” reuses illus-input appearance */
         .illus-select {
+            width: 100%;
             flex: 1;
             background: rgba(0, 0, 0, 0.35);
             border: 1px solid rgba(255, 255, 255, 0.12);
@@ -972,6 +990,12 @@
         .illus-btn:disabled {
             opacity: 0.45;
             cursor: not-allowed;
+        }
+
+        #illus-cancel-image-btn {
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.35);
+            background: rgba(239, 68, 68, 0.12);
         }
 
         .illus-btn-primary {

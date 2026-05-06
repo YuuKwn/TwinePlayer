@@ -51,16 +51,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 // Kept as a separate contextBridge entry so it can be removed independently
 // without touching electronAPI or breaking any existing functionality.
 contextBridge.exposeInMainWorld('illustratorAPI', {
+    getDefaultConfig: () => ipcRenderer.invoke('illustrator:get-default-config'),
     ensureOutputDir: (gamePath) => {
         assertString(gamePath, 'Game path');
         return ipcRenderer.invoke('illustrator:ensure-output-dir', gamePath);
     },
-    listOllamaModels: () => ipcRenderer.invoke('illustrator:list-ollama-models'),
-    listComfyUIModels: () => ipcRenderer.invoke('illustrator:list-comfyui-models'),
-    generatePrompt: (sceneText, model) => {
+    listTextModels: (config) => ipcRenderer.invoke('illustrator:list-text-models', config),
+    listOllamaModels: (config) => ipcRenderer.invoke('illustrator:list-ollama-models', config),
+    listComfyUIModels: (config) => ipcRenderer.invoke('illustrator:list-comfyui-models', config),
+    generatePrompt: (sceneText, model, config) => {
         assertString(sceneText, 'Scene text');
         assertString(model, 'Ollama model');
-        return ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model);
+        return ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model, config);
     },
     queueComfyUI: (params) => {
         assertPlainObject(params, 'ComfyUI queue params');

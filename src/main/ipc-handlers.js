@@ -12,10 +12,12 @@ const {
   writeSave,
 } = require('./save-service');
 const {
+  DEFAULT_ILLUSTRATOR_CONFIG,
   ensureOutputDir,
   generatePrompt,
   listComfyUIModels,
   listOllamaModels,
+  listTextModels,
   pollImage,
   queueComfyUI,
 } = require('./illustrator-service');
@@ -102,38 +104,51 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
     }
   });
 
+  ipcMain.handle('illustrator:get-default-config', async () => {
+    return { success: true, config: DEFAULT_ILLUSTRATOR_CONFIG };
+  });
+
   ipcMain.handle('illustrator:ensure-output-dir', async (event, gamePath) => {
     try {
-      const outputDir = ensureOutputDir(gamePath);
+      const outputDir = await ensureOutputDir(gamePath);
       return { success: true, path: outputDir, dir: outputDir };
     } catch (err) {
       return { success: false, error: getErrorMessage(err) };
     }
   });
 
-  ipcMain.handle('illustrator:list-ollama-models', async () => {
+  ipcMain.handle('illustrator:list-text-models', async (event, config) => {
     try {
-      return { success: true, models: await listOllamaModels() };
+      return { success: true, models: await listTextModels(config) };
     } catch (err) {
-      console.error('Ollama model list error:', getErrorMessage(err));
+      console.error('Text model list error:', getErrorMessage(err));
       return { success: false, models: [], error: getErrorMessage(err) };
     }
   });
 
-  ipcMain.handle('illustrator:list-comfyui-models', async () => {
+  ipcMain.handle('illustrator:list-ollama-models', async (event, config) => {
     try {
-      return { success: true, models: await listComfyUIModels() };
+      return { success: true, models: await listOllamaModels(config) };
+    } catch (err) {
+      console.error('Text model list error:', getErrorMessage(err));
+      return { success: false, models: [], error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:list-comfyui-models', async (event, config) => {
+    try {
+      return { success: true, models: await listComfyUIModels(config) };
     } catch (err) {
       console.error('ComfyUI model list error:', getErrorMessage(err));
       return { success: false, models: [], error: getErrorMessage(err) };
     }
   });
 
-  ipcMain.handle('illustrator:generate-prompt', async (event, sceneText, model) => {
+  ipcMain.handle('illustrator:generate-prompt', async (event, sceneText, model, config) => {
     try {
-      return { success: true, prompt: await generatePrompt(sceneText, model) };
+      return { success: true, prompt: await generatePrompt(sceneText, model, config) };
     } catch (err) {
-      console.error('Ollama generate error:', getErrorMessage(err));
+      console.error('Text prompt generate error:', getErrorMessage(err));
       return { success: false, error: getErrorMessage(err) };
     }
   });

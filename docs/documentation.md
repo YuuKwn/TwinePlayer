@@ -34,7 +34,7 @@
 - Not wanting Twine games mixed into a personal browsing session or history.
 - Wanting a dedicated, distraction-free space for playing interactive fiction.
 
-The app provides a full-featured player with a game library, native file-based save management, an in-app developer console with JavaScript autocomplete, and an experimental AI Illustrator that generates scene illustrations using locally-running Ollama and ComfyUI.
+The app provides a full-featured player with a game library, native file-based save management, an in-app developer console with JavaScript autocomplete, and an experimental AI Illustrator that generates scene illustrations using a local text backend and ComfyUI.
 
 ---
 
@@ -53,19 +53,22 @@ The app provides a full-featured player with a game library, native file-based s
 
 ### For the Illustrator Feature (Optional)
 
-The AI Illustrator is an **optional** feature that requires two local AI services running on your machine:
+The AI Illustrator is an **optional** feature that requires a text-generation service and ComfyUI.
 
 | Service | Purpose | Default URL |
 |---------|---------|------------|
 | [Ollama](https://ollama.com/) | Converts scene text into image prompts | `http://localhost:11434` |
+| OpenAI-compatible local server | Alternative text backend for llama.cpp, MLX/oMLX, or similar servers | Example: `http://192.168.1.20:8080/v1` |
 | [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | Generates images from prompts via Stable Diffusion | `http://127.0.0.1:8188` |
 
-A compatible Stable Diffusion checkpoint must be available in ComfyUI. The default checkpoint used is `waiIllustriousSDXL_v160.safetensors`, but this can be configured in `main.js`.
+A compatible Stable Diffusion checkpoint must be available in ComfyUI. The default checkpoint used is `waiIllustriousSDXL_v160.safetensors`, and it can be changed in the Illustrator panel.
 
 The Ollama model used is `llama3.2` by default. Make sure it is pulled before enabling the feature:
 ```bash
 ollama pull llama3.2
 ```
+
+For llama.cpp or MLX/oMLX on another machine, run an OpenAI-compatible server, choose **OpenAI-compatible** in the Illustrator panel, set the endpoint to that server's `/v1` URL, and choose or type the model id exposed by `/v1/models`.
 
 ---
 
@@ -184,7 +187,7 @@ The Illustrator generates scene illustrations for the game you are currently pla
 
 #### How It Works
 
-1. The current game passage text is sent to **Ollama** (running locally), which converts it into a Stable Diffusion image prompt.
+1. The current game passage text is sent to the configured text backend, either **Ollama** or an **OpenAI-compatible** local server, which converts it into a Stable Diffusion image prompt.
 2. The generated prompt is queued in **ComfyUI** (running locally) using a pre-configured workflow.
 3. TwinePlayer polls ComfyUI until the image is ready, then displays it in the app.
 4. A copy of the generated image is saved to a folder next to the game file, named `<game-filename>_illustrations/`.
@@ -195,22 +198,20 @@ The workflow used by TwinePlayer:
 
 | Parameter | Value |
 |-----------|-------|
-| Image size | 832 × 1216 px (portrait) |
-| Sampler | Euler Ancestral |
-| Steps | 25 |
+| Image size | 832 x 1216 px by default |
+| Sampler | `euler` |
+| Scheduler | `normal` |
+| Steps | 20 |
 | CFG Scale | 7 |
 | Default checkpoint | `waiIllustriousSDXL_v160.safetensors` |
 
-The negative prompt automatically filters out common low-quality artifacts (bad anatomy, watermarks, etc.).
+The negative prompt defaults to `blurry, low quality, watermark, text, ugly`.
 
-#### Customizing the Checkpoint
+#### Configuring Illustrator
 
-To use a different model checkpoint, edit the constant in `main.js`:
+Use the fields in the Illustrator panel to configure the text backend, text endpoint, text model, ComfyUI endpoint, checkpoint, image size, sampler, scheduler, steps, CFG, and negative prompt. Settings are stored locally in `localStorage`.
 
-```js
-// main.js
-const ILLUSTRATOR_DEFAULT_CHECKPOINT = 'your-model-name.safetensors';
-```
+For llama.cpp or MLX/oMLX servers, use the **OpenAI-compatible** backend. The endpoint should include `/v1`, for example `http://192.168.1.20:8080/v1`.
 
 ---
 
@@ -352,9 +353,11 @@ Exposed separately so it can be removed without affecting core functionality.
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
 | `ensureOutputDir(gamePath)` | `gamePath: string` | `{ success, dir?, error? }` | Creates the illustrations folder for the game if it doesn't exist. |
-| `generatePrompt(sceneText)` | `sceneText: string` | `{ success, prompt?, error? }` | Sends scene text to Ollama and returns a Stable Diffusion prompt. |
-| `queueComfyUI(params)` | `{ imagePrompt, outputFilename, checkpoint? }` | `{ success, promptId?, error? }` | Queues an image generation job in ComfyUI. Returns the job ID. |
-| `pollImage(params)` | `{ promptId, outputDir }` | `{ success, pending?, dataUrl?, filename?, error? }` | Polls ComfyUI for job completion. Returns a base64 data URL when ready. |
+| `getDefaultConfig()` | none | `{ success, config?, error? }` | Returns Illustrator defaults. |
+| `listTextModels(config)` | Illustrator config | `{ success, models?, error? }` | Lists Ollama or OpenAI-compatible text models. |
+| `generatePrompt(sceneText, model, config)` | scene text, model id, Illustrator config | `{ success, prompt?, error? }` | Sends scene text to the configured text backend and returns a Stable Diffusion prompt. |
+| `queueComfyUI(params)` | `{ imagePrompt, outputFilename, checkpoint?, config? }` | `{ success, promptId?, error? }` | Queues an image generation job in ComfyUI. Returns the job ID. |
+| `pollImage(params)` | `{ promptId, gamePath, config? }` | `{ success, pending?, dataUrl?, filename?, error? }` | Polls ComfyUI for job completion. Returns a base64 data URL when ready. |
 
 **Polling pattern:** Call `pollImage` repeatedly (e.g., every 2–3 seconds) until `pending` is `false`. On success, `dataUrl` contains the image as `data:image/png;base64,...`.
 

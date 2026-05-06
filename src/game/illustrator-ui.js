@@ -2,28 +2,53 @@
            ILLUSTRATOR FEATURE
            ================================================================ */
 
-        // Fallback values used when a service is unreachable on open
-        const ILLUS_FALLBACK_OLLAMA_MODEL = 'llama3.2';
-        const ILLUS_FALLBACK_CHECKPOINT = 'waiIllustriousSDXL_v160.safetensors';
+        const ILLUSTRATOR_CONFIG_KEY = 'twine_player_illustrator_config';
+        const DEFAULT_ILLUSTRATOR_CONFIG = {
+            textBackend: 'ollama',
+            textEndpoint: 'http://localhost:11434',
+            textModel: 'llama3.2',
+            comfyEndpoint: 'http://localhost:8188',
+            checkpoint: 'waiIllustriousSDXL_v160.safetensors',
+            imageWidth: 832,
+            imageHeight: 1216,
+            sampler: 'euler',
+            scheduler: 'normal',
+            steps: 20,
+            cfg: 7,
+            negativePrompt: 'blurry, low quality, watermark, text, ugly',
+            maxPollingMs: 120000,
+        };
 
-        const illusOverlay    = document.getElementById('illustrator-modal-overlay');
-        const illusStatus     = document.getElementById('illus-status');
-        const illusSpinner    = document.getElementById('illus-spinner');
+        const illusOverlay = document.getElementById('illustrator-modal-overlay');
+        const illusStatus = document.getElementById('illus-status');
+        const illusSpinner = document.getElementById('illus-spinner');
         const illusPlaceholder = document.getElementById('illus-image-placeholder');
-        const illusResultImg  = document.getElementById('illus-result-img');
+        const illusResultImg = document.getElementById('illus-result-img');
         const illusDownloadBtn = document.getElementById('illus-download-btn');
 
-        // Model / checkpoint selects
-        const ollamaModelSelect    = document.getElementById('illus-ollama-model-select');
-        const checkpointSelect     = document.getElementById('illus-checkpoint-select');
-        const reloadOllamaBtn      = document.getElementById('illus-reload-ollama-btn');
-        const reloadComfyBtn       = document.getElementById('illus-reload-comfy-btn');
+        const textBackendSelect = document.getElementById('illus-text-backend-select');
+        const textEndpointInput = document.getElementById('illus-text-endpoint-input');
+        const ollamaModelSelect = document.getElementById('illus-ollama-model-select');
+        const comfyEndpointInput = document.getElementById('illus-comfy-endpoint-input');
+        const checkpointSelect = document.getElementById('illus-checkpoint-select');
+        const reloadOllamaBtn = document.getElementById('illus-reload-ollama-btn');
+        const reloadComfyBtn = document.getElementById('illus-reload-comfy-btn');
+        const widthInput = document.getElementById('illus-width-input');
+        const heightInput = document.getElementById('illus-height-input');
+        const stepsInput = document.getElementById('illus-steps-input');
+        const cfgInput = document.getElementById('illus-cfg-input');
+        const samplerInput = document.getElementById('illus-sampler-input');
+        const schedulerInput = document.getElementById('illus-scheduler-input');
+        const negativePromptText = document.getElementById('illus-negative-prompt-text');
+        const generateImageBtn = document.getElementById('illus-generate-image-btn');
+        const cancelImageBtn = document.getElementById('illus-cancel-image-btn');
 
         let illusOutputDir = null;
         let illusLastFilename = null;
         let previouslyFocusedIllustratorElement = null;
-
-        /* ---------- helpers ---------- */
+        let illustratorDefaults = { ...DEFAULT_ILLUSTRATOR_CONFIG };
+        let activePollTimer = null;
+        let activePollStartedAt = 0;
 
         const setIllusStatus = (msg, type = 'idle') => {
             illusStatus.textContent = msg;
@@ -33,6 +58,72 @@
         const setIllusLoading = (on) => {
             illusSpinner.style.display = on ? 'block' : 'none';
             illusPlaceholder.style.display = on ? 'none' : (illusResultImg.style.display === 'none' ? 'flex' : 'none');
+        };
+
+        const readStoredConfig = () => {
+            const stored = window.TwinePlayerStorage.readJson(localStorage, ILLUSTRATOR_CONFIG_KEY, {});
+            return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+        };
+
+        const numberFromInput = (input, fallback) => {
+            const value = Number(input.value);
+            return Number.isFinite(value) ? value : fallback;
+        };
+
+        const getIllustratorConfig = () => ({
+            ...illustratorDefaults,
+            textBackend: textBackendSelect.value || illustratorDefaults.textBackend,
+            textEndpoint: textEndpointInput.value.trim() || illustratorDefaults.textEndpoint,
+            textModel: ollamaModelSelect.value || illustratorDefaults.textModel,
+            comfyEndpoint: comfyEndpointInput.value.trim() || illustratorDefaults.comfyEndpoint,
+            checkpoint: checkpointSelect.value || illustratorDefaults.checkpoint,
+            imageWidth: numberFromInput(widthInput, illustratorDefaults.imageWidth),
+            imageHeight: numberFromInput(heightInput, illustratorDefaults.imageHeight),
+            sampler: samplerInput.value.trim() || illustratorDefaults.sampler,
+            scheduler: schedulerInput.value.trim() || illustratorDefaults.scheduler,
+            steps: numberFromInput(stepsInput, illustratorDefaults.steps),
+            cfg: numberFromInput(cfgInput, illustratorDefaults.cfg),
+            negativePrompt: negativePromptText.value.trim() || illustratorDefaults.negativePrompt,
+        });
+
+        const persistIllustratorConfig = () => {
+            window.TwinePlayerStorage.writeJson(localStorage, ILLUSTRATOR_CONFIG_KEY, getIllustratorConfig());
+        };
+
+        const addOrSelectOption = (selectEl, value) => {
+            if (!value) return;
+            if (![...selectEl.options].some(option => option.value === value)) {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                selectEl.appendChild(option);
+            }
+            selectEl.value = value;
+        };
+
+        const applyIllustratorConfig = (config) => {
+            textBackendSelect.value = config.textBackend;
+            textEndpointInput.value = config.textEndpoint;
+            addOrSelectOption(ollamaModelSelect, config.textModel);
+            comfyEndpointInput.value = config.comfyEndpoint;
+            addOrSelectOption(checkpointSelect, config.checkpoint);
+            widthInput.value = config.imageWidth;
+            heightInput.value = config.imageHeight;
+            stepsInput.value = config.steps;
+            cfgInput.value = config.cfg;
+            samplerInput.value = config.sampler;
+            schedulerInput.value = config.scheduler;
+            negativePromptText.value = config.negativePrompt;
+        };
+
+        const loadIllustratorConfig = async () => {
+            if (window.illustratorAPI.getDefaultConfig) {
+                const res = await window.illustratorAPI.getDefaultConfig();
+                if (res.success && res.config) {
+                    illustratorDefaults = { ...DEFAULT_ILLUSTRATOR_CONFIG, ...res.config };
+                }
+            }
+            applyIllustratorConfig({ ...illustratorDefaults, ...readStoredConfig() });
         };
 
         const getFocusableElements = (container) => {
@@ -53,7 +144,6 @@
             previouslyFocusedIllustratorElement = null;
         };
 
-        /** Populate a <select> with a list of strings. Shows an error option on failure. */
         const populateSelect = (selectEl, items, fallback, errorMsg) => {
             selectEl.innerHTML = '';
             if (!items || items.length === 0) {
@@ -69,13 +159,9 @@
                 opt.textContent = item;
                 selectEl.appendChild(opt);
             });
-            // Pre-select the fallback value if it exists in the list
-            if ([...selectEl.options].some(o => o.value === fallback)) {
-                selectEl.value = fallback;
-            }
+            addOrSelectOption(selectEl, fallback);
         };
 
-        /** Spin the reload icon while a fetch is in progress */
         const withSpinningReload = async (btn, fn) => {
             btn.classList.add('spinning');
             btn.disabled = true;
@@ -87,43 +173,60 @@
             }
         };
 
-        /* ---------- model list loaders ---------- */
-
         const loadOllamaModels = async () => {
             await withSpinningReload(reloadOllamaBtn, async () => {
-                const res = await window.illustratorAPI.listOllamaModels();
+                persistIllustratorConfig();
+                const config = getIllustratorConfig();
+                const res = window.illustratorAPI.listTextModels
+                    ? await window.illustratorAPI.listTextModels(config)
+                    : await window.illustratorAPI.listOllamaModels(config);
                 if (res.success && res.models.length > 0) {
-                    populateSelect(ollamaModelSelect, res.models, ILLUS_FALLBACK_OLLAMA_MODEL);
+                    populateSelect(ollamaModelSelect, res.models, config.textModel);
                 } else {
-                    populateSelect(ollamaModelSelect, null, ILLUS_FALLBACK_OLLAMA_MODEL,
-                        `${ILLUS_FALLBACK_OLLAMA_MODEL} (Ollama unreachable)`);
+                    populateSelect(ollamaModelSelect, null, config.textModel, `${config.textModel} (${config.textBackend} unreachable)`);
                 }
             });
         };
 
         const loadComfyUIModels = async () => {
             await withSpinningReload(reloadComfyBtn, async () => {
-                const res = await window.illustratorAPI.listComfyUIModels();
+                persistIllustratorConfig();
+                const config = getIllustratorConfig();
+                const res = await window.illustratorAPI.listComfyUIModels(config);
                 if (res.success && res.models.length > 0) {
-                    populateSelect(checkpointSelect, res.models, ILLUS_FALLBACK_CHECKPOINT);
+                    populateSelect(checkpointSelect, res.models, config.checkpoint);
                 } else {
-                    populateSelect(checkpointSelect, null, ILLUS_FALLBACK_CHECKPOINT,
-                        `${ILLUS_FALLBACK_CHECKPOINT} (ComfyUI unreachable)`);
+                    populateSelect(checkpointSelect, null, config.checkpoint, `${config.checkpoint} (ComfyUI unreachable)`);
                 }
             });
         };
 
-        /* ---------- reload buttons ---------- */
         reloadOllamaBtn.addEventListener('click', loadOllamaModels);
         reloadComfyBtn.addEventListener('click', loadComfyUIModels);
 
-        /* ---------- open / close ---------- */
+        [
+            textBackendSelect,
+            textEndpointInput,
+            ollamaModelSelect,
+            comfyEndpointInput,
+            checkpointSelect,
+            widthInput,
+            heightInput,
+            stepsInput,
+            cfgInput,
+            samplerInput,
+            schedulerInput,
+            negativePromptText,
+        ].forEach(element => {
+            element.addEventListener('change', persistIllustratorConfig);
+            element.addEventListener('blur', persistIllustratorConfig);
+        });
 
         document.getElementById('toggle-illustrator').addEventListener('click', async () => {
             previouslyFocusedIllustratorElement = document.activeElement;
             illusOverlay.classList.add('active');
+            await loadIllustratorConfig();
 
-            // Capture current scene text from the iframe, targeting only the story passage.
             try {
                 const cw = iframe.contentWindow;
                 const doc = cw.document;
@@ -136,22 +239,20 @@
                 if (sceneText.trim()) {
                     document.getElementById('illus-scene-text').value = sceneText.trim().slice(0, 2000);
                 }
-            } catch (e) { /* cross-origin Ã¢â‚¬â€ leave textarea as-is */ }
+            } catch (e) {
+                // Cross-origin games leave the textarea as-is.
+            }
 
-            // Ensure output dir exists
             if (gameUrl && !illusOutputDir) {
                 const dirRes = await window.illustratorAPI.ensureOutputDir(gameUrl);
                 if (dirRes.success) illusOutputDir = dirRes.path;
             }
 
-            // Populate model dropdowns (parallel)
             await Promise.all([loadOllamaModels(), loadComfyUIModels()]);
             requestAnimationFrame(focusFirstIllustratorControl);
         });
 
-        document.getElementById('close-illustrator-btn').addEventListener('click', () => {
-            closeIllustratorModal();
-        });
+        document.getElementById('close-illustrator-btn').addEventListener('click', closeIllustratorModal);
 
         illusOverlay.addEventListener('click', (e) => {
             if (e.target === illusOverlay) closeIllustratorModal();
@@ -181,8 +282,6 @@
             }
         });
 
-        /* ---------- generate prompt via Ollama ---------- */
-
         document.getElementById('illus-generate-prompt-btn').addEventListener('click', async () => {
             const sceneText = document.getElementById('illus-scene-text').value.trim();
             if (!sceneText) {
@@ -190,12 +289,14 @@
                 return;
             }
 
-            const chosenModel = ollamaModelSelect.value || ILLUS_FALLBACK_OLLAMA_MODEL;
+            persistIllustratorConfig();
+            const config = getIllustratorConfig();
+            const chosenModel = config.textModel;
 
             document.getElementById('illus-generate-prompt-btn').disabled = true;
-            setIllusStatus(`Asking ${chosenModel}Ã¢â‚¬Â¦`, 'working');
+            setIllusStatus(`Asking ${chosenModel}...`, 'working');
 
-            const res = await window.illustratorAPI.generatePrompt(sceneText, chosenModel);
+            const res = await window.illustratorAPI.generatePrompt(sceneText, chosenModel, config);
 
             document.getElementById('illus-generate-prompt-btn').disabled = false;
 
@@ -203,30 +304,31 @@
                 document.getElementById('illus-prompt-text').value = res.prompt;
                 setIllusStatus('Prompt ready. Edit it or generate the image directly.', 'done');
             } else {
-                setIllusStatus(`Ollama error: ${res.error}`, 'error');
+                setIllusStatus(`Text backend error: ${res.error}`, 'error');
             }
         });
 
-        /* ---------- generate image via ComfyUI ---------- */
-
-        document.getElementById('illus-generate-image-btn').addEventListener('click', async () => {
+        generateImageBtn.addEventListener('click', async () => {
             const prompt = document.getElementById('illus-prompt-text').value.trim();
             if (!prompt) {
                 setIllusStatus('Write or generate a prompt first.', 'error');
                 return;
             }
 
-            const checkpoint = checkpointSelect.value || ILLUS_FALLBACK_CHECKPOINT;
+            persistIllustratorConfig();
+            const config = getIllustratorConfig();
+            const checkpoint = config.checkpoint;
 
             if (!illusOutputDir && gameUrl) {
                 const dirRes = await window.illustratorAPI.ensureOutputDir(gameUrl);
                 if (dirRes.success) illusOutputDir = dirRes.path;
             }
 
-            const outputFilename = `illus_${Date.now()}`;
+            const outputFilename = `twineplayer_${Date.now()}`;
 
-            document.getElementById('illus-generate-image-btn').disabled = true;
-            setIllusStatus(`Queuing job with ${checkpoint}Ã¢â‚¬Â¦`, 'working');
+            generateImageBtn.disabled = true;
+            cancelImageBtn.style.display = 'inline-flex';
+            setIllusStatus(`Queuing job with ${checkpoint}...`, 'working');
             setIllusLoading(true);
             illusResultImg.style.display = 'none';
             illusDownloadBtn.style.display = 'none';
@@ -234,32 +336,48 @@
             const queueRes = await window.illustratorAPI.queueComfyUI({
                 imagePrompt: prompt,
                 outputFilename,
-                checkpoint
+                checkpoint,
+                config,
             });
 
             if (!queueRes.success) {
                 setIllusStatus(`ComfyUI error: ${queueRes.error}`, 'error');
                 setIllusLoading(false);
                 illusPlaceholder.style.display = 'flex';
-                document.getElementById('illus-generate-image-btn').disabled = false;
+                generateImageBtn.disabled = false;
+                cancelImageBtn.style.display = 'none';
                 return;
             }
 
             const promptId = queueRes.promptId;
-            setIllusStatus('GeneratingÃ¢â‚¬Â¦ (polling ComfyUI)', 'working');
+            activePollStartedAt = Date.now();
+            setIllusStatus('Generating... (polling ComfyUI)', 'working');
 
-            // Poll until done or error
-            const pollInterval = setInterval(async () => {
+            activePollTimer = setInterval(async () => {
+                if (Date.now() - activePollStartedAt > config.maxPollingMs) {
+                    clearInterval(activePollTimer);
+                    activePollTimer = null;
+                    setIllusLoading(false);
+                    illusPlaceholder.style.display = 'flex';
+                    generateImageBtn.disabled = false;
+                    cancelImageBtn.style.display = 'none';
+                    setIllusStatus('Generation timed out. The ComfyUI job may still finish in its queue.', 'error');
+                    return;
+                }
+
                 const pollRes = await window.illustratorAPI.pollImage({
                     promptId,
-                    gamePath: gameUrl
+                    gamePath: gameUrl,
+                    config,
                 });
 
-                if (pollRes.pending) return; // still working
+                if (pollRes.pending) return;
 
-                clearInterval(pollInterval);
+                clearInterval(activePollTimer);
+                activePollTimer = null;
                 setIllusLoading(false);
-                document.getElementById('illus-generate-image-btn').disabled = false;
+                generateImageBtn.disabled = false;
+                cancelImageBtn.style.display = 'none';
 
                 if (pollRes.success) {
                     illusResultImg.src = pollRes.dataUrl;
@@ -275,7 +393,17 @@
             }, 2000);
         });
 
-        /* ---------- download ---------- */
+        cancelImageBtn.addEventListener('click', () => {
+            if (activePollTimer) {
+                clearInterval(activePollTimer);
+                activePollTimer = null;
+            }
+            setIllusLoading(false);
+            illusPlaceholder.style.display = illusResultImg.style.display === 'none' ? 'flex' : 'none';
+            generateImageBtn.disabled = false;
+            cancelImageBtn.style.display = 'none';
+            setIllusStatus('Generation canceled. The ComfyUI job may still finish in its queue.', 'idle');
+        });
 
         illusDownloadBtn.addEventListener('click', () => {
             if (!illusResultImg.src) return;
@@ -285,14 +413,10 @@
             a.click();
         });
 
-        /* ---------- init (called after iframe loads) ---------- */
-
         function initIllustrator() {
-            // Nothing async needed here Ã¢â‚¬â€ model loading happens on modal open.
-            // This hook exists so future per-game init logic can live here.
+            // Model loading happens on modal open.
         }
 
         /* ================================================================
            END ILLUSTRATOR FEATURE
            ================================================================ */
-

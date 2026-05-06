@@ -1,0 +1,73 @@
+const DEFAULT_ILLUSTRATOR_CONFIG = Object.freeze({
+  textBackend: 'ollama',
+  textEndpoint: 'http://localhost:11434',
+  textModel: 'llama3.2',
+  comfyEndpoint: 'http://localhost:8188',
+  checkpoint: 'waiIllustriousSDXL_v160.safetensors',
+  imageWidth: 832,
+  imageHeight: 1216,
+  sampler: 'euler',
+  scheduler: 'normal',
+  steps: 20,
+  cfg: 7,
+  negativePrompt: 'blurry, low quality, watermark, text, ugly',
+  maxPollingMs: 120000,
+});
+
+const TEXT_BACKENDS = new Set(['ollama', 'openai']);
+const MAX_ENDPOINT_LENGTH = 512;
+const MAX_NEGATIVE_PROMPT_LENGTH = 2000;
+
+const parseNumber = (value, fallback, { min, max, integer = true }) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const clamped = Math.min(max, Math.max(min, parsed));
+  return integer ? Math.round(clamped) : clamped;
+};
+
+const normalizeUrl = (value, fallback) => {
+  const rawValue = typeof value === 'string' && value.trim() ? value.trim() : fallback;
+  if (rawValue.length > MAX_ENDPOINT_LENGTH) return fallback;
+
+  const url = new URL(rawValue);
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('Illustrator endpoints must use http or https');
+  }
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
+};
+
+const normalizeText = (value, fallback, maxLength) => {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  return trimmed.slice(0, maxLength);
+};
+
+const normalizeIllustratorConfig = (config = {}) => {
+  const source = config && typeof config === 'object' && !Array.isArray(config) ? config : {};
+  const textBackend = TEXT_BACKENDS.has(source.textBackend) ? source.textBackend : DEFAULT_ILLUSTRATOR_CONFIG.textBackend;
+
+  return {
+    textBackend,
+    textEndpoint: normalizeUrl(source.textEndpoint, DEFAULT_ILLUSTRATOR_CONFIG.textEndpoint),
+    textModel: normalizeText(source.textModel, DEFAULT_ILLUSTRATOR_CONFIG.textModel, 256),
+    comfyEndpoint: normalizeUrl(source.comfyEndpoint, DEFAULT_ILLUSTRATOR_CONFIG.comfyEndpoint),
+    checkpoint: normalizeText(source.checkpoint, DEFAULT_ILLUSTRATOR_CONFIG.checkpoint, 256),
+    imageWidth: parseNumber(source.imageWidth, DEFAULT_ILLUSTRATOR_CONFIG.imageWidth, { min: 256, max: 2048 }),
+    imageHeight: parseNumber(source.imageHeight, DEFAULT_ILLUSTRATOR_CONFIG.imageHeight, { min: 256, max: 2048 }),
+    sampler: normalizeText(source.sampler, DEFAULT_ILLUSTRATOR_CONFIG.sampler, 64),
+    scheduler: normalizeText(source.scheduler, DEFAULT_ILLUSTRATOR_CONFIG.scheduler, 64),
+    steps: parseNumber(source.steps, DEFAULT_ILLUSTRATOR_CONFIG.steps, { min: 1, max: 150 }),
+    cfg: parseNumber(source.cfg, DEFAULT_ILLUSTRATOR_CONFIG.cfg, { min: 0, max: 30, integer: false }),
+    negativePrompt: normalizeText(source.negativePrompt, DEFAULT_ILLUSTRATOR_CONFIG.negativePrompt, MAX_NEGATIVE_PROMPT_LENGTH),
+    maxPollingMs: parseNumber(source.maxPollingMs, DEFAULT_ILLUSTRATOR_CONFIG.maxPollingMs, { min: 10000, max: 900000 }),
+  };
+};
+
+module.exports = {
+  DEFAULT_ILLUSTRATOR_CONFIG,
+  normalizeIllustratorConfig,
+};

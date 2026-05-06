@@ -195,9 +195,22 @@
                         <textarea id="illus-scene-text" class="illus-textarea" placeholder="Scene text will appear here. You can also paste or type your own."></textarea>
                     </div>
 
-                    <!-- Ollama model selector -->
+                    <div class="illus-settings-grid">
+                        <label>
+                            <span class="illus-label">Text Backend</span>
+                            <select id="illus-text-backend-select" class="illus-select">
+                                <option value="ollama">Ollama</option>
+                                <option value="openai">OpenAI-compatible</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span class="illus-label">Text Endpoint</span>
+                            <input id="illus-text-endpoint-input" class="illus-input" type="url" autocomplete="off">
+                        </label>
+                    </div>
+
                     <div>
-                        <div class="illus-label">Ollama Model</div>
+                        <div class="illus-label">Text Model</div>
                         <div class="illus-row">
                             <select id="illus-ollama-model-select" class="illus-select">
                                 <option value="">Loading modelsâ€¦</option>
@@ -212,7 +225,7 @@
                     </div>
 
                     <div class="illus-row">
-                        <button id="illus-generate-prompt-btn" class="illus-btn" style="flex:1">âœ¦ Ask Ollama to write prompt</button>
+                        <button id="illus-generate-prompt-btn" class="illus-btn" style="flex:1">Generate Prompt</button>
                     </div>
 
                     <div>
@@ -220,7 +233,11 @@
                         <textarea id="illus-prompt-text" class="illus-textarea" placeholder="The image generation prompt will appear here after Ollama processes the scene. You can edit it."></textarea>
                     </div>
 
-                    <!-- ComfyUI checkpoint selector -->
+                    <label>
+                        <span class="illus-label">ComfyUI Endpoint</span>
+                        <input id="illus-comfy-endpoint-input" class="illus-input" type="url" autocomplete="off">
+                    </label>
+
                     <div>
                         <div class="illus-label">Checkpoint Model</div>
                         <div class="illus-row">
@@ -236,7 +253,45 @@
                         </div>
                     </div>
 
-                    <button id="illus-generate-image-btn" class="illus-btn illus-btn-primary">Generate Image in ComfyUI</button>
+                    <div class="illus-settings-grid illus-settings-grid-compact">
+                        <label>
+                            <span class="illus-label">Width</span>
+                            <input id="illus-width-input" class="illus-input" type="number" min="256" max="2048" step="64">
+                        </label>
+                        <label>
+                            <span class="illus-label">Height</span>
+                            <input id="illus-height-input" class="illus-input" type="number" min="256" max="2048" step="64">
+                        </label>
+                        <label>
+                            <span class="illus-label">Steps</span>
+                            <input id="illus-steps-input" class="illus-input" type="number" min="1" max="150" step="1">
+                        </label>
+                        <label>
+                            <span class="illus-label">CFG</span>
+                            <input id="illus-cfg-input" class="illus-input" type="number" min="0" max="30" step="0.5">
+                        </label>
+                    </div>
+
+                    <div class="illus-settings-grid">
+                        <label>
+                            <span class="illus-label">Sampler</span>
+                            <input id="illus-sampler-input" class="illus-input" type="text" autocomplete="off">
+                        </label>
+                        <label>
+                            <span class="illus-label">Scheduler</span>
+                            <input id="illus-scheduler-input" class="illus-input" type="text" autocomplete="off">
+                        </label>
+                    </div>
+
+                    <label>
+                        <span class="illus-label">Negative Prompt</span>
+                        <textarea id="illus-negative-prompt-text" class="illus-textarea illus-textarea-small"></textarea>
+                    </label>
+
+                    <div class="illus-row">
+                        <button id="illus-generate-image-btn" class="illus-btn illus-btn-primary" style="flex:1">Generate Image in ComfyUI</button>
+                        <button id="illus-cancel-image-btn" class="illus-btn" style="display:none;">Cancel</button>
+                    </div>
 
                     <div id="illus-status" class="illus-status idle">Ready. Capture the scene or paste text to begin.</div>
                 </div>

@@ -148,57 +148,40 @@ Focused test plan:
 - Open/close saves and Illustrator modals by keyboard.
 - Tab through each modal and verify focus wraps inside, then returns to the triggering button after close.
 
-## Remaining Work
+### Phase 6: Illustrator Feature Cleanup
 
-## Phase 6: Illustrator Feature Cleanup
+Done:
+- Added `src/main/illustrator-config.js` with normalized Illustrator defaults and validation.
+- Added configurable text backend support for Ollama and OpenAI-compatible local servers.
+- Kept Ollama support through `/api/tags` and `/api/generate`.
+- Added OpenAI-compatible support through `/v1/models` and `/v1/chat/completions`, intended for llama.cpp, MLX/oMLX, and similar local servers.
+- Added configurable text endpoint, text model, ComfyUI endpoint, checkpoint, dimensions, sampler, scheduler, steps, CFG, and negative prompt in the Illustrator panel.
+- Persisted Illustrator settings in `localStorage`.
+- Added image-generation cancel behavior and a max polling timeout.
+- Hardened Illustrator HTTP handling for status codes, invalid JSON, response-size caps, image content type, and expected response shapes.
+- Made ComfyUI output prefixes deterministic (`twineplayer_<timestamp>`).
+- Saved local image metadata sidecars next to generated images.
+- Updated docs to reflect configurable backends, llama.cpp/MLX/oMLX usage, and actual workflow defaults.
+- Added tests for Illustrator config normalization.
 
-Goal: make the experimental AI feature configurable and predictable.
-
-Tasks:
-
-1. Move hardcoded Illustrator settings into configuration.
-   - Ollama URL.
-   - ComfyUI URL.
-   - Default Ollama model.
-   - Default checkpoint.
-   - Image dimensions.
-   - sampler/steps/CFG/negative prompt.
-
-2. Add cancellation and timeout behavior.
-   - Current polling can keep going until service response changes.
-   - Add max polling duration.
-   - Add cancel button.
-
-3. Improve HTTP client behavior.
-   - Check HTTP status codes before parsing.
-   - Validate expected JSON shape.
-   - Cap downloaded image size.
-   - Validate image content type where practical.
-
-4. Make output naming deterministic.
-   - Keep local sidecar directory authoritative.
-   - Normalize generated filenames.
-   - Consider storing metadata next to generated image.
-
-5. Align docs with actual code.
-   - Update model/checkpoint defaults.
-   - Update sampler/steps values.
-   - Document service setup and failure modes.
-
-Acceptance criteria:
-- Offline Ollama/ComfyUI states are clean and unsurprising.
-- User can configure endpoints/defaults.
-- Image generation can be canceled or times out.
-- Docs match actual behavior.
+Notes:
+- The OpenAI-compatible backend expects a server that implements `/v1/models` and `/v1/chat/completions`; use the endpoint including `/v1`, such as `http://192.168.1.20:8080/v1`.
+- Canceling stops TwinePlayer polling. It does not cancel the ComfyUI job already queued on the ComfyUI server.
+- Manual GUI smoke testing is still recommended because service availability, LAN endpoint reachability, and ComfyUI queues are environment-dependent.
 
 Focused test plan:
-- Open Illustrator with both services offline.
-- Open with only Ollama online.
+- Open Illustrator with both services offline and verify clean fallback messages.
+- Use Ollama at `http://localhost:11434` with `llama3.2`.
+- Use llama.cpp or MLX/oMLX through OpenAI-compatible mode with a `/v1` endpoint on the Mac.
+- Open with only text backend online.
 - Open with only ComfyUI online.
 - Generate prompt with configured model.
-- Queue image with configured checkpoint.
-- Cancel generation.
-- Confirm files appear in `<game>_illustrations`.
+- Queue image with configured checkpoint and generation settings.
+- Cancel generation and confirm polling stops.
+- Confirm timeout behavior by setting an unavailable or slow ComfyUI endpoint.
+- Confirm image and `.json` metadata sidecar appear in `<game>_illustrations`.
+
+## Remaining Work
 
 ## Phase 7: Documentation, Packaging, and Release
 
@@ -255,13 +238,13 @@ Focused test plan:
 ## Suggested Continuation Strategy
 
 Recommended next slice:
-1. Start Phase 6 by moving hardcoded Illustrator defaults/endpoints into configuration.
-2. Add cancellation and timeout behavior for ComfyUI polling.
-3. Harden Illustrator HTTP status, JSON-shape, and image response handling.
+1. Start Phase 7 by fixing README/docs encoding issues if still present.
+2. Update architecture docs after the renderer, reliability, UX, and Illustrator cleanup phases.
+3. Add CI for install and `npm run check`.
 4. Run `npm run check` and perform the focused manual smoke test.
 5. Review the diff and provide a focused test plan before merge approval.
 
-Avoid combining Phase 6 Illustrator cleanup with packaging/release work. The Illustrator feature is experimental enough that configuration, cancellation, and HTTP hardening should stay reviewable.
+Avoid combining Phase 7 documentation/CI work with additional product changes. The remaining work is about making the project repeatable to build, test, and release.
 
 ## Standing Rules for Future Chats
 
