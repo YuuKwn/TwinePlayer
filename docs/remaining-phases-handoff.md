@@ -181,70 +181,44 @@ Focused test plan:
 - Confirm timeout behavior by setting an unavailable or slow ComfyUI endpoint.
 - Confirm image and `.json` metadata sidecar appear in `<game>_illustrations`.
 
-## Remaining Work
+### Phase 7: Documentation, Packaging, and Release
 
-## Phase 7: Documentation, Packaging, and Release
-
-Goal: make the project easy to build, test, and release.
-
-Tasks:
-
-1. Fix README/docs encoding issues if still present.
-2. Update architecture docs after Phase 3 renderer extraction.
-3. Add troubleshooting docs:
-   - Save not detected.
-   - Unsupported Twine engine.
-   - Ollama unavailable.
-   - ComfyUI unavailable.
-   - CSP or iframe limitations.
-
-4. Add CI.
-   - Install.
-   - `npm run check`.
-   - Optional build smoke.
-
-5. Validate packaging.
-   - Windows build.
-   - Linux build.
-   - Artifact smoke run.
-
-6. Improve `.gitignore`.
-   - Logs.
-   - coverage.
-   - temporary save fixtures.
-   - local settings.
-   - packaged artifacts.
-
-7. Consider release checklist.
-   - Version bump.
-   - changelog.
-   - release notes.
-   - artifact upload.
+Done:
+- Rewrote `README.md` and `docs/documentation.md` as clean ASCII documentation.
+- Updated architecture docs for the current modular main/renderer structure.
+- Added troubleshooting docs for save detection, unsupported engines, Ollama, OpenAI-compatible llama.cpp/MLX-oMLX servers, ComfyUI, and iframe/CSP limits.
+- Added `.github/workflows/check.yml` for `npm ci` and `npm run check` on Windows.
+- Added `npm run build:win:portable` using Electron Builder's `dir` target.
+- Added Windows `dir` target alongside `nsis`.
+- Improved `.gitignore` for logs, coverage, generated saves/illustrations, temporary files, local env files, and packaged artifacts.
+- Added a release checklist to docs.
+- Built a Windows unpacked portable folder as `dist/Twine Player 29`.
 
 Acceptance criteria:
-- Fresh clone instructions work.
+- Fresh clone instructions are documented.
 - CI can catch syntax/test failures.
 - Docs match current architecture and user-facing behavior.
 - Release process is repeatable.
+- Windows unpacked portable artifact exists as `dist/Twine Player 29`.
 
 Focused test plan:
 - Clone fresh and run `npm install`.
 - Run `npm run check`.
 - Run `npm start`.
-- Build Windows target.
+- Build Windows portable target.
 - Build Linux target if environment supports it.
 - Smoke test packaged app.
+
+## Remaining Work
+
+No planned phases remain in this handoff.
 
 ## Suggested Continuation Strategy
 
 Recommended next slice:
-1. Start Phase 7 by fixing README/docs encoding issues if still present.
-2. Update architecture docs after the renderer, reliability, UX, and Illustrator cleanup phases.
-3. Add CI for install and `npm run check`.
-4. Run `npm run check` and perform the focused manual smoke test.
-5. Review the diff and provide a focused test plan before merge approval.
-
-Avoid combining Phase 7 documentation/CI work with additional product changes. The remaining work is about making the project repeatable to build, test, and release.
+1. Perform manual smoke testing on the packaged Windows app.
+2. Test real Illustrator endpoints for Ollama, OpenAI-compatible llama.cpp/MLX-oMLX, and ComfyUI.
+3. If smoke testing passes, tag a release and upload artifacts.
 
 ## Standing Rules for Future Chats
 

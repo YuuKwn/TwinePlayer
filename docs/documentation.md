@@ -1,392 +1,179 @@
-# TwinePlayer — Documentation
+# TwinePlayer Documentation
 
-> A standalone desktop application to play Twine HTML games, with a built-in library, native save engine, developer console, and AI illustration support.
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Requirements](#requirements)
-3. [Installation](#installation)
-4. [Getting Started](#getting-started)
-5. [Features](#features)
-   - [Library](#library)
-   - [Save Engine](#save-engine)
-   - [Developer Console](#developer-console)
-   - [Illustrator (AI)](#illustrator-ai)
-   - [UI / Top Bar](#ui--top-bar)
-6. [Building from Source](#building-from-source)
-7. [Project Structure](#project-structure)
-8. [Architecture Overview](#architecture-overview)
-9. [IPC API Reference](#ipc-api-reference)
-10. [Technology Stack](#technology-stack)
-11. [Planned / Future Work](#planned--future-work)
-12. [License](#license)
-
----
-
-## Overview
-
-**TwinePlayer** is a modern Electron-based desktop application built to play [Twine](https://twinery.org/) games without relying on a web browser. It was created to solve a few common frustrations with the browser-based experience:
-
-- Twine game saves being lost when clearing browser storage or switching browsers.
-- Not wanting Twine games mixed into a personal browsing session or history.
-- Wanting a dedicated, distraction-free space for playing interactive fiction.
-
-The app provides a full-featured player with a game library, native file-based save management, an in-app developer console with JavaScript autocomplete, and an experimental AI Illustrator that generates scene illustrations using a local text backend and ComfyUI.
-
----
+TwinePlayer is an Electron desktop app for playing Twine HTML games in a dedicated, browser-profile-free environment.
 
 ## Requirements
 
-### To Run Pre-Built Binaries
-
-- **Windows 10+** or **Linux** (64-bit)
-- No additional dependencies required — the Electron runtime is bundled.
-
-### To Build from Source
-
-- **Node.js** v18 or later
-- **npm** (comes with Node.js)
+To run from source:
+- Node.js 18 or later
+- npm
 - Git
 
-### For the Illustrator Feature (Optional)
-
-The AI Illustrator is an **optional** feature that requires a text-generation service and ComfyUI.
-
-| Service | Purpose | Default URL |
-|---------|---------|------------|
-| [Ollama](https://ollama.com/) | Converts scene text into image prompts | `http://localhost:11434` |
-| OpenAI-compatible local server | Alternative text backend for llama.cpp, MLX/oMLX, or similar servers | Example: `http://192.168.1.20:8080/v1` |
-| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | Generates images from prompts via Stable Diffusion | `http://127.0.0.1:8188` |
-
-A compatible Stable Diffusion checkpoint must be available in ComfyUI. The default checkpoint used is `waiIllustriousSDXL_v160.safetensors`, and it can be changed in the Illustrator panel.
-
-The Ollama model used is `llama3.2` by default. Make sure it is pulled before enabling the feature:
-```bash
-ollama pull llama3.2
-```
-
-For llama.cpp or MLX/oMLX on another machine, run an OpenAI-compatible server, choose **OpenAI-compatible** in the Illustrator panel, set the endpoint to that server's `/v1` URL, and choose or type the model id exposed by `/v1/models`.
-
----
-
-## Installation
-
-### Pre-Built Binaries
-
-Download the latest release for your platform from the [Releases](https://github.com/YuuKwn/TwinePlayer/releases) page.
-
-| Platform | Package |
-|----------|---------|
-| Windows | Installer (`.exe`) |
-| Linux | Tarball (`.tar.gz`) |
-
-Run the installer or extract the archive, then launch **TwinePlayer**.
-
----
-
-## Getting Started
-
-1. **Launch TwinePlayer.** The Library screen is shown on startup.
-2. **Click "Load Game"** to open a file picker and select any Twine HTML file (`.html` or `.htm`).
-3. The game opens immediately and is automatically added to your library for quick access later.
-4. **Click any library card** to replay a previously loaded game.
-
-> **Tip:** Twine games are single HTML files. If you downloaded one from the web or exported one from the Twine editor, just point TwinePlayer at that file.
-
----
-
-## Features
-
-### Library
-
-The Library is the home screen of TwinePlayer. It provides a visual grid of all previously loaded games.
-
-- **Automatic tracking** — every game you open is added to the library automatically.
-- **Sorted by last played** — most recently played games appear first.
-- **Metadata display** — each card shows the game title (extracted from the filename), its full path, and the last-played date/time.
-- **Remove from library** — click the ✕ button on any card to remove it from the list. This does not delete the file.
-- **Persistent** — the library is stored locally via `localStorage`, so it survives app restarts.
-
-**Empty state:** If no games have been loaded yet, the library shows an empty state with instructions to load a game.
-
----
-
-### Save Engine
-
-TwinePlayer replaces the standard browser-based "Save to Disk" and "Load from Disk" behavior with a native save system.
-
-#### How It Works
-
-- When a Twine game requests a save, TwinePlayer intercepts that action.
-- Saves are stored as `.save` files in a folder **next to the game's HTML file**, named `<game-filename>_saves/`.
-
-  **Example:**
-  ```
-  /my-games/
-    echoes-of-nowhere.html
-    echoes-of-nowhere_saves/
-      slot1.save
-      slot2.save
-  ```
-
-- Saves are **automatically organized per game** — there is no risk of one game's saves overwriting another's.
-
-#### In-App Save Manager
-
-Access the save manager while a game is running through the top bar:
-
-- **List saves** — paginated view of all save slots for the current game, sorted by most recent.
-- **Load** — select a save file to load it into the current game.
-- **Delete** — remove a save slot directly from the UI.
-- **Metadata** — each entry shows the filename, file size, and last modified date.
-
-#### Why This Is Better Than Browser Saves
-
-| Issue | Browser | TwinePlayer |
-|-------|---------|-------------|
-| Saves lost on storage clear | ✅ Yes | ❌ Never |
-| Saves tied to one browser | ✅ Yes | ❌ No — files are portable |
-| Saves organized per game | ❌ No | ✅ Yes, automatic |
-| View/manage saves in-app | ❌ No | ✅ Yes |
-
----
-
-### Developer Console
-
-TwinePlayer includes a custom JavaScript console built specifically for Twine game debugging and cheating.
-
-> This feature was a core motivation for building the app — having easy, in-context access to the Twine engine state without opening the browser DevTools.
-
-#### Features
-
-- **JavaScript execution** — run any JavaScript expression against the running game, including direct access to Twine's internal engine state and story variables.
-- **Real-time autocomplete** — suggestions appear as you type, speeding up common commands.
-- **Saved commands** — save frequently used snippets (e.g., cheat codes, variable setters) and re-run them with a single click.
-- **Per-game command storage** — saved commands are stored per game, identified by IFID (the game's unique identifier embedded in its story data). Commands saved for one game won't appear in another.
-- **Two layout modes:**
-
-  | Mode | Description |
-  |------|-------------|
-  | **Overlay** | Console slides over the game as a floating panel — good for quick checks |
-  | **Side-by-side** | The window expands and the console opens beside the game — best for active debugging |
-
-#### Opening the Console
-
-Use the button in the top bar to toggle the console open. Switch between Overlay and Side-by-side mode from within the console panel.
-
----
-
-### Illustrator (AI)
-
-> ⚠️ **This feature is experimental and requires local AI services.** See [Requirements](#requirements) for setup.
-
-The Illustrator generates scene illustrations for the game you are currently playing, using the current passage text as input.
-
-#### How It Works
-
-1. The current game passage text is sent to the configured text backend, either **Ollama** or an **OpenAI-compatible** local server, which converts it into a Stable Diffusion image prompt.
-2. The generated prompt is queued in **ComfyUI** (running locally) using a pre-configured workflow.
-3. TwinePlayer polls ComfyUI until the image is ready, then displays it in the app.
-4. A copy of the generated image is saved to a folder next to the game file, named `<game-filename>_illustrations/`.
-
-#### ComfyUI Workflow Details
-
-The workflow used by TwinePlayer:
-
-| Parameter | Value |
-|-----------|-------|
-| Image size | 832 x 1216 px by default |
-| Sampler | `euler` |
-| Scheduler | `normal` |
-| Steps | 20 |
-| CFG Scale | 7 |
-| Default checkpoint | `waiIllustriousSDXL_v160.safetensors` |
-
-The negative prompt defaults to `blurry, low quality, watermark, text, ugly`.
-
-#### Configuring Illustrator
-
-Use the fields in the Illustrator panel to configure the text backend, text endpoint, text model, ComfyUI endpoint, checkpoint, image size, sampler, scheduler, steps, CFG, and negative prompt. Settings are stored locally in `localStorage`.
-
-For llama.cpp or MLX/oMLX servers, use the **OpenAI-compatible** backend. The endpoint should include `/v1`, for example `http://192.168.1.20:8080/v1`.
-
----
-
-### UI / Top Bar
-
-The top bar gives you controls while a game is running.
-
-- **Pinned mode** — the bar stays visible at the top and pushes the game content down, so it never overlaps.
-- **Auto-hide mode** — the bar hides itself and reappears when you move the cursor to the top of the screen, giving the game the full window area.
-
-Toggle between these two modes from the top bar itself.
-
----
-
-## Building from Source
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/YuuKwn/TwinePlayer.git
-cd TwinePlayer
-```
-
-### 2. Install Dependencies
+Optional Illustrator services:
+- Ollama, default endpoint `http://localhost:11434`
+- OpenAI-compatible local text server, such as llama.cpp or MLX/oMLX, endpoint including `/v1`
+- ComfyUI, default endpoint `http://localhost:8188`
+
+## Development
 
 ```bash
 npm install
+npm start
+npm run check
 ```
 
-### 3. Run in Development Mode
+`npm run check` runs JavaScript syntax checks and the Node test suite.
+
+## Build Commands
 
 ```bash
-npm start
+npm run build:win
+npm run build:win:portable
+npm run build:linux
+npm run build:all
 ```
 
-This launches the app via Electron directly from source. The browser DevTools can be opened from within the app window if needed.
+Outputs are written to `dist/`.
 
-### 4. Build Distributable Packages
+## Core Features
 
-| Command | Output |
-|---------|--------|
-| `npm run build:win` | Windows installer (`.exe`) |
-| `npm run build:linux` | Linux tarball (`.tar.gz`) |
-| `npm run build:all` | Both platforms |
+### Library
 
-Build outputs are placed in the `dist/` folder (generated by Electron Builder).
+- Tracks loaded Twine games in `localStorage`.
+- Extracts titles from `<tw-storydata name>`, then `<title>`, then filename fallback.
+- Search by title/path.
+- Sort by last played, title, or path.
+- Detects missing files and supports relinking.
+- Renders user-controlled titles and paths through DOM APIs instead of HTML injection.
 
-> **Note:** Cross-platform builds (e.g., building a Linux package from Windows) may require additional configuration in `package.json` under the `build` key.
+### Save Engine
 
----
+- Saves are stored next to each game in `<game>_saves/`.
+- Save filenames are validated in renderer and main process.
+- Save writes are atomic: write temp file, then rename into place.
+- Stale temp save files are cleaned opportunistically.
+- Save slots render filenames, dates, and sizes through `textContent`.
 
-## Project Structure
+### Developer Console
 
-```
-TwinePlayer/
-├── main.js              # Electron main process — window creation, IPC handlers, save/illustrator logic
-├── preload.js           # Exposes safe IPC APIs to the renderer via contextBridge
-├── index.html           # Library screen (home screen)
-├── game.html            # Game player screen
-├── package.json         # Project metadata and Electron Builder config
-├── src/
-│   ├── renderer.js      # Library screen logic — history, card rendering, game loading
-│   └── index.css        # Application styles (custom design system)
-└── builder_debug/       # Debug/development build artifacts (not for production)
-```
+- Runs JavaScript in the loaded game iframe.
+- Supports autocomplete.
+- Saves commands per game identity where IFID is available.
+- Supports overlay and side-by-side layouts.
+- Corrupt saved command storage falls back safely.
 
-### Key File Roles
+### Illustrator
 
-| File | Process | Responsibility |
-|------|---------|---------------|
-| `main.js` | Main (Node.js) | App lifecycle, IPC handlers, native file system operations |
-| `preload.js` | Bridge | Exposes `electronAPI` and `illustratorAPI` to renderer pages securely |
-| `src/renderer.js` | Renderer | Library screen UI and interaction logic |
-| `index.html` | Renderer | Library screen markup |
-| `game.html` | Renderer | Game player with top bar, console, save manager, and illustrator UI |
+The Illustrator is experimental and optional.
 
----
+Prompt text backends:
+- `Ollama`: uses `/api/tags` and `/api/generate`.
+- `OpenAI-compatible`: uses `/v1/models` and `/v1/chat/completions`.
 
-## Architecture Overview
+The OpenAI-compatible backend is intended for local servers such as llama.cpp and MLX/oMLX. If the server runs on a Mac on your LAN, set the endpoint in the Illustrator panel to something like:
 
-TwinePlayer follows the standard Electron security model:
-
-```
-┌────────────────────────────────────────────────┐
-│  Renderer Process (index.html / game.html)     │
-│  - No direct Node.js access                    │
-│  - Calls window.electronAPI / illustratorAPI   │
-└───────────────────┬────────────────────────────┘
-                    │  IPC (contextBridge)
-                    ▼
-┌────────────────────────────────────────────────┐
-│  Preload Script (preload.js)                   │
-│  - contextBridge.exposeInMainWorld             │
-│  - Maps API calls to ipcRenderer.invoke()      │
-└───────────────────┬────────────────────────────┘
-                    │  ipcMain.handle()
-                    ▼
-┌────────────────────────────────────────────────┐
-│  Main Process (main.js)                        │
-│  - Full Node.js + Electron APIs                │
-│  - File system, dialog, HTTP fetch to AI APIs  │
-└────────────────────────────────────────────────┘
+```text
+http://192.168.1.20:8080/v1
 ```
 
-- `contextIsolation: true` and `nodeIntegration: false` are enforced on all windows, keeping the renderer sandboxed.
-- All native operations (file I/O, dialog, Ollama/ComfyUI calls) happen exclusively in the main process.
+ComfyUI settings are also configurable:
+- endpoint
+- checkpoint
+- width/height
+- sampler
+- scheduler
+- steps
+- CFG
+- negative prompt
 
----
+Generated images are copied into `<game>_illustrations/` with a metadata `.json` sidecar. Canceling generation stops TwinePlayer polling, but it does not cancel a job already queued inside ComfyUI.
 
-## IPC API Reference
+## Architecture
+
+TwinePlayer follows Electron's hardened renderer pattern:
+
+- `main.js`: app lifecycle and window creation.
+- `preload.js`: exposes safe APIs through `contextBridge`.
+- `src/main/ipc-handlers.js`: registers IPC handlers.
+- `src/main/save-service.js`: save file operations.
+- `src/main/illustrator-service.js`: local AI service HTTP calls.
+- `src/main/game-metadata.js`: title metadata extraction.
+- `src/renderer.js`: library UI.
+- `src/game/*.js`: game player modules.
+
+Renderer pages have `nodeIntegration: false` and `contextIsolation: true`.
+
+## IPC APIs
 
 ### `window.electronAPI`
 
-Exposed to all renderer pages via `preload.js`.
-
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
-| `openFile()` | — | `string \| null` | Opens a native file picker. Returns the selected file path, or `null` if cancelled. |
-| `listSaves(gamePath)` | `gamePath: string` | `SaveEntry[]` | Lists all `.save` files for the given game, sorted by most recent. |
-| `writeSave(gamePath, filename, bufferArray)` | `gamePath: string`, `filename: string`, `bufferArray: number[]` | `{ success, path?, error? }` | Writes save data to disk. Appends `.save` extension if missing. |
-| `readSave(gamePath, filename)` | `gamePath: string`, `filename: string` | `{ success, data?, filename?, error? }` | Reads a save file from disk. |
-| `deleteSave(gamePath, filename)` | `gamePath: string`, `filename: string` | `{ success, error? }` | Deletes a save file from disk. |
-
-**`SaveEntry` object:**
-```ts
-{
-  filename: string,   // e.g. "slot1.save"
-  size: number,       // file size in bytes
-  mtime: Date         // last modified date
-}
-```
-
----
+| Method | Purpose |
+| --- | --- |
+| `openFile()` | Open a native Twine file picker. |
+| `toFileUrl(filePath)` | Convert a filesystem path to a safe file URL. |
+| `fileExists(filePath)` | Check whether a game file still exists. |
+| `getGameMetadata(filePath)` | Extract Twine/document title metadata. |
+| `listSaves(gamePath)` | List saves for a game. |
+| `writeSave(gamePath, filename, bufferArray)` | Write save bytes. |
+| `readSave(gamePath, filename)` | Read save bytes. |
+| `deleteSave(gamePath, filename)` | Delete a save. |
 
 ### `window.illustratorAPI`
 
-Exposed separately so it can be removed without affecting core functionality.
+| Method | Purpose |
+| --- | --- |
+| `getDefaultConfig()` | Return Illustrator defaults. |
+| `ensureOutputDir(gamePath)` | Create `<game>_illustrations/`. |
+| `listTextModels(config)` | List Ollama or OpenAI-compatible models. |
+| `listComfyUIModels(config)` | List ComfyUI checkpoints. |
+| `generatePrompt(sceneText, model, config)` | Generate an image prompt. |
+| `queueComfyUI(params)` | Queue a ComfyUI workflow. |
+| `pollImage(params)` | Poll for a generated image. |
 
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
-| `ensureOutputDir(gamePath)` | `gamePath: string` | `{ success, dir?, error? }` | Creates the illustrations folder for the game if it doesn't exist. |
-| `getDefaultConfig()` | none | `{ success, config?, error? }` | Returns Illustrator defaults. |
-| `listTextModels(config)` | Illustrator config | `{ success, models?, error? }` | Lists Ollama or OpenAI-compatible text models. |
-| `generatePrompt(sceneText, model, config)` | scene text, model id, Illustrator config | `{ success, prompt?, error? }` | Sends scene text to the configured text backend and returns a Stable Diffusion prompt. |
-| `queueComfyUI(params)` | `{ imagePrompt, outputFilename, checkpoint?, config? }` | `{ success, promptId?, error? }` | Queues an image generation job in ComfyUI. Returns the job ID. |
-| `pollImage(params)` | `{ promptId, gamePath, config? }` | `{ success, pending?, dataUrl?, filename?, error? }` | Polls ComfyUI for job completion. Returns a base64 data URL when ready. |
+## Troubleshooting
 
-**Polling pattern:** Call `pollImage` repeatedly (e.g., every 2–3 seconds) until `pending` is `false`. On success, `dataUrl` contains the image as `data:image/png;base64,...`.
+### Save Not Detected
 
----
+Use the top-bar Save button. If a game exposes its own Save to Disk button, TwinePlayer attempts to intercept it, but some custom Twine builds may require the top-bar fallback.
 
-## Technology Stack
+### Unsupported Twine Engine
 
-| Layer | Technology |
-|-------|-----------|
-| Desktop runtime | [Electron](https://www.electronjs.org/) (Node.js + Chromium) |
-| Frontend | Vanilla HTML5, CSS3 (custom design system), ES6+ JavaScript |
-| Game save storage | Native file system via Node.js `fs` |
-| Library persistence | `localStorage` |
-| AI prompt generation | [Ollama](https://ollama.com/) (`llama3.2`) |
-| AI image generation | [ComfyUI](https://github.com/comfyanonymous/ComfyUI) + Stable Diffusion |
-| Build tooling | [Electron Builder](https://www.electron.build/) |
+The save bridge focuses on SugarCube-style save APIs. Unsupported engines may still play normally, but automatic save capture/restore can fail. The console logs the detected engine and any save errors.
 
----
+### Ollama Unavailable
 
-## Planned / Future Work
+Confirm Ollama is running and the endpoint is correct:
 
-The following improvements and platforms are on the roadmap:
+```bash
+ollama pull llama3.2
+ollama serve
+```
 
-- **macOS build** — a macOS version is planned once a Mac build environment is available.
-- **Android / Quest 3 support** — a version targeting Android (APK) is desired, primarily to run Twine games on the Meta Quest 3 headset, but would benefit Android users in general.
-- **Additional features** — the project follows a personal-use-first approach, with new features added as new needs arise.
+Then use `http://localhost:11434` in the Illustrator panel.
 
----
+### llama.cpp or MLX/oMLX Unavailable
 
-## License
+Use the OpenAI-compatible backend and include `/v1` in the endpoint. Confirm the server exposes:
 
-This project is licensed under the **ISC License**.
+- `GET /v1/models`
+- `POST /v1/chat/completions`
+
+If the server is on a Mac, make sure the Windows machine can reach the Mac's LAN IP and that the server binds to a non-loopback interface.
+
+### ComfyUI Unavailable
+
+Confirm ComfyUI is running and reachable at the configured endpoint, usually `http://localhost:8188`. The selected checkpoint must exist in ComfyUI.
+
+### CSP or Iframe Limitations
+
+TwinePlayer loads local game HTML files in a sandboxed iframe with scripts enabled. Some highly customized games may behave differently if they depend on browser features outside that sandbox.
+
+## Release Checklist
+
+1. Run `npm install` on a fresh clone.
+2. Run `npm run check`.
+3. Run `npm start` and smoke test library, player, saves, console, and Illustrator offline states.
+4. Build Windows output with `npm run build:win` or `npm run build:win:portable`.
+5. Build Linux output with `npm run build:linux` where supported.
+6. Smoke test the packaged app.
+7. Tag a version and upload artifacts.
