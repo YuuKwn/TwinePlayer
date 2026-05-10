@@ -24,6 +24,7 @@ test('getGameSidecarDir creates a game-adjacent directory name', () => {
 test('normalizeSaveFilename appends .save and preserves valid names', () => {
   assert.equal(normalizeSaveFilename('slot-1'), 'slot-1.save');
   assert.equal(normalizeSaveFilename('slot-2.save'), 'slot-2.save');
+  assert.equal(normalizeSaveFilename('slot-3.SAVE'), 'slot-3.SAVE');
 });
 
 test('normalizeSaveFilename rejects traversal and absolute paths', () => {
@@ -31,6 +32,14 @@ test('normalizeSaveFilename rejects traversal and absolute paths', () => {
   assert.throws(() => normalizeSaveFilename('folder/slot.save'), /plain \.save filename/);
   assert.throws(() => normalizeSaveFilename('folder\\slot.save'), /plain \.save filename/);
   assert.throws(() => normalizeSaveFilename(path.resolve('slot.save')), /plain \.save filename/);
+});
+
+test('normalizeSaveFilename rejects names unsafe on Windows filesystems', () => {
+  assert.throws(() => normalizeSaveFilename('con'), /plain \.save filename/);
+  assert.throws(() => normalizeSaveFilename('PRN.backup'), /plain \.save filename/);
+  assert.throws(() => normalizeSaveFilename('slot:name'), /plain \.save filename/);
+  assert.throws(() => normalizeSaveFilename('slot?name'), /plain \.save filename/);
+  assert.throws(() => normalizeSaveFilename('slot\0name'), /plain \.save filename/);
 });
 
 test('resolveSavePath keeps saves inside the game save directory', () => {

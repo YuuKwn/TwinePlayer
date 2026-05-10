@@ -8,6 +8,7 @@
   root.TwinePlayerSaveFilename = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window, function () {
   const RESERVED_WINDOWS_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+  const INVALID_WINDOWS_FILENAME_CHARS = /[<>:"|?*]/;
 
   const normalizeSaveFilename = (filename) => {
     if (typeof filename !== 'string' || filename.trim() === '') {
@@ -18,11 +19,12 @@
     const withExtension = trimmed.toLowerCase().endsWith('.save') ? trimmed : `${trimmed}.save`;
 
     if (
+      trimmed === '.' ||
+      trimmed === '..' ||
       withExtension.includes('/') ||
       withExtension.includes('\\') ||
       withExtension.includes('\0') ||
-      withExtension === '.' ||
-      withExtension === '..' ||
+      INVALID_WINDOWS_FILENAME_CHARS.test(withExtension) ||
       RESERVED_WINDOWS_NAMES.test(withExtension)
     ) {
       throw new Error('Save filename must be a plain .save filename');

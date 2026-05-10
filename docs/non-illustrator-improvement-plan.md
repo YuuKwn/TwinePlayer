@@ -191,6 +191,14 @@ Relevant files:
 
 ## Slice 5: Shared Save Filename Validation
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Save filename normalization now lives in a browser/Node shared helper and is consumed by both main-process file utilities and the save modal.
+- Renderer feedback and main-process enforcement now agree on blank names, dot-only names, traversal/path-like input, absolute paths, null bytes, reserved Windows device names, invalid Windows filename characters, extension appending, and `.save` extension case handling.
+- Code review tightened the trust boundary by rejecting `:` and other Windows-invalid filename characters before path resolution, avoiding alternate-data-stream style edge cases on Windows.
+- Focused unit tests cover the shared helper directly and the main-process `file-utils` export path.
+
 ### Problem
 
 Save filename validation exists in both the renderer modal and main-process file utilities. Main-process validation is authoritative, but the renderer-side message can drift from it.
