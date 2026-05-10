@@ -21,6 +21,7 @@
         const SAVES_PER_PAGE = 8;
         const { getSaveFilenameError, normalizeSaveFilename } = window.TwinePlayerSaveFilename;
         const { formatBytes, getSaveDisplayName } = window.TwinePlayerGameHelpers;
+        const hasCustomConfirmation = () => Boolean(confirmOverlay && confirmTitle && confirmMessage && confirmCancel && confirmAccept);
 
         const showLoader = (text) => {
             modalLoaderText.textContent = text;
@@ -53,7 +54,9 @@
             if (!activeConfirmation) return;
             const { resolve, returnFocusTo } = activeConfirmation;
             activeConfirmation = null;
-            confirmOverlay.hidden = true;
+            if (confirmOverlay) {
+                confirmOverlay.hidden = true;
+            }
             resolve(accepted);
             if (returnFocusTo && typeof returnFocusTo.focus === 'function') {
                 returnFocusTo.focus();
@@ -61,8 +64,8 @@
         };
 
         const requestConfirmation = ({ title, message, acceptLabel, returnFocusTo }) => {
-            if (!confirmOverlay || !confirmTitle || !confirmMessage || !confirmCancel || !confirmAccept) {
-                return Promise.resolve(confirm(message));
+            if (!hasCustomConfirmation()) {
+                return Promise.resolve(typeof confirm === 'function' ? confirm(message) : false);
             }
 
             if (activeConfirmation) {
@@ -80,29 +83,33 @@
             });
         };
 
-        confirmCancel.addEventListener('click', () => closeConfirmation(false));
-        confirmAccept.addEventListener('click', () => closeConfirmation(true));
-        confirmOverlay.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                closeConfirmation(false);
-                return;
-            }
+        if (hasCustomConfirmation()) {
+            confirmCancel.addEventListener('click', () => closeConfirmation(false));
+            confirmAccept.addEventListener('click', () => closeConfirmation(true));
+            confirmOverlay.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeConfirmation(false);
+                    return;
+                }
 
-            if (e.key !== 'Tab') return;
-            const focusable = getFocusableElements(confirmOverlay);
-            if (focusable.length === 0) return;
+                if (e.key !== 'Tab') return;
+                e.stopPropagation();
+                const focusable = getFocusableElements(confirmOverlay);
+                if (focusable.length === 0) return;
 
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first.focus();
-            }
-        });
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            });
+        }
 
         const setModalTitle = (mode) => {
             modalTitle.textContent = '';

@@ -134,29 +134,65 @@ const tests = [
   }],
 
   ['creates, overwrites, loads, and deletes a save for a fixture game', async ({ app, page }) => {
+    const saveLabel = `fixture-${Date.now()}`;
+    const saveName = `${saveLabel}.save`;
+
     await openFixtureFromLibrary(app, page, fakeSugarCubeFixture);
     await expect(page.locator('#game-frame').contentFrame().locator('#passage')).toHaveText('Initial fixture passage.');
 
     await page.getByRole('button', { name: /Save/ }).click();
     await page.locator('.save-slot.empty').click();
-    await page.locator('#new-save-input').fill('fixture.save');
+    await page.locator('#new-save-input').fill(saveName);
     await page.locator('#new-save-confirm').click();
     await expect(page.locator('#saves-modal-overlay')).not.toHaveClass(/active/);
 
     await page.getByRole('button', { name: /Save/ }).click();
-    await expect(page.locator('.save-slot').filter({ hasText: 'fixture' })).toBeVisible();
-    await page.locator('.save-slot').filter({ hasText: 'fixture' }).click();
+    const overwriteSlot = page.locator('.save-slot').filter({ hasText: saveLabel });
+    await expect(overwriteSlot).toBeVisible();
+    await overwriteSlot.click();
+    await expect(page.locator('#save-confirm-overlay')).toBeVisible();
+    await expect(page.locator('#save-confirm-cancel')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#save-confirm-overlay')).toBeHidden();
+    await expect(page.locator('#saves-modal-overlay')).toHaveClass(/active/);
+    assert.equal(await overwriteSlot.evaluate(el => document.activeElement === el), true);
+
+    await overwriteSlot.click();
+    await expect(page.locator('#save-confirm-overlay')).toBeVisible();
+    await page.locator('#save-confirm-cancel').click();
+    await expect(page.locator('#save-confirm-overlay')).toBeHidden();
+    await expect(page.locator('#saves-modal-overlay')).toHaveClass(/active/);
+    assert.equal(await overwriteSlot.evaluate(el => document.activeElement === el), true);
+
+    await overwriteSlot.click();
     await expect(page.locator('#save-confirm-overlay')).toBeVisible();
     await page.locator('#save-confirm-accept').click();
     await expect(page.locator('#saves-modal-overlay')).not.toHaveClass(/active/);
 
     await page.getByRole('button', { name: /Load/ }).click();
-    await page.locator('.save-slot').filter({ hasText: 'fixture' }).click();
+    await page.locator('.save-slot').filter({ hasText: saveLabel }).click();
     await expect(page.locator('#game-frame').contentFrame().locator('#passage')).toHaveText('Restored fixture passage.');
 
     await page.getByRole('button', { name: /Load/ }).click();
-    const saveSlot = page.locator('.save-slot').filter({ hasText: 'fixture' });
-    await saveSlot.locator('.slot-delete').click({ force: true });
+    const saveSlot = page.locator('.save-slot').filter({ hasText: saveLabel });
+    const deleteButton = saveSlot.locator('.slot-delete');
+    await deleteButton.click({ force: true });
+    await expect(page.locator('#save-confirm-overlay')).toBeVisible();
+    await expect(page.locator('#save-confirm-cancel')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#save-confirm-overlay')).toBeHidden();
+    await expect(saveSlot).toBeVisible();
+    assert.equal(await deleteButton.evaluate(el => document.activeElement === el), true);
+
+    await deleteButton.click({ force: true });
+    await expect(page.locator('#save-confirm-overlay')).toBeVisible();
+    await page.locator('#save-confirm-cancel').click();
+    await expect(page.locator('#save-confirm-overlay')).toBeHidden();
+    await expect(saveSlot).toBeVisible();
+    assert.equal(await deleteButton.evaluate(el => document.activeElement === el), true);
+
+    await deleteButton.click({ force: true });
+    await expect(page.locator('#save-confirm-overlay')).toBeVisible();
     await page.locator('#save-confirm-accept').click();
     await expect(page.locator('#saves-grid')).toContainText('No saves found');
   }],

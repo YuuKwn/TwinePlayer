@@ -222,6 +222,14 @@ Relevant files:
 
 ## Slice 6: Replace Blocking Confirm Dialogs
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Save overwrite and delete now use an in-app confirmation dialog inside the save modal instead of blocking native `confirm()` prompts.
+- Confirmation dialogs support mouse and keyboard accept/cancel flows, Escape cancellation, focus trapping, and focus return to the initiating save slot or delete button.
+- A native `confirm()` fallback remains for unexpected markup failures, while missing confirmation markup no longer breaks save-modal initialization.
+- Integration coverage verifies overwrite and delete cancel/accept paths, Escape behavior, parent modal preservation, and focus restoration.
+
 ### Problem
 
 Save overwrite and delete currently use native `confirm()` dialogs. They work, but they interrupt flow, are not styled with the app, and are awkward to integration test.
@@ -304,4 +312,4 @@ For each implementation slice:
 
 ## Current Best First Slice
 
-Continue with **Slice 5: Shared Save Filename Validation**. Slices 1-4 are complete, and filename validation is the next smallest trust-boundary improvement for keeping renderer feedback aligned with main-process enforcement.
+Continue with **Slice 7: Encoding and Inline Style Cleanup**. Slices 1-6 are complete, and cleanup is the next smallest release-readiness improvement before packaging hardening.
