@@ -35,9 +35,9 @@ const normalizeGamePath = (gamePath) => path.resolve(assertString(gamePath, 'Gam
 const isHtmlGamePath = (gamePath) => HTML_GAME_EXTENSIONS.has(path.extname(gamePath).toLowerCase());
 
 const createGamePathAuthorizer = () => {
-  const authorizedGamePaths = new Set();
+  const authorizedGamePaths = new Map();
 
-  const authorize = async (gamePath) => {
+  const assertReadableHtmlFile = async (gamePath) => {
     const normalizedPath = normalizeGamePath(gamePath);
     if (!isHtmlGamePath(normalizedPath)) {
       throw new Error('Game path must point to an .html or .htm file');
@@ -49,20 +49,27 @@ const createGamePathAuthorizer = () => {
       throw new Error('Game path must point to a readable file');
     }
 
-    authorizedGamePaths.add(normalizedPath);
+    return {
+      normalizedPath,
+      realPath: await fs.promises.realpath(normalizedPath),
+    };
+  };
+
+  const authorize = async (gamePath) => {
+    const { normalizedPath, realPath } = await assertReadableHtmlFile(gamePath);
+    authorizedGamePaths.set(normalizedPath, realPath);
     return normalizedPath;
   };
 
   const requireAuthorized = async (gamePath) => {
-    const normalizedPath = normalizeGamePath(gamePath);
-    if (!authorizedGamePaths.has(normalizedPath)) {
+    const { normalizedPath, realPath } = await assertReadableHtmlFile(gamePath);
+    const authorizedRealPath = authorizedGamePaths.get(normalizedPath);
+    if (!authorizedRealPath) {
       throw new Error('Game path is not authorized for save operations');
     }
 
-    await fs.promises.access(normalizedPath, fs.constants.R_OK);
-    const stats = await fs.promises.stat(normalizedPath);
-    if (!stats.isFile() || !isHtmlGamePath(normalizedPath)) {
-      throw new Error('Authorized game path is no longer a readable HTML file');
+    if (realPath !== authorizedRealPath) {
+      throw new Error('Authorized game path has changed since selection');
     }
 
     return normalizedPath;

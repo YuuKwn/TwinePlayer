@@ -142,6 +142,29 @@ test('save:write rejects invalid filenames as response errors', async () => {
   });
 });
 
+test('game:authorizePath rejects non-HTML paths and directories', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'twine-player-ipc-'));
+  try {
+    const textPath = path.join(tempDir, 'notes.txt');
+    const dirPath = path.join(tempDir, 'folder.html');
+    fs.writeFileSync(textPath, 'not a game');
+    fs.mkdirSync(dirPath);
+
+    const { invoke } = createHandlerRegistry();
+
+    assert.deepEqual(await invoke('game:authorizePath', textPath), {
+      success: false,
+      error: 'Game path must point to an .html or .htm file',
+    });
+    assert.deepEqual(await invoke('game:authorizePath', dirPath), {
+      success: false,
+      error: 'Game path must point to a readable file',
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('save IPC handlers reject unknown game paths', async () => {
   await withTempGame(async (gamePath, tempDir) => {
     const { invoke } = createHandlerRegistry();
@@ -151,11 +174,25 @@ test('save IPC handlers reject unknown game paths', async () => {
     const originalConsoleError = console.error;
     console.error = () => {};
     try {
-      assert.match((await invoke('save:list', unknownPath)).error, /not authorized/);
-      assert.match((await invoke('save:write', unknownPath, 'slot', [1])).error, /not authorized/);
-      assert.match((await invoke('save:read', unknownPath, 'slot.save')).error, /not authorized/);
-      assert.match((await invoke('save:delete', unknownPath, 'slot.save')).error, /not authorized/);
-      assert.match((await invoke('save:list', gamePath)).error, /not authorized/);
+      const listUnknown = await invoke('save:list', unknownPath);
+      assert.equal(listUnknown.success, false);
+      assert.match(listUnknown.error, /not authorized/);
+
+      const writeUnknown = await invoke('save:write', unknownPath, 'slot', [1]);
+      assert.equal(writeUnknown.success, false);
+      assert.match(writeUnknown.error, /not authorized/);
+
+      const readUnknown = await invoke('save:read', unknownPath, 'slot.save');
+      assert.equal(readUnknown.success, false);
+      assert.match(readUnknown.error, /not authorized/);
+
+      const deleteUnknown = await invoke('save:delete', unknownPath, 'slot.save');
+      assert.equal(deleteUnknown.success, false);
+      assert.match(deleteUnknown.error, /not authorized/);
+
+      const listUnselected = await invoke('save:list', gamePath);
+      assert.equal(listUnselected.success, false);
+      assert.match(listUnselected.error, /not authorized/);
     } finally {
       console.error = originalConsoleError;
     }

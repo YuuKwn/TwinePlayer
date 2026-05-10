@@ -23,6 +23,14 @@ This document captures the next practical improvement opportunities for TwinePla
 
 ## Slice 1: Save IPC Path Authorization
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Main process now tracks authorized game paths and checks authorization before `save:list`, `save:write`, `save:read`, and `save:delete`.
+- Game selection accepts only readable `.html` and `.htm` files, and save operations re-check that the selected path still resolves to the same readable file.
+- Rejected save operations return normalized `{ success: false, error }` responses.
+- Focused IPC tests cover selected-path save flows, unknown paths, missing paths, and non-HTML/direct authorization rejection.
+
 ### Problem
 
 Save operations currently validate save filenames well, but they still trust the renderer-provided `gamePath`. Main-process handlers call save operations using that path, and saves are written to sidecar folders next to it.
