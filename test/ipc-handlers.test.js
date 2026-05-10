@@ -48,6 +48,7 @@ test('registerIpcHandlers wires expected core channels', () => {
     'path:toFileUrl',
     'file:exists',
     'game:metadata',
+    'game:authorizePath',
     'save:list',
     'save:write',
     'save:read',
@@ -59,11 +60,13 @@ test('registerIpcHandlers wires expected core channels', () => {
 test('dialog:openFile returns selected file or null', async () => {
   assert.equal(await createHandlerRegistry().invoke('dialog:openFile'), null);
 
-  const selected = createHandlerRegistry({
-    canceled: false,
-    filePaths: ['F:\\Games\\Story.html'],
+  await withTempGame(async (gamePath) => {
+    const selected = createHandlerRegistry({
+      canceled: false,
+      filePaths: [gamePath],
+    });
+    assert.equal(await selected.invoke('dialog:openFile'), path.resolve(gamePath));
   });
-  assert.equal(await selected.invoke('dialog:openFile'), 'F:\\Games\\Story.html');
 });
 
 test('path:toFileUrl normalizes errors into response objects', async () => {
@@ -98,6 +101,10 @@ test('file:exists and game:metadata expose safe file helpers', async () => {
 test('save IPC handlers round-trip bytes and normalize missing files', async () => {
   await withTempGame(async (gamePath) => {
     const { invoke } = createHandlerRegistry();
+    assert.deepEqual(await invoke('game:authorizePath', gamePath), {
+      success: true,
+      path: path.resolve(gamePath),
+    });
 
     assert.deepEqual(await invoke('save:list', gamePath), []);
 
@@ -122,6 +129,7 @@ test('save IPC handlers round-trip bytes and normalize missing files', async () 
 test('save:write rejects invalid filenames as response errors', async () => {
   await withTempGame(async (gamePath) => {
     const { invoke } = createHandlerRegistry();
+    await invoke('game:authorizePath', gamePath);
     const originalConsoleError = console.error;
     console.error = () => {};
     try {
@@ -132,6 +140,69 @@ test('save:write rejects invalid filenames as response errors', async () => {
       console.error = originalConsoleError;
     }
   });
+});
+
+test('save IPC handlers reject unknown game paths', async () => {
+  await withTempGame(async (gamePath, tempDir) => {
+    const { invoke } = createHandlerRegistry();
+    const unknownPath = path.join(tempDir, 'Unknown.html');
+    fs.writeFileSync(unknownPath, '<title>Unknown</title>');
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      assert.match((await invoke('save:list', unknownPath)).error, /not authorized/);
+      assert.match((await invoke('save:write', unknownPath, 'slot', [1])).error, /not authorized/);
+      assert.match((await invoke('save:read', unknownPath, 'slot.save')).error, /not authorized/);
+      assert.match((await invoke('save:delete', unknownPath, 'slot.save')).error, /not authorized/);
+      assert.match((await invoke('save:list', gamePath)).error, /not authorized/);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+});
+
+test('authorized save paths must remain readable HTML files', async () => {
+  await withTempGame(async (gamePath) => {
+    const { invoke } = createHandlerRegistry();
+    await invoke('game:authorizePath', gamePath);
+    fs.unlinkSync(gamePath);
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      const listResult = await invoke('save:list', gamePath);
+      assert.equal(listResult.success, false);
+      assert.match(listResult.error, /no such file|ENOENT/i);
+      const writeResult = await invoke('save:write', gamePath, 'slot', [1]);
+      assert.equal(writeResult.success, false);
+      assert.match(writeResult.error, /no such file|ENOENT/i);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+});
+
+test('dialog:openFile rejects non-HTML selections returned by the dialog', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'twine-player-ipc-'));
+  try {
+    const textPath = path.join(tempDir, 'notes.txt');
+    fs.writeFileSync(textPath, 'not a game');
+    const selected = createHandlerRegistry({
+      canceled: false,
+      filePaths: [textPath],
+    });
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      assert.equal(await selected.invoke('dialog:openFile'), null);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('illustrator:get-default-config returns renderer-safe defaults', async () => {

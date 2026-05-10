@@ -4,16 +4,23 @@
         const modalTitle = document.getElementById('modal-title');
         const modalLoader = document.getElementById('modal-loader');
         const modalLoaderText = document.getElementById('modal-loader-text');
+        const confirmOverlay = document.getElementById('save-confirm-overlay');
+        const confirmTitle = document.getElementById('save-confirm-title');
+        const confirmMessage = document.getElementById('save-confirm-message');
+        const confirmCancel = document.getElementById('save-confirm-cancel');
+        const confirmAccept = document.getElementById('save-confirm-accept');
 
         let pendingSaveBlob = null;
         let pendingLoadInput = null;
         let currentModalMode = 'save';
         let previouslyFocusedElement = null;
+        let activeConfirmation = null;
 
         let savesList = [];
         let currentPage = 1;
         const SAVES_PER_PAGE = 8;
-        const RESERVED_SAVE_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+        const { getSaveFilenameError, normalizeSaveFilename } = window.TwinePlayerSaveFilename;
+        const { formatBytes, getSaveDisplayName } = window.TwinePlayerGameHelpers;
 
         const showLoader = (text) => {
             modalLoaderText.textContent = text;
@@ -41,6 +48,61 @@
             const firstControl = getFocusableElements(savesModal)[0];
             if (firstControl) firstControl.focus();
         };
+
+        const closeConfirmation = (accepted) => {
+            if (!activeConfirmation) return;
+            const { resolve, returnFocusTo } = activeConfirmation;
+            activeConfirmation = null;
+            confirmOverlay.hidden = true;
+            resolve(accepted);
+            if (returnFocusTo && typeof returnFocusTo.focus === 'function') {
+                returnFocusTo.focus();
+            }
+        };
+
+        const requestConfirmation = ({ title, message, acceptLabel, returnFocusTo }) => {
+            if (!confirmOverlay || !confirmTitle || !confirmMessage || !confirmCancel || !confirmAccept) {
+                return Promise.resolve(confirm(message));
+            }
+
+            if (activeConfirmation) {
+                closeConfirmation(false);
+            }
+
+            confirmTitle.textContent = title;
+            confirmMessage.textContent = message;
+            confirmAccept.textContent = acceptLabel;
+            confirmOverlay.hidden = false;
+
+            return new Promise((resolve) => {
+                activeConfirmation = { resolve, returnFocusTo };
+                confirmCancel.focus();
+            });
+        };
+
+        confirmCancel.addEventListener('click', () => closeConfirmation(false));
+        confirmAccept.addEventListener('click', () => closeConfirmation(true));
+        confirmOverlay.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeConfirmation(false);
+                return;
+            }
+
+            if (e.key !== 'Tab') return;
+            const focusable = getFocusableElements(confirmOverlay);
+            if (focusable.length === 0) return;
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        });
 
         const setModalTitle = (mode) => {
             modalTitle.textContent = '';
@@ -85,33 +147,6 @@
             btn.appendChild(document.createTextNode(' Save'));
         };
 
-        const formatBytes = (bytes) => {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        };
-
-        const getSaveNameError = (filename) => {
-            const trimmed = filename.trim();
-            if (!trimmed) return 'Enter a save name.';
-
-            const withExtension = trimmed.toLowerCase().endsWith('.save') ? trimmed : `${trimmed}.save`;
-            if (
-                withExtension.includes('/') ||
-                withExtension.includes('\\') ||
-                withExtension.includes('\0') ||
-                withExtension === '.' ||
-                withExtension === '..' ||
-                RESERVED_SAVE_NAMES.test(withExtension)
-            ) {
-                return 'Use a plain save filename.';
-            }
-
-            return '';
-        };
-
         const renderSavesPage = () => {
             savesGrid.textContent = '';
 
@@ -129,6 +164,8 @@
             if (currentModalMode === 'save' && currentPage === 1) {
                 const addSlot = document.createElement('div');
                 addSlot.className = 'save-slot empty';
+                addSlot.tabIndex = 0;
+                addSlot.setAttribute('role', 'button');
                 const addSlotContent = document.createElement('div');
                 addSlotContent.className = 'empty-content new-save-content';
                 addSlotContent.appendChild(createSvg(
@@ -200,17 +237,15 @@
                     newSaveInputEl.select();
 
                     const validateNewSaveName = () => {
-                        const message = getSaveNameError(newSaveInputEl.value);
+                        const message = getSaveFilenameError(newSaveInputEl.value);
                         newSaveErrorEl.textContent = message;
                         newSaveInputEl.classList.toggle('invalid-save-name', Boolean(message));
                         return message;
                     };
 
                     const doSave = async () => {
-                        let name = newSaveInputEl.value.trim();
                         if (validateNewSaveName()) return;
-                        if (!name.endsWith('.save')) name += '.save';
-                        await executeSaveWrite(name);
+                        await executeSaveWrite(normalizeSaveFilename(newSaveInputEl.value));
                     };
 
                     newSaveInputEl.addEventListener('input', validateNewSaveName);
@@ -237,15 +272,24 @@
                 };
 
                 addSlot.addEventListener('click', handleNewSaveClick);
+                addSlot.addEventListener('keydown', (keyEvent) => {
+                    if (keyEvent.target !== addSlot) return;
+                    if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+                        keyEvent.preventDefault();
+                        handleNewSaveClick(keyEvent);
+                    }
+                });
                 savesGrid.appendChild(addSlot);
             }
 
             pageSaves.forEach(save => {
                 const slot = document.createElement('div');
                 slot.className = 'save-slot';
+                slot.tabIndex = 0;
+                slot.setAttribute('role', 'button');
 
                 const dateStr = new Date(save.mtime).toLocaleString();
-                const displayName = save.filename.replace('.save', '');
+                const displayName = getSaveDisplayName(save.filename);
 
                 const title = document.createElement('div');
                 title.className = 'slot-title';
@@ -289,7 +333,13 @@
                 slot.addEventListener('click', async (e) => {
                     if (e.target.closest('.slot-delete')) {
                         e.stopPropagation();
-                        if (confirm(`Delete save "${displayName}"?`)) {
+                        const accepted = await requestConfirmation({
+                            title: 'Delete Save',
+                            message: `Delete save "${displayName}"?`,
+                            acceptLabel: 'Delete',
+                            returnFocusTo: deleteBtn,
+                        });
+                        if (accepted) {
                             await window.electronAPI.deleteSave(gameUrl, save.filename);
                             await refreshSaves();
                         }
@@ -297,11 +347,25 @@
                     }
 
                     if (currentModalMode === 'save') {
-                        if (confirm(`Overwrite save "${displayName}"?`)) {
+                        const accepted = await requestConfirmation({
+                            title: 'Overwrite Save',
+                            message: `Overwrite save "${displayName}"?`,
+                            acceptLabel: 'Overwrite',
+                            returnFocusTo: slot,
+                        });
+                        if (accepted) {
                             await executeSaveWrite(save.filename);
                         }
                     } else if (currentModalMode === 'load') {
                         await executeLoadRead(save.filename);
+                    }
+                });
+
+                slot.addEventListener('keydown', (keyEvent) => {
+                    if (keyEvent.target !== slot) return;
+                    if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
+                        keyEvent.preventDefault();
+                        slot.click();
                     }
                 });
 
@@ -320,7 +384,15 @@
         const refreshSaves = async () => {
             if (!gameUrl) return;
             try {
-                savesList = await window.electronAPI.listSaves(gameUrl);
+                const result = await window.electronAPI.listSaves(gameUrl);
+                if (Array.isArray(result)) {
+                    savesList = result;
+                } else {
+                    savesList = [];
+                    if (result && result.error) {
+                        printLog(`Err listing saves: ${result.error}`, 'error');
+                    }
+                }
             } catch (err) {
                 savesList = [];
                 printLog(`Err listing saves: ${err.message}`, 'error');
@@ -363,6 +435,7 @@
             if (!savesModal.classList.contains('active')) return;
 
             if (e.key === 'Escape') {
+                if (activeConfirmation) return;
                 e.preventDefault();
                 closeSavesModal();
                 return;
@@ -580,7 +653,7 @@
             const msg = event.data;
             if (!msg || typeof msg !== 'object' || Array.isArray(msg) || !TRUSTED_MESSAGE_TYPES.has(msg.type)) return;
 
-            // Save/load messages Ã¢â‚¬â€ kept as bonus path for patched games
+            // Save/load messages are kept as a bonus path for patched games.
             if (msg.type === 'twine-save') {
                 pendingSaveBlob = null;
                 if (typeof msg.dataUrl === 'string' && msg.dataUrl.length <= MAX_MESSAGE_DATA_URL_LENGTH && msg.dataUrl.startsWith('data:')) {

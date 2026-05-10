@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   toFileUrl,
 } = require('./file-utils');
@@ -26,14 +28,75 @@ const {
   getErrorMessage,
 } = require('./validation');
 
+const HTML_GAME_EXTENSIONS = new Set(['.html', '.htm']);
+
+const normalizeGamePath = (gamePath) => path.resolve(assertString(gamePath, 'Game path'));
+
+const isHtmlGamePath = (gamePath) => HTML_GAME_EXTENSIONS.has(path.extname(gamePath).toLowerCase());
+
+const createGamePathAuthorizer = () => {
+  const authorizedGamePaths = new Set();
+
+  const authorize = async (gamePath) => {
+    const normalizedPath = normalizeGamePath(gamePath);
+    if (!isHtmlGamePath(normalizedPath)) {
+      throw new Error('Game path must point to an .html or .htm file');
+    }
+
+    await fs.promises.access(normalizedPath, fs.constants.R_OK);
+    const stats = await fs.promises.stat(normalizedPath);
+    if (!stats.isFile()) {
+      throw new Error('Game path must point to a readable file');
+    }
+
+    authorizedGamePaths.add(normalizedPath);
+    return normalizedPath;
+  };
+
+  const requireAuthorized = async (gamePath) => {
+    const normalizedPath = normalizeGamePath(gamePath);
+    if (!authorizedGamePaths.has(normalizedPath)) {
+      throw new Error('Game path is not authorized for save operations');
+    }
+
+    await fs.promises.access(normalizedPath, fs.constants.R_OK);
+    const stats = await fs.promises.stat(normalizedPath);
+    if (!stats.isFile() || !isHtmlGamePath(normalizedPath)) {
+      throw new Error('Authorized game path is no longer a readable HTML file');
+    }
+
+    return normalizedPath;
+  };
+
+  return {
+    authorize,
+    requireAuthorized,
+  };
+};
+
 const registerIpcHandlers = ({ ipcMain, dialog }) => {
+  const gamePathAuthorizer = createGamePathAuthorizer();
+
   ipcMain.handle('dialog:openFile', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'Twine Games', extensions: ['html', 'htm'] }],
-    });
-    if (result.canceled) return null;
-    return result.filePaths[0];
+    try {
+      const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Twine Games', extensions: ['html', 'htm'] }],
+      });
+      if (result.canceled || !result.filePaths[0]) return null;
+      return await gamePathAuthorizer.authorize(result.filePaths[0]);
+    } catch (err) {
+      console.error('Error selecting game file', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('game:authorizePath', async (event, gamePath) => {
+    try {
+      return { success: true, path: await gamePathAuthorizer.authorize(gamePath) };
+    } catch (err) {
+      return { success: false, error: getErrorMessage(err) };
+    }
   });
 
   ipcMain.handle('path:toFileUrl', async (event, filePath) => {
@@ -62,16 +125,16 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('save:list', async (event, gamePath) => {
     try {
-      return await listSaves(gamePath);
+      return await listSaves(await gamePathAuthorizer.requireAuthorized(gamePath));
     } catch (err) {
       console.error('Error listing saves', err);
-      return [];
+      return { success: false, error: getErrorMessage(err) };
     }
   });
 
   ipcMain.handle('save:write', async (event, gamePath, filename, bufferArray) => {
     try {
-      const result = await writeSave(gamePath, filename, bufferArray);
+      const result = await writeSave(await gamePathAuthorizer.requireAuthorized(gamePath), filename, bufferArray);
       return { success: true, ...result };
     } catch (err) {
       console.error('Error writing save', err);
@@ -81,7 +144,7 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('save:read', async (event, gamePath, filename) => {
     try {
-      const result = await readSave(gamePath, filename);
+      const result = await readSave(await gamePathAuthorizer.requireAuthorized(gamePath), filename);
       if (result) {
         return { success: true, ...result };
       }
@@ -94,7 +157,7 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('save:delete', async (event, gamePath, filename) => {
     try {
-      if (await deleteSave(gamePath, filename)) {
+      if (await deleteSave(await gamePathAuthorizer.requireAuthorized(gamePath), filename)) {
         return { success: true };
       }
       return { success: false, error: 'File not found' };

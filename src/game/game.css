@@ -11,7 +11,7 @@
             font-family: 'Outfit', sans-serif;
         }
 
-        /* Game layout container â€” switches between overlay and side-by-side */
+        /* Game layout container: switches between overlay and side-by-side */
         #layout-container {
             display: flex;
             width: 100%;
@@ -131,6 +131,14 @@
             transform: translateX(-2px);
         }
 
+        .undo-btn {
+            margin-left: 8px;
+        }
+
+        .is-hidden {
+            display: none !important;
+        }
+
         .game-title {
             color: #e2e8f0;
             margin-left: 1rem;
@@ -235,6 +243,12 @@
             font-weight: 500;
         }
 
+        .console-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
         .console-scope {
             margin-top: 4px;
             color: #fbbf24;
@@ -287,6 +301,10 @@
             color: #a78bfa;
         }
 
+        .log-entry-muted {
+            color: #64748b;
+        }
+
         .saved-commands {
             flex: 0 0 150px;
             min-height: 80px;
@@ -324,6 +342,15 @@
         .saved-command-item:hover {
             background: rgba(255, 255, 255, 0.05);
             color: #fff;
+        }
+
+        .saved-command-empty {
+            color: #64748b;
+        }
+
+        .saved-command-actions {
+            display: flex;
+            gap: 4px;
         }
 
         .cmd-text {
@@ -398,6 +425,10 @@
         .console-btn:hover {
             background: #60a5fa;
             color: #fff;
+        }
+
+        .console-save-btn {
+            padding: 0 12px;
         }
 
         .toggle-console-btn {
@@ -710,6 +741,11 @@
             align-items: center;
         }
 
+        .saves-info {
+            color: #64748b;
+            font-size: 13px;
+        }
+
         .pagination {
             display: flex;
             align-items: center;
@@ -757,6 +793,73 @@
         .modal-loader.active {
             opacity: 1;
             pointer-events: auto;
+        }
+
+        .modal-loader-text {
+            margin-top: 1rem;
+        }
+
+        .confirm-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.72);
+            border-radius: 16px;
+        }
+
+        .confirm-overlay[hidden] {
+            display: none;
+        }
+
+        .confirm-dialog {
+            width: min(360px, calc(100% - 32px));
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 8px;
+            box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+            color: #f8fafc;
+            padding: 20px;
+        }
+
+        .confirm-dialog h3 {
+            margin: 0 0 8px;
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .confirm-dialog p {
+            margin: 0;
+            color: #cbd5e1;
+            line-height: 1.45;
+        }
+
+        .confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .confirm-btn {
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            padding: 8px 14px;
+        }
+
+        .confirm-cancel {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .confirm-accept {
+            background: rgba(239, 68, 68, 0.88);
+            border-color: rgba(239, 68, 68, 0.95);
         }
 
         /* --- Illustrator Feature Styles --- */
@@ -838,6 +941,16 @@
             margin-bottom: 4px;
         }
 
+        .illus-label-hint {
+            color: #475569;
+            font-size: 10px;
+            text-transform: none;
+        }
+
+        .flex-fill {
+            flex: 1;
+        }
+
         .illus-textarea {
             width: 100%;
             background: rgba(0, 0, 0, 0.35);
@@ -907,7 +1020,7 @@
             border-color: rgba(167, 139, 250, 0.5);
         }
 
-        /* Model select dropdown â€” reuses illus-input appearance */
+        /* Model select dropdown reuses illus-input appearance */
         .illus-select {
             width: 100%;
             flex: 1;
@@ -1061,6 +1174,10 @@
             align-items: center;
             gap: 8px;
             font-size: 13px;
+        }
+
+        .illus-placeholder-icon {
+            opacity: 0.25;
         }
 
         .illus-spinner {

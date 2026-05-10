@@ -1,8 +1,11 @@
 require('./file-utils.test');
+require('./game-player-helpers.test');
 require('./game-metadata.test');
 require('./illustrator-config.test');
 require('./illustrator-service.test');
 require('./ipc-handlers.test');
+require('./library-history.test');
 require('./save-service.test');
+require('./save-filename.test');
 require('./storage-utils.test');
 require('./validation.test');

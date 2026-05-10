@@ -8,6 +8,20 @@ if (gameUrl) {
             return null;
         }
 
+        if (!window.electronAPI.authorizeGamePath) {
+            return { success: true, path: gameUrl };
+        }
+
+        return window.electronAPI.authorizeGamePath(gameUrl);
+    }).then((authResult) => {
+        if (!authResult) return null;
+        if (!authResult.success) {
+            printLog(`Err authorizing game path: ${authResult.error}`, 'error');
+            document.getElementById('game-title').innerText = 'Game file not authorized';
+            return null;
+        }
+
+        gameUrl = authResult.path;
         return window.electronAPI.toFileUrl(gameUrl);
     }).then((res) => {
         if (!res) return;

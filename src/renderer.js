@@ -1,11 +1,17 @@
 // Store game history locally
 const HISTORY_KEY = 'twine_player_history';
 const { readJson, writeJson } = window.TwinePlayerStorage;
+const { getTitleFromPath, normalizeLibraryHistory } = window.TwinePlayerLibraryHistory;
 
-let history = readJson(localStorage, HISTORY_KEY, []);
-if (!Array.isArray(history)) {
-    history = [];
-}
+const normalizeHistoryFromStorage = () => {
+    const normalized = normalizeLibraryHistory(readJson(localStorage, HISTORY_KEY, []));
+    if (normalized.changed) {
+        writeJson(localStorage, HISTORY_KEY, normalized.history);
+    }
+    return normalized.history;
+};
+
+let history = normalizeHistoryFromStorage();
 const missingGamePaths = new Set();
 
 const loadGameBtn = document.getElementById('load-game-btn');
@@ -33,16 +39,6 @@ const extractTitleFromHtml = async (filePath) => {
 
     const metadata = await window.electronAPI.getGameMetadata(filePath);
     return metadata.success && metadata.title ? metadata.title : fallbackTitle;
-};
-
-const getTitleFromPath = (filePath) => {
-    try {
-        const filename = filePath.split('\\').pop().split('/').pop();
-        const cleanName = filename.replace(/\.html?$/i, '').replace(/[-_]/g, ' ');
-        return cleanName.replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown Game';
-    } catch (err) {
-        return 'Unknown Game';
-    }
 };
 
 const createSvg = (attributes, paths) => {
@@ -260,6 +256,16 @@ const playGame = async (filePath, title) => {
             renderHistory();
             return;
         }
+    }
+
+    if (window.electronAPI.authorizeGamePath) {
+        const authResult = await window.electronAPI.authorizeGamePath(filePath);
+        if (!authResult.success) {
+            missingGamePaths.add(filePath);
+            renderHistory();
+            return;
+        }
+        filePath = authResult.path;
     }
 
     // Update last played

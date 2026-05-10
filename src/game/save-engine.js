@@ -1,5 +1,5 @@
         /* ================================================================
-           SAVE / LOAD Ã¢â‚¬â€ SugarCube engine bridge
+           SAVE / LOAD - SugarCube engine bridge
            ================================================================
 
            detectEngine(): inspects the iframe's contentWindow to identify
@@ -8,7 +8,7 @@
 
            executeSaveCapture(): reads the current game state directly from
            the iframe via the SugarCube JS API and returns a Blob.
-             - SC2: window.Save.serialize() Ã¢â€ â€™ base64 string Ã¢â€ â€™ UTF-8 Blob
+             - SC2: window.Save.serialize() to base64 string to UTF-8 Blob
              - SC1: window.save.serialize() (same pattern, different namespace)
              Throws on failure so the caller can show an error.
 

@@ -3,6 +3,11 @@
         const outputEl = document.getElementById('console-output');
         const inputEl = document.getElementById('console-input');
         const savedListEl = document.getElementById('saved-list');
+        const {
+            filterAutocompleteProperties,
+            getAutocompleteParts,
+            hashString,
+        } = window.TwinePlayerGameHelpers;
 
         isolateInput(inputEl);
         isolateInput(document.getElementById('illus-scene-text'));
@@ -26,13 +31,13 @@
             if (isSideMode) {
                 document.body.classList.add('console-side');
                 layoutContainer.appendChild(consoleEl);
-                iconSide.style.display = 'block';
-                iconOverlay.style.display = 'none';
+                iconSide.classList.remove('is-hidden');
+                iconOverlay.classList.add('is-hidden');
             } else {
                 document.body.classList.remove('console-side');
                 document.body.appendChild(consoleEl);
-                iconSide.style.display = 'none';
-                iconOverlay.style.display = 'block';
+                iconSide.classList.add('is-hidden');
+                iconOverlay.classList.remove('is-hidden');
             }
         };
 
@@ -63,21 +68,23 @@
 
         applyBarPin();
 
-        const hashString = (str) => {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                hash = ((hash << 5) - hash) + str.charCodeAt(i);
-                hash |= 0;
-            }
-            return hash.toString();
-        };
-
         const printLog = (msg, type = 'normal') => {
             const div = document.createElement('div');
             div.className = `log-entry ${type}`;
             div.textContent = msg;
             outputEl.appendChild(div);
             outputEl.scrollTop = outputEl.scrollHeight;
+        };
+
+        const createConsoleSvg = (attributes, paths) => {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            Object.entries(attributes).forEach(([key, value]) => svg.setAttribute(key, value));
+            paths.forEach(pathData => {
+                const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                Object.entries(pathData).forEach(([key, value]) => pathEl.setAttribute(key, value));
+                svg.appendChild(pathEl);
+            });
+            return svg;
         };
 
         const getSavedCommandsForAllGames = () => {
@@ -98,8 +105,7 @@
 
             if (myCmds.length === 0) {
                 const empty = document.createElement('div');
-                empty.className = 'saved-command-item';
-                empty.style.color = '#64748b';
+                empty.className = 'saved-command-item saved-command-empty';
                 empty.textContent = 'No saved commands yet.';
                 savedListEl.appendChild(empty);
                 return;
@@ -120,19 +126,54 @@
                 });
 
                 const actions = document.createElement('div');
-                actions.style.display = 'flex';
-                actions.style.gap = '4px';
+                actions.className = 'saved-command-actions';
 
                 const runBtn = document.createElement('button');
                 runBtn.className = 'cmd-run';
                 runBtn.title = 'Run command';
-                runBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                runBtn.appendChild(createConsoleSvg(
+                    {
+                        width: '18',
+                        height: '18',
+                        fill: 'none',
+                        stroke: 'currentColor',
+                        viewBox: '0 0 24 24',
+                    },
+                    [
+                        {
+                            'stroke-linecap': 'round',
+                            'stroke-linejoin': 'round',
+                            'stroke-width': '2',
+                            d: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z',
+                        },
+                        {
+                            'stroke-linecap': 'round',
+                            'stroke-linejoin': 'round',
+                            'stroke-width': '2',
+                            d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+                        },
+                    ]
+                ));
                 runBtn.addEventListener('click', () => executeCommand(cmd));
 
                 const delBtn = document.createElement('button');
                 delBtn.className = 'cmd-del';
                 delBtn.title = 'Delete saved command';
-                delBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+                delBtn.appendChild(createConsoleSvg(
+                    {
+                        width: '18',
+                        height: '18',
+                        fill: 'none',
+                        stroke: 'currentColor',
+                        viewBox: '0 0 24 24',
+                    },
+                    [{
+                        'stroke-linecap': 'round',
+                        'stroke-linejoin': 'round',
+                        'stroke-width': '2',
+                        d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+                    }]
+                ));
                 delBtn.addEventListener('click', () => {
                     myCmds.splice(idx, 1);
                     allSaved[currentIfid] = myCmds;
@@ -230,25 +271,12 @@
             if (!inputText) return [];
             try {
                 const cw = iframe.contentWindow;
-                const match = inputText.match(/(([a-zA-Z_$][0-9a-zA-Z_$]*\.)*)([a-zA-Z_$][0-9a-zA-Z_$]*)$/);
+                const parts = getAutocompleteParts(inputText);
+                if (!parts) return [];
 
                 let baseObj = cw;
-                let prefix = inputText;
-                let pathStr = "";
-
-                if (match) {
-                    pathStr = match[1] || "";
-                    const baseStr = pathStr.slice(0, -1);
-                    prefix = match[3] || "";
-
-                    if (baseStr) {
-                        baseObj = cw.eval(baseStr);
-                    }
-                } else if (inputText.endsWith('.')) {
-                    pathStr = inputText;
-                    const baseStr = pathStr.slice(0, -1);
-                    prefix = "";
-                    baseObj = cw.eval(baseStr);
+                if (parts.baseExpression) {
+                    baseObj = cw.eval(parts.baseExpression);
                 }
 
                 if (baseObj == null) return [];
@@ -260,15 +288,7 @@
                     currentObj = Object.getPrototypeOf(currentObj);
                 }
 
-                const uniqueProps = [...new Set(props)];
-                const filtered = uniqueProps.filter(p => p.startsWith(prefix) && p !== prefix);
-                filtered.sort();
-
-                return filtered.map(prop => ({
-                    propName: prop,
-                    fullPath: pathStr + prop,
-                    prefix: prefix
-                })).slice(0, 50);
+                return filterAutocompleteProperties(props, parts.prefix, parts.pathStr);
 
             } catch (e) {
                 return [];

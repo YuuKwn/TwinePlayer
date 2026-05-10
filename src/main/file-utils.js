@@ -1,7 +1,9 @@
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const {
+  normalizeSaveFilename,
+} = require('../shared/save-filename');
 
-const RESERVED_WINDOWS_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 const MAX_SAVE_BYTES = 50 * 1024 * 1024;
 
 const assertNonEmptyString = (value, label) => {
@@ -20,30 +22,6 @@ const getGameSidecarDir = (gamePath, suffix) => {
   }
 
   return path.join(parsed.dir, `${parsed.name}_${suffix}`);
-};
-
-const normalizeSaveFilename = (filename) => {
-  assertNonEmptyString(filename, 'Save filename');
-
-  const trimmed = filename.trim();
-  const withExtension = trimmed.toLowerCase().endsWith('.save') ? trimmed : `${trimmed}.save`;
-
-  if (
-    path.basename(withExtension) !== withExtension ||
-    path.isAbsolute(withExtension) ||
-    withExtension.includes('/') ||
-    withExtension.includes('\\') ||
-    withExtension.includes('\0') ||
-    RESERVED_WINDOWS_NAMES.test(withExtension)
-  ) {
-    throw new Error('Save filename must be a plain .save filename');
-  }
-
-  if (!withExtension.toLowerCase().endsWith('.save')) {
-    throw new Error('Save filename must end with .save');
-  }
-
-  return withExtension;
 };
 
 const resolveSavePath = (gamePath, filename) => {

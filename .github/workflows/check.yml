@@ -25,3 +25,6 @@ jobs:
 
       - name: Check
         run: npm run check
+
+      - name: Electron smoke test
+        run: npm run test:integration
