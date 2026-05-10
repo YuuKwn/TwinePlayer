@@ -6,6 +6,7 @@ require('./illustrator-config.test');
 require('./illustrator-service.test');
 require('./ipc-handlers.test');
 require('./library-history.test');
+require('./package-config.test');
 require('./save-service.test');
 require('./save-filename.test');
 require('./storage-utils.test');

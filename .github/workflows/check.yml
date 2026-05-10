@@ -28,3 +28,6 @@ jobs:
 
       - name: Electron smoke test
         run: npm run test:integration
+
+      - name: Package smoke test
+        run: npm run package:smoke

@@ -284,6 +284,16 @@ Relevant files:
 
 ## Slice 8: Packaging Hardening
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Electron Builder uses an explicit runtime allowlist with generated saves, illustrations, logs, tests, docs, local build output, and debug folders excluded from packaged releases.
+- Release artifacts use a stable `TwinePlayer-${version}-${os}-${arch}.${ext}` name that avoids spaces from the display product name.
+- Package metadata now includes a non-empty author field.
+- Added `npm run package:smoke` for the Windows unpacked target and wired it into CI after the Electron integration smoke test.
+- Added automated package configuration tests so allowlist, exclusions, artifact naming, and smoke script coverage are harder to regress.
+- No project-owned icon assets are currently available, so icon metadata remains unset rather than referencing missing files.
+
 ### Problem
 
 Electron Builder configuration is currently minimal. That is acceptable for early packaging, but release builds benefit from explicit files, predictable artifact names, app metadata, and package smoke checks.
