@@ -4,9 +4,13 @@
         const inputEl = document.getElementById('console-input');
         const savedListEl = document.getElementById('saved-list');
         const {
+            addConsoleCommandForGame,
             filterAutocompleteProperties,
+            getConsoleCommandsForGame,
             getAutocompleteParts,
             hashString,
+            normalizeConsoleCommandStore,
+            removeConsoleCommandForGame,
         } = window.TwinePlayerGameHelpers;
 
         isolateInput(inputEl);
@@ -89,7 +93,7 @@
 
         const getSavedCommandsForAllGames = () => {
             const saved = window.TwinePlayerStorage.readJson(localStorage, CONSOLE_HISTORY_KEY, {});
-            return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+            return normalizeConsoleCommandStore(saved);
         };
 
         const saveCommandsForAllGames = (data) => {
@@ -101,7 +105,7 @@
             if (!currentIfid) return;
 
             const allSaved = getSavedCommandsForAllGames();
-            const myCmds = allSaved[currentIfid] || [];
+            const myCmds = getConsoleCommandsForGame(allSaved, currentIfid);
 
             if (myCmds.length === 0) {
                 const empty = document.createElement('div');
@@ -175,9 +179,8 @@
                     }]
                 ));
                 delBtn.addEventListener('click', () => {
-                    myCmds.splice(idx, 1);
-                    allSaved[currentIfid] = myCmds;
-                    saveCommandsForAllGames(allSaved);
+                    const result = removeConsoleCommandForGame(allSaved, currentIfid, idx);
+                    saveCommandsForAllGames(result.saved);
                     renderSavedCommands();
                 });
 
@@ -223,13 +226,9 @@
             if (!cmd || !currentIfid) return;
 
             const allSaved = getSavedCommandsForAllGames();
-            if (!allSaved[currentIfid]) {
-                allSaved[currentIfid] = [];
-            }
-
-            if (!allSaved[currentIfid].includes(cmd)) {
-                allSaved[currentIfid].push(cmd);
-                saveCommandsForAllGames(allSaved);
+            const result = addConsoleCommandForGame(allSaved, currentIfid, cmd);
+            if (result.added) {
+                saveCommandsForAllGames(result.saved);
                 renderSavedCommands();
                 printLog(`// Command saved.`, 'normal');
             }

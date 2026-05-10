@@ -63,11 +63,68 @@
       }));
   };
 
+  const normalizeConsoleCommandStore = (saved) => {
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+
+    const normalized = {};
+    Object.entries(saved).forEach(([ifid, commands]) => {
+      if (typeof ifid !== 'string' || !ifid.trim() || !Array.isArray(commands)) return;
+
+      const validCommands = commands.filter(command => typeof command === 'string' && command.trim());
+      if (validCommands.length > 0) {
+        normalized[ifid] = validCommands;
+      }
+    });
+
+    return normalized;
+  };
+
+  const getConsoleCommandsForGame = (saved, ifid) => {
+    if (typeof ifid !== 'string' || !ifid.trim()) return [];
+    const normalized = normalizeConsoleCommandStore(saved);
+    return normalized[ifid] || [];
+  };
+
+  const addConsoleCommandForGame = (saved, ifid, command) => {
+    const normalized = normalizeConsoleCommandStore(saved);
+    const cleanCommand = typeof command === 'string' ? command.trim() : '';
+    if (typeof ifid !== 'string' || !ifid.trim() || !cleanCommand) {
+      return { saved: normalized, added: false };
+    }
+
+    const commands = normalized[ifid] || [];
+    if (commands.includes(cleanCommand)) {
+      normalized[ifid] = commands;
+      return { saved: normalized, added: false };
+    }
+
+    normalized[ifid] = commands.concat(cleanCommand);
+    return { saved: normalized, added: true };
+  };
+
+  const removeConsoleCommandForGame = (saved, ifid, index) => {
+    const normalized = normalizeConsoleCommandStore(saved);
+    const commands = getConsoleCommandsForGame(normalized, ifid);
+    if (!Number.isInteger(index) || index < 0 || index >= commands.length) {
+      return { saved: normalized, removed: false };
+    }
+
+    normalized[ifid] = commands.slice(0, index).concat(commands.slice(index + 1));
+    if (normalized[ifid].length === 0) {
+      delete normalized[ifid];
+    }
+    return { saved: normalized, removed: true };
+  };
+
   return {
+    addConsoleCommandForGame,
     filterAutocompleteProperties,
     formatBytes,
     getAutocompleteParts,
+    getConsoleCommandsForGame,
     getSaveDisplayName,
     hashString,
+    normalizeConsoleCommandStore,
+    removeConsoleCommandForGame,
   };
 });

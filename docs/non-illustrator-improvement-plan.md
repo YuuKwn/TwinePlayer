@@ -150,6 +150,15 @@ Relevant files:
 
 ## Slice 4: Extract Testable Game-Player Helpers
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Added a browser/Node shared `game-player-helpers` module for save metadata formatting, save display names, stable console fallback hashing, autocomplete parsing, and autocomplete filtering.
+- Game save modal and developer console now consume extracted helpers while preserving classic script loading behavior.
+- Console command history normalization and mutation now happen through tested helpers, so malformed persisted console-history data cannot break saved-command rendering.
+- Focused Node tests cover save metadata helpers, autocomplete parsing/filtering, stable hashing, and console command store normalization/add/remove behavior.
+- `npm run check` passes. `npm run test:integration` exits successfully with the documented Electron GPU-process infrastructure skip in this environment.
+
 ### Problem
 
 The extracted `src/game/*.js` scripts still rely on shared browser globals and load order. That is workable, but it makes targeted testing and future changes harder.
@@ -287,4 +296,4 @@ For each implementation slice:
 
 ## Current Best First Slice
 
-Start with **Slice 1: Save IPC Path Authorization**. It has the best security-to-effort ratio, fits the current architecture, and can be verified with focused Node tests before taking on broader renderer test infrastructure.
+Continue with **Slice 5: Shared Save Filename Validation**. Slices 1-4 are complete, and filename validation is the next smallest trust-boundary improvement for keeping renderer feedback aligned with main-process enforcement.
