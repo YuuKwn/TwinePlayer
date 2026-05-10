@@ -30,6 +30,7 @@
         const iconSide = document.getElementById('layout-icon-side');
         const iconOverlay = document.getElementById('layout-icon-overlay');
         const layoutContainer = document.getElementById('layout-container');
+        const layoutToggleBtn = document.getElementById('layout-toggle');
 
         const applyLayout = () => {
             if (isSideMode) {
@@ -43,9 +44,13 @@
                 iconSide.classList.add('is-hidden');
                 iconOverlay.classList.remove('is-hidden');
             }
+            layoutToggleBtn.setAttribute('aria-pressed', isSideMode ? 'true' : 'false');
+            layoutToggleBtn.setAttribute('aria-label', isSideMode
+                ? 'Switch developer console to overlay layout'
+                : 'Switch developer console to side-by-side layout');
         };
 
-        document.getElementById('layout-toggle').addEventListener('click', () => {
+        layoutToggleBtn.addEventListener('click', () => {
             isSideMode = !isSideMode;
             localStorage.setItem(LAYOUT_KEY, isSideMode ? 'side' : 'overlay');
             applyLayout();
@@ -55,6 +60,7 @@
 
         const BAR_PIN_KEY = 'twine_player_bar_pinned';
         let isBarPinned = localStorage.getItem(BAR_PIN_KEY) === 'true';
+        const pinBarBtn = document.getElementById('pin-bar-btn');
 
         const applyBarPin = () => {
             if (isBarPinned) {
@@ -62,9 +68,11 @@
             } else {
                 document.body.classList.remove('bar-pinned');
             }
+            pinBarBtn.setAttribute('aria-pressed', isBarPinned ? 'true' : 'false');
+            pinBarBtn.setAttribute('aria-label', isBarPinned ? 'Unpin top bar' : 'Pin top bar');
         };
 
-        document.getElementById('pin-bar-btn').addEventListener('click', () => {
+        pinBarBtn.addEventListener('click', () => {
             isBarPinned = !isBarPinned;
             localStorage.setItem(BAR_PIN_KEY, isBarPinned);
             applyBarPin();
@@ -135,6 +143,7 @@
                 const runBtn = document.createElement('button');
                 runBtn.className = 'cmd-run';
                 runBtn.title = 'Run command';
+                runBtn.setAttribute('aria-label', `Run saved command: ${cmd}`);
                 runBtn.appendChild(createConsoleSvg(
                     {
                         width: '18',
@@ -163,6 +172,7 @@
                 const delBtn = document.createElement('button');
                 delBtn.className = 'cmd-del';
                 delBtn.title = 'Delete saved command';
+                delBtn.setAttribute('aria-label', `Delete saved command: ${cmd}`);
                 delBtn.appendChild(createConsoleSvg(
                     {
                         width: '18',

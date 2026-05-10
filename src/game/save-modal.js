@@ -173,6 +173,7 @@
                 addSlot.className = 'save-slot empty';
                 addSlot.tabIndex = 0;
                 addSlot.setAttribute('role', 'button');
+                addSlot.setAttribute('aria-label', 'Create a new save');
                 const addSlotContent = document.createElement('div');
                 addSlotContent.className = 'empty-content new-save-content';
                 addSlotContent.appendChild(createSvg(
@@ -210,6 +211,8 @@
                     input.id = 'new-save-input';
                     input.className = 'new-save-input';
                     input.value = defaultName;
+                    input.setAttribute('aria-label', 'Save filename');
+                    input.setAttribute('aria-describedby', 'new-save-error');
 
                     const error = document.createElement('div');
                     error.id = 'new-save-error';
@@ -297,6 +300,9 @@
 
                 const dateStr = new Date(save.mtime).toLocaleString();
                 const displayName = getSaveDisplayName(save.filename);
+                slot.setAttribute('aria-label', currentModalMode === 'save'
+                    ? `Overwrite save ${displayName}`
+                    : `Load save ${displayName}`);
 
                 const title = document.createElement('div');
                 title.className = 'slot-title';

@@ -64,7 +64,7 @@ const renderEmptyState = (message) => {
             fill: 'none',
             stroke: 'currentColor',
             viewBox: '0 0 24 24',
-            style: 'opacity:0.5',
+            class: 'empty-state-icon',
         },
         [{
             'stroke-linecap': 'round',
@@ -129,6 +129,9 @@ const renderHistory = () => {
             ? 'history-item glass-panel missing-game'
             : 'history-item glass-panel';
         card.style.animationDelay = `${delay}s`;
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', `Play ${item.title || 'game'}`);
 
         const titleEl = document.createElement('div');
         titleEl.className = 'history-title';
@@ -178,6 +181,7 @@ const renderHistory = () => {
             relinkBtn.className = 'history-action-btn';
             relinkBtn.type = 'button';
             relinkBtn.textContent = 'Relink';
+            relinkBtn.setAttribute('aria-label', `Relink ${item.title || 'game'}`);
 
             relinkBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -198,6 +202,14 @@ const renderHistory = () => {
                 writeJson(localStorage, HISTORY_KEY, history);
                 renderHistory();
             } else {
+                await playGame(item.path, item.title);
+            }
+        });
+
+        card.addEventListener('keydown', async (e) => {
+            if (e.target !== card) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
                 await playGame(item.path, item.title);
             }
         });

@@ -1,3 +1,4 @@
+require('./accessibility.test');
 require('./file-utils.test');
 require('./game-player-helpers.test');
 require('./game-metadata.test');

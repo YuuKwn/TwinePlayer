@@ -9,6 +9,7 @@
   --accent: #60a5fa;
   --accent-glow: rgba(96, 165, 250, 0.4);
   --danger: #ef4444;
+  --focus-ring: rgba(147, 197, 253, 0.95);
 }
 
 body {
@@ -120,6 +121,16 @@ body {
   height: 24px;
 }
 
+.primary-btn:focus-visible,
+.history-item:focus-visible,
+.history-action-btn:focus-visible,
+.remove-btn:focus-visible,
+.library-search:focus-visible,
+.library-sort:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
 .history-header {
   display: flex;
   align-items: center;
@@ -193,6 +204,11 @@ body {
   box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
 }
 
+.history-item:focus-visible {
+  border-color: rgba(147, 197, 253, 0.7);
+  box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.18);
+}
+
 .history-item.missing-game {
   border-color: rgba(239, 68, 68, 0.45);
 }
@@ -219,9 +235,8 @@ body {
 }
 
 .history-action-btn:hover,
-.history-action-btn:focus {
+.history-action-btn:focus-visible {
   background: rgba(96, 165, 250, 0.22);
-  outline: none;
 }
 
 .history-item.empty-state {
@@ -241,6 +256,10 @@ body {
   transform: none;
   border-color: var(--panel-border);
   box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+}
+
+.empty-state-icon {
+  opacity: 0.5;
 }
 
 .history-title {
@@ -291,6 +310,11 @@ body {
   opacity: 1;
 }
 
+.history-item:focus-within .remove-btn,
+.remove-btn:focus-visible {
+  opacity: 1;
+}
+
 .remove-btn:hover {
   background: var(--danger);
   color: #fff;
@@ -327,4 +351,21 @@ body {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .history-item:hover,
+  .primary-btn:hover,
+  .primary-btn:active {
+    transform: none;
+  }
 }

@@ -11,7 +11,7 @@
 </head>
 
 <body>
-    <div class="hover-zone"></div>
+    <div class="hover-zone" aria-hidden="true"></div>
     <div class="overlay-bar">
         <button id="back-btn" class="back-btn" title="Back to Library">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +44,7 @@
             </svg>
             Load
         </button>
-        <button id="toggle-console" class="toggle-console-btn">
+        <button id="toggle-console" class="toggle-console-btn" aria-label="Open Developer Console">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M8 9l3 3-3 3m5 0h3M4 6h16a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"></path>
@@ -60,7 +60,7 @@
             </svg>
             Illustrate
         </button>
-        <button id="pin-bar-btn" class="pin-bar-btn" title="Pin top bar (keeps it always visible)">
+        <button id="pin-bar-btn" class="pin-bar-btn" title="Pin top bar (keeps it always visible)" aria-label="Pin top bar">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="17" x2="12" y2="22" />
@@ -69,16 +69,16 @@
             </svg>
         </button>
     </div>
-    <div class="indicator"></div>
+    <div class="indicator" aria-hidden="true"></div>
 
-    <aside id="dev-console">
+    <aside id="dev-console" aria-labelledby="dev-console-title">
         <div class="console-header">
             <div>
-                <h3>Developer Console</h3>
+                <h3 id="dev-console-title">Developer Console</h3>
                 <div class="console-scope">Runs JavaScript inside the loaded game</div>
             </div>
             <div class="console-header-actions">
-                <button class="layout-toggle-btn" id="layout-toggle" title="Toggle: Overlay / Side-by-side">
+                <button class="layout-toggle-btn" id="layout-toggle" title="Toggle: Overlay / Side-by-side" aria-label="Toggle developer console layout">
                     <svg id="layout-icon-side" width="20" height="20" fill="none" stroke="currentColor"
                         viewBox="0 0 24 24" class="is-hidden">
                         <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
@@ -92,7 +92,7 @@
                         <line x1="12" y1="3" x2="12" y2="21" stroke-width="2" />
                     </svg>
                 </button>
-                <button class="close-console" id="close-console" title="Close Console">
+                <button class="close-console" id="close-console" title="Close Console" aria-label="Close developer console">
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
                         </path>
@@ -115,7 +115,7 @@
                 <input type="text" id="console-input" placeholder="Enter JavaScript..." autocomplete="off">
                 <ul id="autocomplete-list" class="autocomplete-dropdown"></ul>
             </div>
-            <button id="console-save" class="console-btn console-save-btn" title="Save Command">
+            <button id="console-save" class="console-btn console-save-btn" title="Save Command" aria-label="Save console command">
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>
@@ -125,7 +125,7 @@
     </aside>
 
     <!-- Paginated Saves Modal -->
-    <div id="saves-modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div id="saves-modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="saves-info">
         <div class="saves-modal">
             <div class="modal-loader" id="modal-loader">
                 <svg width="48" height="48" stroke="currentColor" viewBox="0 0 24 24" fill="none" class="spin">

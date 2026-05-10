@@ -11,6 +11,19 @@
             font-family: 'Outfit', sans-serif;
         }
 
+        :root {
+            --focus-ring: rgba(147, 197, 253, 0.95);
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible,
+        [role="button"]:focus-visible {
+            outline: 2px solid var(--focus-ring);
+            outline-offset: 3px;
+        }
+
         /* Game layout container: switches between overlay and side-by-side */
         #layout-container {
             display: flex;
@@ -56,7 +69,8 @@
         }
 
         .hover-zone:hover+.overlay-bar,
-        .overlay-bar:hover {
+        .overlay-bar:hover,
+        .overlay-bar:focus-within {
             transform: translateY(0);
         }
 
@@ -407,7 +421,6 @@
         }
 
         #console-input:focus {
-            outline: none;
             border-color: #60a5fa;
         }
 
@@ -600,7 +613,8 @@
             aspect-ratio: 4/3;
         }
 
-        .save-slot:hover {
+        .save-slot:hover,
+        .save-slot:focus-visible {
             background: rgba(96, 165, 250, 0.1);
             border-color: rgba(96, 165, 250, 0.4);
             transform: translateY(-2px);
@@ -614,7 +628,8 @@
             gap: 8px;
         }
 
-        .save-slot.empty:hover {
+        .save-slot.empty:hover,
+        .save-slot.empty:focus-visible {
             color: #e2e8f0;
             border-color: #e2e8f0;
         }
@@ -724,7 +739,9 @@
             transition: opacity 0.2s, background 0.2s;
         }
 
-        .save-slot:hover .slot-delete {
+        .save-slot:hover .slot-delete,
+        .save-slot:focus-within .slot-delete,
+        .slot-delete:focus-visible {
             opacity: 1;
         }
 
@@ -1245,3 +1262,28 @@
             100% { transform: rotate(360deg); }
         }
 
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible,
+        [role="button"]:focus-visible {
+            outline: 2px solid var(--focus-ring);
+            outline-offset: 3px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                scroll-behavior: auto !important;
+                transition-duration: 0.01ms !important;
+            }
+
+            .back-btn:hover,
+            .save-slot:hover,
+            .save-slot:focus-visible {
+                transform: none;
+            }
+        }

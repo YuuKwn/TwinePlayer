@@ -20,6 +20,7 @@ This document captures the next practical improvement opportunities for TwinePla
 6. Replace blocking confirm dialogs.
 7. Clean encoding artifacts and remove remaining nonessential inline styles.
 8. Harden packaging configuration.
+9. Complete an accessibility and reduced-motion pass.
 
 ## Slice 1: Save IPC Path Authorization
 
@@ -317,6 +318,47 @@ Relevant files:
 - Artifact names are predictable.
 - A packaging regression is easier to catch before release.
 
+## Slice 9: Accessibility and Reduced-Motion Pass
+
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Library search, history cards, missing-entry relink/remove actions, save slots, save filename input, save delete buttons, top-bar controls, and developer-console icon buttons now expose stronger keyboard and screen-reader affordances.
+- Library cards and save slots are keyboard-operable with Enter/Space, and hover-only remove/delete controls are revealed on focus as well as hover.
+- Focus-visible styling now covers library controls, cards, modal controls, save slots, console controls, and icon-only buttons without changing the app's visual structure.
+- Added reduced-motion handling for library, modal, console, and save-slot transitions while preserving hidden-panel transforms.
+- Added automated accessibility policy tests for required labels, dialog relationships, keyboard affordances, focus reveal behavior, and reduced-motion safeguards.
+
+### Problem
+
+The app had several accessible patterns, but keyboard and screen-reader behavior was uneven. Library cards were clickable but not keyboard-operable, some icon-only controls depended on `title`, hover-only destructive controls were hard to reach without a mouse, and animation did not honor reduced-motion preferences.
+
+Relevant files:
+- `index.html`
+- `game.html`
+- `src/index.css`
+- `src/game/game.css`
+- `src/renderer.js`
+- `src/game/save-modal.js`
+- `src/game/dev-console.js`
+- `test/accessibility.test.js`
+
+### Proposed Implementation
+
+- Add visible `:focus-visible` styles across library, save modal, top-bar, and developer-console controls.
+- Give icon-only controls and dynamic action buttons clear `aria-label`s.
+- Ensure save modal and confirmation dialogs expose correct labels and descriptions.
+- Make library cards and save slots keyboard-operable.
+- Reveal hover-only remove/delete controls on `:focus-within`.
+- Add `prefers-reduced-motion` support without breaking hidden overlay/console transforms.
+
+### Acceptance Criteria
+
+- All primary controls are reachable without a mouse.
+- Reduced-motion users do not get unnecessary animations.
+- Modal labels and descriptions are exposed to assistive technology.
+- Automated tests cover the key accessibility contracts.
+
 ## Standing Verification
 
 For each implementation slice:
@@ -329,4 +371,4 @@ For each implementation slice:
 
 ## Current Best First Slice
 
-Continue with **Slice 8: Packaging Hardening**. Slices 1-7 are complete, and packaging hardening is the next smallest release-readiness improvement.
+Continue by choosing a new Slice 10 candidate. Slices 1-9 are complete; the next best improvement should be scoped from current product priorities.
