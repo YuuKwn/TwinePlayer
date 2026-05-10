@@ -122,13 +122,11 @@ const renderHistory = () => {
 
     sortedHistory.forEach((item, displayIndex) => {
         const originalIndex = history.findIndex(h => h.path === item.path);
-        const delay = Math.min(displayIndex * 0.1, 0.5); // max delay 0.5s to avoid feeling slow
-
         const card = document.createElement('div');
         card.className = missingGamePaths.has(item.path)
             ? 'history-item glass-panel missing-game'
             : 'history-item glass-panel';
-        card.style.animationDelay = `${delay}s`;
+        card.classList.add(`history-delay-${Math.min(displayIndex, 5)}`);
         card.tabIndex = 0;
         card.setAttribute('role', 'button');
         card.setAttribute('aria-label', `Play ${item.title || 'game'}`);

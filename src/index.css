@@ -198,6 +198,26 @@ body {
   animation: slideUp 0.5s ease-out backwards;
 }
 
+.history-delay-1 {
+  animation-delay: 0.1s;
+}
+
+.history-delay-2 {
+  animation-delay: 0.2s;
+}
+
+.history-delay-3 {
+  animation-delay: 0.3s;
+}
+
+.history-delay-4 {
+  animation-delay: 0.4s;
+}
+
+.history-delay-5 {
+  animation-delay: 0.5s;
+}
+
 .history-item:hover {
   transform: translateY(-4px);
   border-color: rgba(255, 255, 255, 0.15);

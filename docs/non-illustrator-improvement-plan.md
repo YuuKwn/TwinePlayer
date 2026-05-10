@@ -359,6 +359,40 @@ Relevant files:
 - Modal labels and descriptions are exposed to assistive technology.
 - Automated tests cover the key accessibility contracts.
 
+## Slice 10: Library Page CSP Hardening
+
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Removed the remaining `style-src 'unsafe-inline'` allowance from `index.html`.
+- Replaced renderer-applied library card `animationDelay` inline styles with bounded CSS classes that preserve the existing staggered entrance animation.
+- Expanded HTML policy tests so both app pages reject inline style allowances, style tags, and style attributes.
+- Added regression coverage to keep library card animation delays in CSS rather than DOM style mutation.
+- Code review found the change narrows the library page trust boundary without adding new renderer input handling, IPC exposure, or file-system access.
+
+### Problem
+
+The game page CSP had already been tightened, but the library page still allowed inline styles. The only TwinePlayer-owned dependency on inline styling was the library card stagger animation, which was set through the renderer with `card.style.animationDelay`.
+
+Relevant files:
+- `index.html`
+- `src/renderer.js`
+- `src/index.css`
+- `test/html-policy.test.js`
+
+### Implementation
+
+- Move library card animation delays into explicit CSS classes.
+- Assign a bounded delay class from the renderer based on display order.
+- Remove `'unsafe-inline'` from the library page `style-src` directive.
+- Extend HTML policy tests to cover both `index.html` and `game.html`.
+
+### Acceptance Criteria
+
+- The library page no longer allows inline styles in its CSP.
+- Library card animation behavior remains bounded and CSS-owned.
+- Automated policy tests prevent the inline-style allowance from being reintroduced.
+
 ## Standing Verification
 
 For each implementation slice:
@@ -371,4 +405,4 @@ For each implementation slice:
 
 ## Current Best First Slice
 
-Continue by choosing a new Slice 10 candidate. Slices 1-9 are complete; the next best improvement should be scoped from current product priorities.
+Continue by choosing a new Slice 11 candidate. Slices 1-10 are complete; the next best improvement should be scoped from current product priorities.
