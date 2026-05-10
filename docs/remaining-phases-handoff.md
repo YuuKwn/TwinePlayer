@@ -1,11 +1,27 @@
 # TwinePlayer Remaining Phases Handoff
 
-This document is a continuation handoff for future implementation work.
+This document is a completion handoff for the implementation plan that brought TwinePlayer to its current release-ready state.
 
-Current branch state at handoff time:
-- `main` has Phase 0, Phase 1, Phase 2, and all Phase 3 modularization work merged.
-- Latest merged commit at the time this was updated: `Modularize game renderer`.
-- The working style that produced the last phases: implement the phase slice, run checks, code-review the diff, provide a focused test plan, update this handoff, then merge only after approval.
+Current branch state at documentation update time:
+- `main` has Phase 0 through Phase 7 merged.
+- Latest commit at the time this was updated: `70531aa Expand main process test coverage`.
+- No planned implementation phases remain in this handoff.
+- The working style that produced the phases: implement the phase slice, run checks, code-review the diff, provide a focused test plan, update documentation, then merge only after approval.
+
+## Current Project Snapshot
+
+TwinePlayer is now a modular Electron app with:
+- A local game library backed by safe `localStorage` helpers.
+- Game metadata extraction from Twine story data, document titles, and filename fallback.
+- Search, sort, missing-file detection, and relink support.
+- A hardened preload and main-process IPC boundary.
+- Async local save operations with filename validation, atomic writes, stale temp cleanup, and save/load/delete UI feedback.
+- Extracted game renderer modules under `src/game/` and extracted CSS.
+- A developer console with autocomplete, saved per-game commands, overlay/side layouts, and a visible execution-scope warning.
+- Optional Illustrator support for Ollama, OpenAI-compatible local text servers, and ComfyUI image generation.
+- Illustrator settings normalization, persisted renderer settings, bounded HTTP handling, cancel/timeout behavior, local image copies, and metadata sidecars.
+- Automated syntax checks, Node tests, and Windows CI.
+- Electron Builder targets for Windows installer, Windows unpacked portable output, and Linux tarball output.
 
 ## Already Done
 
@@ -193,6 +209,18 @@ Done:
 - Improved `.gitignore` for logs, coverage, generated saves/illustrations, temporary files, local env files, and packaged artifacts.
 - Added a release checklist to docs.
 - Built a Windows unpacked portable folder as `dist/Twine Player 29`.
+
+### Post-Phase 7: Main-Process Test Coverage
+
+Done:
+- Added `test/ipc-handlers.test.js` coverage for expected IPC registration, file dialog results, safe file URL errors, file existence checks, game metadata, save read/write/delete round trips, invalid save filenames, and Illustrator default config responses.
+- Added `test/illustrator-service.test.js` coverage for Ollama model listing, OpenAI-compatible model listing, OpenAI-compatible prompt generation, malformed response handling, ComfyUI checkpoint listing, ComfyUI workflow construction, pending image polling, image download/local copy behavior, metadata sidecar writes, and non-image response rejection.
+- Updated `test/run-tests.js` to include the expanded test files.
+
+Focused test plan:
+- Run `npm run check`.
+- Confirm all Node test files load through `test/run-tests.js`.
+- Confirm Illustrator service tests use local temporary HTTP servers and do not require real Ollama, OpenAI-compatible, or ComfyUI services.
 
 Acceptance criteria:
 - Fresh clone instructions are documented.

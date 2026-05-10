@@ -1,18 +1,19 @@
 # Twine Player
 
-Twine Player is a standalone Electron app for playing Twine HTML games outside your regular browser profile.
+Twine Player is a standalone Electron app for playing Twine HTML games outside your regular browser profile. The initial implementation plan is complete: the app now has a modular main process, extracted renderer/game modules, hardened IPC boundaries, a local save system, a searchable game library, optional AI illustration tools, CI checks, and packaged build targets.
 
-It keeps a local game library, stores saves as files next to each game, includes an in-game developer console, and has an optional AI Illustrator panel for generating scene images through local AI services.
+It keeps a local game library, stores saves as files next to each game, includes an in-game developer console, and provides an optional AI Illustrator panel for generating scene images through local services.
 
 ## Features
 
 - Game library with metadata extraction, search, sort, missing-file detection, and relink support.
 - Dedicated player window for Twine `.html` and `.htm` games.
 - Native save manager with paginated save/load/delete controls.
-- Atomic save writes into `<game>_saves/` folders.
+- Async, atomic save writes into `<game>_saves/` folders with filename validation and stale temp cleanup.
 - In-game developer console with autocomplete and per-game saved commands.
-- Configurable AI Illustrator with Ollama or OpenAI-compatible text backends plus ComfyUI image generation.
+- Configurable AI Illustrator with Ollama or OpenAI-compatible text backends plus ComfyUI image generation, local image copies, and metadata sidecars.
 - Hardened renderer/main IPC boundaries and CSP.
+- Windows CI workflow that runs syntax checks and the Node test suite.
 
 ## Run From Source
 
@@ -27,7 +28,7 @@ npm start
 npm run check
 ```
 
-This runs syntax checks and the Node test suite.
+This runs JavaScript syntax checks for the Electron entry points and extracted modules, then runs the Node test suite under `test/`.
 
 ## Build
 
@@ -35,6 +36,7 @@ This runs syntax checks and the Node test suite.
 npm run build:win
 npm run build:win:portable
 npm run build:linux
+npm run build:all
 ```
 
 Build outputs are written to `dist/`.
@@ -54,7 +56,7 @@ All Illustrator endpoints and generation settings are configurable in the Illust
 
 ## Documentation
 
-See [docs/documentation.md](docs/documentation.md) for architecture, setup notes, IPC references, troubleshooting, and release guidance.
+See [docs/documentation.md](docs/documentation.md) for architecture, setup notes, IPC references, testing, troubleshooting, and release guidance. See [docs/remaining-phases-handoff.md](docs/remaining-phases-handoff.md) for the completed implementation-plan history and the current release-readiness handoff.
 
 ## License
 

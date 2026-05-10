@@ -2,6 +2,8 @@
 
 TwinePlayer is an Electron desktop app for playing Twine HTML games in a dedicated, browser-profile-free environment.
 
+The planned implementation phases are complete as of the current project state. The app now has a modular Electron structure, a hardened IPC surface, extracted game-renderer modules, reliable local save handling, searchable/relinkable library management, optional AI illustration support, automated checks, and release-oriented build targets.
+
 ## Requirements
 
 To run from source:
@@ -24,6 +26,8 @@ npm run check
 
 `npm run check` runs JavaScript syntax checks and the Node test suite.
 
+The project uses Electron 30 and Electron Builder 26. The GitHub Actions workflow in `.github/workflows/check.yml` runs `npm ci` and `npm run check` on `windows-latest` for pushes to `main` and pull requests.
+
 ## Build Commands
 
 ```bash
@@ -40,6 +44,7 @@ Outputs are written to `dist/`.
 ### Library
 
 - Tracks loaded Twine games in `localStorage`.
+- Uses safe JSON storage helpers so corrupt library data falls back cleanly and is backed up once.
 - Extracts titles from `<tw-storydata name>`, then `<title>`, then filename fallback.
 - Search by title/path.
 - Sort by last played, title, or path.
@@ -50,9 +55,11 @@ Outputs are written to `dist/`.
 
 - Saves are stored next to each game in `<game>_saves/`.
 - Save filenames are validated in renderer and main process.
+- Filesystem work is async in the main process.
 - Save writes are atomic: write temp file, then rename into place.
 - Stale temp save files are cleaned opportunistically.
 - Save slots render filenames, dates, and sizes through `textContent`.
+- Failed save/load/delete operations keep the save modal open and show/log the failure instead of silently closing.
 
 ### Developer Console
 
@@ -61,6 +68,7 @@ Outputs are written to `dist/`.
 - Saves commands per game identity where IFID is available.
 - Supports overlay and side-by-side layouts.
 - Corrupt saved command storage falls back safely.
+- Shows a visible scope warning because console commands execute inside the loaded game context.
 
 ### Illustrator
 
@@ -88,20 +96,38 @@ ComfyUI settings are also configurable:
 
 Generated images are copied into `<game>_illustrations/` with a metadata `.json` sidecar. Canceling generation stops TwinePlayer polling, but it does not cancel a job already queued inside ComfyUI.
 
+Settings are persisted in `localStorage` and normalized by the main-process configuration layer before use. HTTP handling validates status codes, JSON response shapes, response sizes, image content types, and endpoint URL schemes.
+
 ## Architecture
 
 TwinePlayer follows Electron's hardened renderer pattern:
 
 - `main.js`: app lifecycle and window creation.
 - `preload.js`: exposes safe APIs through `contextBridge`.
+- `src/storage-utils.js`: safe JSON read/write helpers for renderer storage.
+- `src/renderer.js`: library UI, metadata loading, search/sort, missing-file handling, and relink flow.
+- `src/index.css`: library page styling.
 - `src/main/ipc-handlers.js`: registers IPC handlers.
 - `src/main/save-service.js`: save file operations.
 - `src/main/illustrator-service.js`: local AI service HTTP calls.
+- `src/main/illustrator-config.js`: Illustrator defaults and config normalization.
 - `src/main/game-metadata.js`: title metadata extraction.
-- `src/renderer.js`: library UI.
+- `src/main/file-utils.js`: path, URL, sidecar directory, and filename helpers.
+- `src/main/validation.js`: shared main-process validation helpers.
 - `src/game/*.js`: game player modules.
+- `src/game/game.css`: game player styling.
 
 Renderer pages have `nodeIntegration: false` and `contextIsolation: true`.
+
+The game player is split into classic scripts that load in deterministic order:
+
+- `src/game/player.js`: player shell state and shared helpers.
+- `src/game/twine-bridge.js`: iframe save/scene bridge and message handling.
+- `src/game/dev-console.js`: developer console UI and command execution.
+- `src/game/save-engine.js`: save capture, restore, and filename validation.
+- `src/game/save-modal.js`: save/load/delete modal behavior and accessibility.
+- `src/game/illustrator-ui.js`: Illustrator panel, settings, polling, and cancel behavior.
+- `src/game/bootstrap.js`: query parsing, file existence checks, iframe startup, and module initialization.
 
 ## IPC APIs
 
@@ -125,10 +151,33 @@ Renderer pages have `nodeIntegration: false` and `contextIsolation: true`.
 | `getDefaultConfig()` | Return Illustrator defaults. |
 | `ensureOutputDir(gamePath)` | Create `<game>_illustrations/`. |
 | `listTextModels(config)` | List Ollama or OpenAI-compatible models. |
+| `listOllamaModels(config)` | Backward-compatible alias for text model listing. |
 | `listComfyUIModels(config)` | List ComfyUI checkpoints. |
 | `generatePrompt(sceneText, model, config)` | Generate an image prompt. |
 | `queueComfyUI(params)` | Queue a ComfyUI workflow. |
 | `pollImage(params)` | Poll for a generated image. |
+
+## Automated Tests
+
+`npm run check` currently performs syntax checks for:
+
+- Electron entry points: `main.js`, `preload.js`
+- Shared renderer utility: `src/storage-utils.js`
+- Main-process modules under `src/main/`
+- Game renderer modules under `src/game/`
+
+It then runs `npm test`, which loads the Node test suite:
+
+- `test/file-utils.test.js`
+- `test/game-metadata.test.js`
+- `test/illustrator-config.test.js`
+- `test/illustrator-service.test.js`
+- `test/ipc-handlers.test.js`
+- `test/save-service.test.js`
+- `test/storage-utils.test.js`
+- `test/validation.test.js`
+
+Coverage focuses on path and filename safety, metadata extraction, storage fallback behavior, async/atomic saves, Illustrator configuration and HTTP handling, IPC handler response shapes, and validation edge cases.
 
 ## Troubleshooting
 
