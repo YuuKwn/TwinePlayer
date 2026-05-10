@@ -67,6 +67,15 @@ Relevant files:
 
 ## Slice 2: Renderer and Electron Integration Tests
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Added Playwright-based Electron integration coverage via `npm run test:integration`.
+- Added isolated E2E startup mode that uses a temporary Electron `userData` directory and disables hardware acceleration for test runs.
+- Added fixture Twine-like HTML files for library metadata and fake SugarCube save/load coverage.
+- Integration flows cover empty library rendering, mocked fixture selection, library search/sort, missing-file removal, game iframe loading, back-to-library navigation, save modal keyboard close, save create/overwrite/load/delete, and developer-console layout/pinned-bar toggles.
+- CI runs the integration command after `npm run check`; environments that cannot start Electron due to a GPU-process failure are reported as an infrastructure skip.
+
 ### Problem
 
 Node tests cover main-process utilities well, but most user-visible behavior lives in browser globals and has little automated coverage.

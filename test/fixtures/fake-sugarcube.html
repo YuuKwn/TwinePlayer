@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fake SugarCube Fixture</title>
+</head>
+<body>
+  <tw-storydata name="Fake SugarCube Fixture" ifid="fake-sugarcube-fixture">
+    <tw-passagedata pid="1" name="Start">Initial fixture passage.</tw-passagedata>
+  </tw-storydata>
+  <main id="passage">Initial fixture passage.</main>
+  <script>
+    window.fixtureState = { passage: 'Initial fixture passage.' };
+    window.State = {
+      unmarshalForSave(state) {
+        window.fixtureState = state;
+      },
+    };
+    window.Engine = {
+      show() {
+        document.getElementById('passage').textContent = window.fixtureState.passage;
+      },
+    };
+    window.Save = {
+      serialize() {
+        return JSON.stringify({ state: { passage: 'Restored fixture passage.' } });
+      },
+    };
+  </script>
+</body>
+</html>

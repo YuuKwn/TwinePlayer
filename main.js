@@ -1,12 +1,19 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { registerIpcHandlers } = require('./src/main/ipc-handlers');
 
-if (process.env.TWINEPLAYER_E2E_SMOKE === '1') {
+const isE2E = process.env.TWINEPLAYER_E2E === '1' || process.env.TWINEPLAYER_E2E_SMOKE === '1';
+
+if (isE2E) {
+  app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu');
   app.commandLine.appendSwitch('disable-gpu-compositing');
-  app.setPath('userData', path.join(os.tmpdir(), `twine-player-e2e-${process.pid}`));
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+  const userDataPath = path.join(os.tmpdir(), `twine-player-e2e-${process.pid}`);
+  fs.mkdirSync(userDataPath, { recursive: true });
+  app.setPath('userData', userDataPath);
 }
 
 const createWindow = () => {
