@@ -252,9 +252,16 @@ Relevant file:
 
 ## Slice 7: Encoding and Inline Style Cleanup
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Tightened `game.html` CSP by removing `style-src 'unsafe-inline'` now that TwinePlayer-owned game UI styles live in `src/game/game.css`.
+- Replaced clear-only `innerHTML = ''` usage in game scripts with `textContent = ''` so DOM updates avoid unnecessary HTML parsing.
+- Added focused HTML policy tests to prevent reintroducing inline styles, `unsafe-inline` in `game.html`, or clear-only `innerHTML` in game scripts.
+
 ### Problem
 
-Some comments contain mojibake artifacts, and `game.html` still has inline styles that require `style-src 'unsafe-inline'`.
+Some comments contained mojibake artifacts, and `game.html` previously allowed inline styles through `style-src 'unsafe-inline'`.
 
 Relevant files:
 - `game.html`
@@ -312,4 +319,4 @@ For each implementation slice:
 
 ## Current Best First Slice
 
-Continue with **Slice 7: Encoding and Inline Style Cleanup**. Slices 1-6 are complete, and cleanup is the next smallest release-readiness improvement before packaging hardening.
+Continue with **Slice 8: Packaging Hardening**. Slices 1-7 are complete, and packaging hardening is the next smallest release-readiness improvement.

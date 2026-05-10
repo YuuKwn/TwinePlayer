@@ -145,7 +145,7 @@
         };
 
         const populateSelect = (selectEl, items, fallback, errorMsg) => {
-            selectEl.innerHTML = '';
+            selectEl.textContent = '';
             if (!items || items.length === 0) {
                 const opt = document.createElement('option');
                 opt.value = fallback;

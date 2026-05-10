@@ -101,7 +101,7 @@
         };
 
         const renderSavedCommands = () => {
-            savedListEl.innerHTML = '';
+            savedListEl.textContent = '';
             if (!currentIfid) return;
 
             const allSaved = getSavedCommandsForAllGames();
@@ -301,11 +301,11 @@
 
             if (suggestions.length === 0) {
                 autocompleteList.classList.remove('active');
-                autocompleteList.innerHTML = '';
+                autocompleteList.textContent = '';
                 return;
             }
 
-            autocompleteList.innerHTML = '';
+            autocompleteList.textContent = '';
             suggestions.forEach((item, index) => {
                 const li = document.createElement('li');
                 li.className = 'suggestion-item';

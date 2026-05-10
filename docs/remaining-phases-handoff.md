@@ -57,7 +57,7 @@ Done:
 
 Known remaining security caveats:
 - `game.html` no longer needs `script-src 'unsafe-inline'` after Phase 3 renderer extraction.
-- `game.html` still needs `style-src 'unsafe-inline'` because some markup still uses inline `style` attributes.
+- `game.html` no longer needs `style-src 'unsafe-inline'`; TwinePlayer-owned game UI styles live in `src/game/game.css`.
 - The game iframe still uses `allow-scripts allow-same-origin`; this is currently required for save hooks, scene capture, and dev console access.
 - Real isolation needs a larger renderer architecture change.
 

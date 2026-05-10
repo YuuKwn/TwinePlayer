@@ -1,6 +1,7 @@
 require('./file-utils.test');
 require('./game-player-helpers.test');
 require('./game-metadata.test');
+require('./html-policy.test');
 require('./illustrator-config.test');
 require('./illustrator-service.test');
 require('./ipc-handlers.test');
