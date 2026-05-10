@@ -46,7 +46,12 @@
         lastPlayed,
       };
 
-      if (itemPath !== entry.path || title !== entry.title || lastPlayed !== entry.lastPlayed) {
+      if (
+        itemPath !== entry.path ||
+        title !== entry.title ||
+        lastPlayed !== entry.lastPlayed ||
+        Object.keys(entry).some(key => !Object.prototype.hasOwnProperty.call(normalized, key))
+      ) {
         changed = true;
       }
 

@@ -114,6 +114,14 @@ Relevant files:
 
 ## Slice 3: Library History Normalization
 
+**Status:** Completed on 2026-05-10.
+
+Progress notes:
+- Added a browser-compatible shared library-history helper for filename title fallback and entry normalization.
+- Startup now normalizes `localStorage` history, removes malformed entries, fills missing titles/dates, deduplicates by path, and writes cleaned history back only when normalization changed the data.
+- Normalization drops unrecognized entry fields so persisted library history has a stable shape.
+- Focused unit tests cover malformed entries, title fallback, deterministic deduplication, valid-history preservation, dropped-field cleanup, and memory-storage writeback behavior.
+
 ### Problem
 
 Library history is read from `localStorage` as an array, but item shape is not fully normalized. Duplicate paths, missing fields, invalid dates, and malformed entries can produce awkward behavior.
