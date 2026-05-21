@@ -48,6 +48,26 @@ const ASPECT_PRESET_DIMENSIONS = Object.freeze({
   vn_background: { width: 1344, height: 768 },
   comic_panel: { width: 1024, height: 1536 },
 });
+const ILLUSTRATOR_JOB_STATUSES = Object.freeze({
+  QUEUED: 'queued',
+  POLLING: 'polling',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELED: 'canceled',
+  TIMED_OUT: 'timed_out',
+});
+const ACTIVE_JOB_STATUSES = new Set([
+  ILLUSTRATOR_JOB_STATUSES.QUEUED,
+  ILLUSTRATOR_JOB_STATUSES.POLLING,
+]);
+const RETRYABLE_JOB_STATUSES = new Set([
+  ILLUSTRATOR_JOB_STATUSES.FAILED,
+  ILLUSTRATOR_JOB_STATUSES.TIMED_OUT,
+]);
+const JOB_POLL_INTERVAL_MS = 2000;
+const MAX_JOB_HISTORY = 50;
+const MAX_JOB_SNAPSHOT_BYTES = 300 * 1024;
+const illustratorJobs = new Map();
 
 const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -55,6 +75,94 @@ const hashSceneText = (sceneText) => {
   const text = typeof sceneText === 'string' ? sceneText.trim().slice(0, MAX_SCENE_TEXT_LENGTH) : '';
   if (!text) return null;
   return crypto.createHash('sha256').update(text).digest('hex');
+};
+
+const nowMs = () => Date.now();
+
+const toIso = (timestampMs = nowMs()) => new Date(timestampMs).toISOString();
+
+const cloneJsonObject = (value, label) => {
+  if (!isPlainObject(value)) return {};
+  let text;
+  try {
+    text = JSON.stringify(value);
+  } catch (err) {
+    throw new Error(`${label} must be JSON serializable`);
+  }
+  if (Buffer.byteLength(text, 'utf8') > MAX_JOB_SNAPSHOT_BYTES) {
+    throw new Error(`${label} is too large`);
+  }
+  return JSON.parse(text);
+};
+
+const touchJob = (job, timestampMs = nowMs()) => {
+  job.timestamps.updatedAt = toIso(timestampMs);
+};
+
+const clearJobTimer = (job) => {
+  if (job && job.pollTimer) {
+    clearTimeout(job.pollTimer);
+    job.pollTimer = null;
+  }
+};
+
+const isActiveJob = (job) => Boolean(job && ACTIVE_JOB_STATUSES.has(job.status));
+
+const getTerminalTimestampMs = (job) => {
+  const timestamp = job.timestamps.completedAt ||
+    job.timestamps.failedAt ||
+    job.timestamps.canceledAt ||
+    job.timestamps.timedOutAt;
+  return timestamp ? Date.parse(timestamp) : null;
+};
+
+const getJobElapsedMs = (job, timestampMs = nowMs()) => {
+  const startedAt = Date.parse(job.timestamps.pollingStartedAt || job.timestamps.createdAt);
+  const endedAt = getTerminalTimestampMs(job) || timestampMs;
+  if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt)) return 0;
+  return Math.max(0, endedAt - startedAt);
+};
+
+const serializeJob = (job, { includeOutputData = true, timestampMs = nowMs() } = {}) => {
+  if (!job) return null;
+  const output = job.output
+    ? {
+        ...job.output,
+        dataUrl: includeOutputData ? job.output.dataUrl : undefined,
+      }
+    : null;
+  if (output && output.dataUrl === undefined) delete output.dataUrl;
+
+  return {
+    jobId: job.jobId,
+    retryOfJobId: job.retryOfJobId,
+    promptId: job.promptId,
+    status: job.status,
+    timestamps: { ...job.timestamps },
+    elapsedMs: getJobElapsedMs(job, timestampMs),
+    prompt: { ...job.promptSnapshot },
+    config: { ...job.configSnapshot },
+    metadata: { ...job.metadataSnapshot },
+    lastError: job.lastError,
+    seed: job.seed,
+    width: job.width,
+    height: job.height,
+    workflowTemplate: job.workflowTemplate,
+    workflowVersion: job.workflowVersion,
+    output,
+  };
+};
+
+const pruneJobHistory = () => {
+  if (illustratorJobs.size <= MAX_JOB_HISTORY) return;
+  const removableJobs = [...illustratorJobs.values()]
+    .filter(job => !isActiveJob(job))
+    .sort((a, b) => Date.parse(a.timestamps.createdAt) - Date.parse(b.timestamps.createdAt));
+  while (illustratorJobs.size > MAX_JOB_HISTORY && removableJobs.length > 0) {
+    const job = removableJobs.shift();
+    clearJobTimer(job);
+    illustratorJobs.delete(job.jobId);
+  }
 };
 
 const getTransport = (url) => url.protocol === 'https:' ? https : http;
@@ -680,17 +788,283 @@ const pollImage = async (params) => {
   return { pending: true };
 };
 
+const normalizeGenerationRequest = (params) => {
+  const source = assertPlainObject(params, 'Illustrator generation params');
+  const safeConfig = normalizeIllustratorConfig(source.config || {});
+  const imagePrompt = assertString(source.imagePrompt, 'Image prompt', MAX_IMAGE_PROMPT_LENGTH);
+  const outputFilename = normalizeImageFilename(
+    `${assertString(source.outputFilename, 'Output filename', 128).replace(/\.png$/i, '')}.png`
+  );
+  const checkpoint = assertString(source.checkpoint || safeConfig.checkpoint, 'ComfyUI checkpoint', MAX_MODEL_NAME_LENGTH);
+  const metadata = cloneJsonObject(isPlainObject(source.metadata) ? source.metadata : {}, 'Generation metadata');
+  const gamePath = source.gamePath ? assertString(source.gamePath, 'Game path') : null;
+
+  return {
+    imagePrompt,
+    outputFilename,
+    checkpoint,
+    config: safeConfig,
+    metadata,
+    gamePath,
+  };
+};
+
+const createIllustratorJob = (request, { retryOfJobId = null, requireAuthorizedGamePath = null } = {}) => {
+  const timestampMs = nowMs();
+  const job = {
+    jobId: crypto.randomUUID(),
+    retryOfJobId,
+    promptId: null,
+    status: ILLUSTRATOR_JOB_STATUSES.QUEUED,
+    timestamps: {
+      createdAt: toIso(timestampMs),
+      queuedAt: toIso(timestampMs),
+      pollingStartedAt: null,
+      completedAt: null,
+      failedAt: null,
+      canceledAt: null,
+      timedOutAt: null,
+      updatedAt: toIso(timestampMs),
+    },
+    promptSnapshot: {
+      imagePrompt: request.imagePrompt,
+      outputFilename: request.outputFilename,
+      checkpoint: request.checkpoint,
+    },
+    configSnapshot: request.config,
+    metadataSnapshot: request.metadata,
+    gamePath: request.gamePath,
+    requireAuthorizedGamePath,
+    lastError: null,
+    seed: null,
+    width: null,
+    height: null,
+    workflowTemplate: null,
+    workflowVersion: null,
+    output: null,
+    pollTimer: null,
+    pollPromise: null,
+  };
+
+  illustratorJobs.set(job.jobId, job);
+  pruneJobHistory();
+  return job;
+};
+
+const setJobStatus = (job, status, timestampField, timestampMs = nowMs()) => {
+  job.status = status;
+  if (timestampField) job.timestamps[timestampField] = toIso(timestampMs);
+  touchJob(job, timestampMs);
+};
+
+const markJobFailed = (job, err, timestampMs = nowMs()) => {
+  clearJobTimer(job);
+  job.lastError = getErrorMessage(err);
+  setJobStatus(job, ILLUSTRATOR_JOB_STATUSES.FAILED, 'failedAt', timestampMs);
+};
+
+const markJobTimedOut = (job, timestampMs = nowMs()) => {
+  clearJobTimer(job);
+  job.lastError = 'Generation timed out before ComfyUI returned an image';
+  setJobStatus(job, ILLUSTRATOR_JOB_STATUSES.TIMED_OUT, 'timedOutAt', timestampMs);
+};
+
+const buildJobPollMetadata = (job) => {
+  return {
+    ...job.metadataSnapshot,
+    checkpoint: job.metadataSnapshot.checkpoint || job.promptSnapshot.checkpoint,
+    seed: job.seed,
+    width: job.width,
+    height: job.height,
+    workflowTemplate: job.workflowTemplate,
+    workflowVersion: job.workflowVersion,
+  };
+};
+
+const getAuthorizedJobGamePath = async (job) => {
+  if (!job.gamePath) return null;
+  if (typeof job.requireAuthorizedGamePath !== 'function') return job.gamePath;
+  return await job.requireAuthorizedGamePath(job.gamePath);
+};
+
+const isJobTimedOut = (job, timestampMs = nowMs()) => {
+  const startedAt = Date.parse(job.timestamps.pollingStartedAt || job.timestamps.createdAt);
+  return Number.isFinite(startedAt) && timestampMs - startedAt > job.configSnapshot.maxPollingMs;
+};
+
+const scheduleJobPoll = (job, delayMs = JOB_POLL_INTERVAL_MS) => {
+  if (!isActiveJob(job)) return;
+  clearJobTimer(job);
+  job.pollTimer = setTimeout(() => {
+    advanceIllustratorJob(job.jobId).catch((err) => {
+      const currentJob = illustratorJobs.get(job.jobId);
+      if (currentJob && isActiveJob(currentJob)) {
+        markJobFailed(currentJob, err);
+      }
+    });
+  }, delayMs);
+  if (typeof job.pollTimer.unref === 'function') {
+    job.pollTimer.unref();
+  }
+};
+
+const advanceIllustratorJob = async (jobId, { timestampMs = nowMs() } = {}) => {
+  const job = illustratorJobs.get(assertString(jobId, 'Illustrator job id', 128));
+  if (!job) throw new Error('Illustrator job was not found');
+  if (!isActiveJob(job)) return serializeJob(job, { timestampMs });
+  if (job.pollPromise) {
+    await job.pollPromise;
+    return serializeJob(job, { timestampMs });
+  }
+  if (!job.promptId) return serializeJob(job, { timestampMs });
+  if (isJobTimedOut(job, timestampMs)) {
+    markJobTimedOut(job, timestampMs);
+    return serializeJob(job, { timestampMs });
+  }
+
+  clearJobTimer(job);
+  job.pollPromise = (async () => {
+    try {
+      const gamePath = await getAuthorizedJobGamePath(job);
+      const result = await pollImage({
+        promptId: job.promptId,
+        gamePath,
+        config: job.configSnapshot,
+        metadata: buildJobPollMetadata(job),
+      });
+      if (result.pending) {
+        touchJob(job, timestampMs);
+        scheduleJobPoll(job);
+        return;
+      }
+
+      job.output = {
+        dataUrl: result.dataUrl,
+        filename: result.filename,
+        localPath: result.localPath,
+        metadataPath: result.metadataPath,
+        metadata: result.metadata,
+      };
+      job.lastError = null;
+      setJobStatus(job, ILLUSTRATOR_JOB_STATUSES.COMPLETED, 'completedAt', timestampMs);
+    } catch (err) {
+      markJobFailed(job, err, timestampMs);
+    } finally {
+      job.pollPromise = null;
+    }
+  })();
+
+  await job.pollPromise;
+  return serializeJob(job, { timestampMs });
+};
+
+const startIllustratorGeneration = async (params, options = {}) => {
+  const request = normalizeGenerationRequest(params);
+  const job = createIllustratorJob(request, {
+    retryOfJobId: options.retryOfJobId || params.retryOfJobId || null,
+    requireAuthorizedGamePath: options.requireAuthorizedGamePath || null,
+  });
+
+  try {
+    const queued = await queueComfyUI({
+      imagePrompt: request.imagePrompt,
+      outputFilename: request.outputFilename,
+      checkpoint: request.checkpoint,
+      config: request.config,
+    });
+    job.promptId = queued.promptId;
+    job.seed = queued.seed;
+    job.width = queued.width;
+    job.height = queued.height;
+    job.workflowTemplate = queued.workflowTemplate;
+    job.workflowVersion = queued.workflowVersion;
+    setJobStatus(job, ILLUSTRATOR_JOB_STATUSES.POLLING, 'pollingStartedAt');
+    scheduleJobPoll(job);
+  } catch (err) {
+    markJobFailed(job, err);
+  }
+
+  return serializeJob(job);
+};
+
+const getIllustratorJob = async (jobId, options = {}) => {
+  const job = illustratorJobs.get(assertString(jobId, 'Illustrator job id', 128));
+  if (!job) throw new Error('Illustrator job was not found');
+  if (isActiveJob(job) && !job.pollPromise) {
+    return await advanceIllustratorJob(job.jobId, options);
+  }
+  if (job.pollPromise) await job.pollPromise;
+  return serializeJob(job, options);
+};
+
+const listIllustratorJobs = ({ gamePath, includeOutputData = false, limit = 20 } = {}) => {
+  const safeGamePath = gamePath ? assertString(gamePath, 'Game path') : null;
+  const safeLimit = Math.min(100, Math.max(1, Number.isFinite(Number(limit)) ? Math.round(Number(limit)) : 20));
+  return [...illustratorJobs.values()]
+    .filter(job => !safeGamePath || job.gamePath === safeGamePath)
+    .sort((a, b) => Date.parse(b.timestamps.createdAt) - Date.parse(a.timestamps.createdAt))
+    .slice(0, safeLimit)
+    .map(job => serializeJob(job, { includeOutputData }));
+};
+
+const cancelIllustratorJob = (jobId) => {
+  const job = illustratorJobs.get(assertString(jobId, 'Illustrator job id', 128));
+  if (!job) throw new Error('Illustrator job was not found');
+  if (isActiveJob(job)) {
+    clearJobTimer(job);
+    job.lastError = null;
+    setJobStatus(job, ILLUSTRATOR_JOB_STATUSES.CANCELED, 'canceledAt');
+  }
+  return serializeJob(job);
+};
+
+const retryIllustratorJob = async (jobId) => {
+  const job = illustratorJobs.get(assertString(jobId, 'Illustrator job id', 128));
+  if (!job) throw new Error('Illustrator job was not found');
+  if (!RETRYABLE_JOB_STATUSES.has(job.status)) {
+    throw new Error('Only failed or timed out Illustrator jobs can be retried');
+  }
+
+  return await startIllustratorGeneration({
+    imagePrompt: job.promptSnapshot.imagePrompt,
+    outputFilename: job.promptSnapshot.outputFilename,
+    checkpoint: job.promptSnapshot.checkpoint,
+    config: job.configSnapshot,
+    metadata: job.metadataSnapshot,
+    gamePath: job.gamePath,
+    retryOfJobId: job.jobId,
+  }, {
+    retryOfJobId: job.jobId,
+    requireAuthorizedGamePath: job.requireAuthorizedGamePath,
+  });
+};
+
+const clearIllustratorJobsForTest = () => {
+  for (const job of illustratorJobs.values()) {
+    clearJobTimer(job);
+  }
+  illustratorJobs.clear();
+};
+
 module.exports = {
   DEFAULT_ILLUSTRATOR_CONFIG,
+  ILLUSTRATOR_JOB_STATUSES,
+  advanceIllustratorJob,
   buildComfyUIWorkflow,
+  cancelIllustratorJob,
   checkIllustratorHealth,
+  clearIllustratorJobsForTest,
   createVisualPromptInstruction,
   ensureOutputDir,
   generatePrompt,
+  getIllustratorJob,
   listComfyUIModels,
+  listIllustratorJobs,
   listOllamaModels,
   listTextModels,
   normalizeIllustrationMetadata,
   pollImage,
   queueComfyUI,
+  retryIllustratorJob,
+  startIllustratorGeneration,
 };

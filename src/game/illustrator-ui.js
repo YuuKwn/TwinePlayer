@@ -63,6 +63,8 @@
         const negativePromptText = document.getElementById('illus-negative-prompt-text');
         const generateImageBtn = document.getElementById('illus-generate-image-btn');
         const cancelImageBtn = document.getElementById('illus-cancel-image-btn');
+        const retryImageBtn = document.getElementById('illus-retry-image-btn');
+        const illusJobDetails = document.getElementById('illus-job-details');
 
         let illusOutputDir = null;
         let illusLastFilename = null;
@@ -74,8 +76,8 @@
         let sceneTextDirty = false;
         let sceneObserver = null;
         let sceneObserverTimer = null;
-        let activePollTimer = null;
-        let activePollStartedAt = 0;
+        let activeJobId = null;
+        let activeJobRefreshTimer = null;
         let lastPromptGeneratedAt = null;
         let lastSceneDocumentTitle = null;
 
@@ -246,6 +248,128 @@
             cancelImageBtn.classList.toggle('is-hidden', !state.showCancel);
         };
 
+        const isActiveIllustratorJob = (job) => job && ['queued', 'polling'].includes(job.status);
+
+        const isRetryableIllustratorJob = (job) => job && ['failed', 'timed_out'].includes(job.status);
+
+        const formatElapsedTime = (elapsedMs = 0) => {
+            const seconds = Math.max(0, Math.round(Number(elapsedMs) / 1000));
+            const minutes = Math.floor(seconds / 60);
+            const remainder = seconds % 60;
+            if (minutes <= 0) return `${remainder}s`;
+            return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
+        };
+
+        const stopJobRefresh = () => {
+            if (activeJobRefreshTimer) {
+                clearInterval(activeJobRefreshTimer);
+                activeJobRefreshTimer = null;
+            }
+        };
+
+        const startJobRefresh = () => {
+            stopJobRefresh();
+            activeJobRefreshTimer = setInterval(refreshActiveIllustratorJob, 1500);
+        };
+
+        const setJobDetails = (message) => {
+            illusJobDetails.textContent = message || '';
+            illusJobDetails.classList.toggle('is-hidden', !message);
+        };
+
+        const describeJobStatus = (job) => {
+            const elapsed = formatElapsedTime(job.elapsedMs);
+            const promptId = job.promptId ? `ComfyUI ${job.promptId}` : 'ComfyUI queue';
+            switch (job.status) {
+                case 'queued':
+                    return `Queued for ${elapsed}. ${promptId}.`;
+                case 'polling':
+                    return `Generating for ${elapsed}. ${promptId}.`;
+                case 'completed':
+                    return `Completed in ${elapsed}. ${job.output && job.output.filename ? job.output.filename : promptId}.`;
+                case 'failed':
+                    return `Failed after ${elapsed}. ${job.lastError || 'Unknown error'}`;
+                case 'timed_out':
+                    return `Timed out after ${elapsed}. The ComfyUI job may still finish in its queue.`;
+                case 'canceled':
+                    return `Canceled after ${elapsed}. The ComfyUI job may still finish in its queue.`;
+                default:
+                    return '';
+            }
+        };
+
+        const renderIllustratorJob = (job) => {
+            if (!job) {
+                activeJobId = null;
+                stopJobRefresh();
+                generateImageBtn.disabled = false;
+                retryImageBtn.classList.add('is-hidden');
+                setJobDetails('');
+                setIllustrationDisplay('idle');
+                return;
+            }
+
+            activeJobId = job.jobId;
+            const active = isActiveIllustratorJob(job);
+            const retryable = isRetryableIllustratorJob(job);
+            generateImageBtn.disabled = active;
+            retryImageBtn.classList.toggle('is-hidden', !retryable);
+            setJobDetails(describeJobStatus(job));
+
+            if (job.output && job.output.dataUrl) {
+                illusResultImg.src = job.output.dataUrl;
+                illusLastFilename = job.output.filename || illusLastFilename;
+            }
+
+            if (active) {
+                setIllustrationDisplay('working');
+                setIllusStatus(job.status === 'queued' ? 'Queued in ComfyUI...' : `Generating... elapsed ${formatElapsedTime(job.elapsedMs)}`, 'working');
+                return;
+            }
+
+            stopJobRefresh();
+            if (job.status === 'completed') {
+                setIllustrationDisplay('done');
+                setIllusStatus('Done! Image generated successfully.', 'done');
+            } else if (job.status === 'canceled') {
+                setIllustrationDisplay('canceled');
+                setIllusStatus('Generation canceled.', 'idle');
+            } else if (job.status === 'timed_out') {
+                setIllustrationDisplay('error');
+                setIllusStatus('Generation timed out.', 'error');
+            } else if (job.status === 'failed') {
+                setIllustrationDisplay('error');
+                setIllusStatus(`Generation failed: ${job.lastError || 'Unknown error'}`, 'error');
+            }
+        };
+
+        const refreshActiveIllustratorJob = async () => {
+            if (!activeJobId || !window.illustratorAPI.getJob) return;
+            const res = await window.illustratorAPI.getJob(activeJobId);
+            if (res.success) {
+                renderIllustratorJob(res.job);
+            } else {
+                stopJobRefresh();
+                generateImageBtn.disabled = false;
+                setIllustrationDisplay('error');
+                setIllusStatus(`Job refresh failed: ${res.error}`, 'error');
+            }
+        };
+
+        const restoreLatestIllustratorJob = async () => {
+            if (!window.illustratorAPI.listJobs || !gameUrl) return;
+            const res = await window.illustratorAPI.listJobs({ gamePath: gameUrl, limit: 5 });
+            if (!res.success || !res.jobs.length) return;
+
+            const latest = res.jobs.find(isActiveIllustratorJob) || res.jobs[0];
+            if (!latest || !window.illustratorAPI.getJob) return;
+            const jobRes = await window.illustratorAPI.getJob(latest.jobId);
+            if (!jobRes.success) return;
+
+            renderIllustratorJob(jobRes.job);
+            if (isActiveIllustratorJob(jobRes.job)) startJobRefresh();
+        };
+
         const readStoredConfig = () => {
             const stored = window.TwinePlayerStorage.readJson(localStorage, ILLUSTRATOR_CONFIG_KEY, {});
             return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
@@ -396,6 +520,7 @@
         };
 
         const closeIllustratorModal = () => {
+            stopJobRefresh();
             illusOverlay.classList.remove('active');
             if (previouslyFocusedIllustratorElement && typeof previouslyFocusedIllustratorElement.focus === 'function') {
                 previouslyFocusedIllustratorElement.focus();
@@ -586,6 +711,7 @@
             }
 
             await Promise.all([loadOllamaModels(), loadComfyUIModels()]);
+            await restoreLatestIllustratorJob();
             requestAnimationFrame(focusFirstIllustratorControl);
         });
 
@@ -703,64 +829,73 @@
             const outputFilename = createOutputFilename(Date.now(), sceneIdentity);
 
             generateImageBtn.disabled = true;
+            retryImageBtn.classList.add('is-hidden');
+            setJobDetails('');
             setIllusStatus(`Queuing job with ${checkpoint}...`, 'working');
             illusResultImg.removeAttribute('src');
             setIllustrationDisplay('working');
 
-            const queueRes = await window.illustratorAPI.queueComfyUI({
+            const metadata = {
+                sourceSceneText,
+                imagePrompt: prompt,
+                promptTemplateMode: projectSettings.shotMode,
+                promptGeneratedAt: lastPromptGeneratedAt,
+                documentTitle,
+                passageIdentity: sceneIdentity,
+                passageTitle,
+                checkpoint,
+            };
+            const startRes = window.illustratorAPI.startGeneration
+                ? await window.illustratorAPI.startGeneration({
+                    imagePrompt: prompt,
+                    outputFilename,
+                    checkpoint,
+                    gamePath: gameUrl,
+                    config,
+                    metadata,
+                })
+                : await window.illustratorAPI.queueComfyUI({
                 imagePrompt: prompt,
                 outputFilename,
                 checkpoint,
                 config,
-            });
+                });
 
-            if (!queueRes.success) {
-                setIllusStatus(`ComfyUI error: ${queueRes.error}`, 'error');
+            if (!startRes.success) {
+                setIllusStatus(`ComfyUI error: ${startRes.error}`, 'error');
                 setIllustrationDisplay('error');
                 generateImageBtn.disabled = false;
                 return;
             }
 
-            const promptId = queueRes.promptId;
-            const seed = queueRes.seed;
-            activePollStartedAt = Date.now();
+            if (startRes.job) {
+                renderIllustratorJob(startRes.job);
+                if (isActiveIllustratorJob(startRes.job)) startJobRefresh();
+                return;
+            }
+
+            const promptId = startRes.promptId;
+            const seed = startRes.seed;
             setIllusStatus('Generating... (polling ComfyUI)', 'working');
 
-            activePollTimer = setInterval(async () => {
-                if (Date.now() - activePollStartedAt > config.maxPollingMs) {
-                    clearInterval(activePollTimer);
-                    activePollTimer = null;
-                    setIllustrationDisplay('error');
-                    generateImageBtn.disabled = false;
-                    setIllusStatus('Generation timed out. The ComfyUI job may still finish in its queue.', 'error');
-                    return;
-                }
-
+            const legacyPollTimer = setInterval(async () => {
                 const pollRes = await window.illustratorAPI.pollImage({
                     promptId,
                     gamePath: gameUrl,
                     config,
                     metadata: {
-                        sourceSceneText,
-                        imagePrompt: prompt,
-                        promptTemplateMode: projectSettings.shotMode,
-                        promptGeneratedAt: lastPromptGeneratedAt,
-                        documentTitle,
-                        passageIdentity: sceneIdentity,
-                        passageTitle,
-                        checkpoint,
+                        ...metadata,
                         seed,
-                        width: queueRes.width,
-                        height: queueRes.height,
-                        workflowTemplate: queueRes.workflowTemplate,
-                        workflowVersion: queueRes.workflowVersion,
+                        width: startRes.width,
+                        height: startRes.height,
+                        workflowTemplate: startRes.workflowTemplate,
+                        workflowVersion: startRes.workflowVersion,
                     },
                 });
 
                 if (pollRes.pending) return;
 
-                clearInterval(activePollTimer);
-                activePollTimer = null;
+                clearInterval(legacyPollTimer);
                 generateImageBtn.disabled = false;
 
                 if (pollRes.success) {
@@ -775,14 +910,40 @@
             }, 2000);
         });
 
-        cancelImageBtn.addEventListener('click', () => {
-            if (activePollTimer) {
-                clearInterval(activePollTimer);
-                activePollTimer = null;
+        cancelImageBtn.addEventListener('click', async () => {
+            if (activeJobId && window.illustratorAPI.cancelJob) {
+                const res = await window.illustratorAPI.cancelJob(activeJobId);
+                if (res.success) {
+                    renderIllustratorJob(res.job);
+                    return;
+                }
+                setIllusStatus(`Cancel failed: ${res.error}`, 'error');
+                return;
             }
+            stopJobRefresh();
             setIllustrationDisplay('canceled');
             generateImageBtn.disabled = false;
             setIllusStatus('Generation canceled. The ComfyUI job may still finish in its queue.', 'idle');
+        });
+
+        retryImageBtn.addEventListener('click', async () => {
+            if (!activeJobId || !window.illustratorAPI.retryJob) return;
+            retryImageBtn.disabled = true;
+            generateImageBtn.disabled = true;
+            setIllusStatus('Retrying generation...', 'working');
+            try {
+                const res = await window.illustratorAPI.retryJob(activeJobId);
+                if (!res.success) {
+                    setIllusStatus(`Retry failed: ${res.error}`, 'error');
+                    generateImageBtn.disabled = false;
+                    return;
+                }
+                illusResultImg.removeAttribute('src');
+                renderIllustratorJob(res.job);
+                if (isActiveIllustratorJob(res.job)) startJobRefresh();
+            } finally {
+                retryImageBtn.disabled = false;
+            }
         });
 
         illusDownloadBtn.addEventListener('click', () => {

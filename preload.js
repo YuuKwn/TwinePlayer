@@ -73,6 +73,26 @@ contextBridge.exposeInMainWorld('illustratorAPI', {
         assertPlainObject(promptContext, 'Prompt context');
         return ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model, config, promptContext);
     },
+    startGeneration: (params) => {
+        assertPlainObject(params, 'Illustrator generation params');
+        return ipcRenderer.invoke('illustrator:start-generation', params);
+    },
+    getJob: (jobId) => {
+        assertString(jobId, 'Illustrator job id');
+        return ipcRenderer.invoke('illustrator:get-job', jobId);
+    },
+    listJobs: (params = {}) => {
+        assertPlainObject(params, 'Illustrator job list params');
+        return ipcRenderer.invoke('illustrator:list-jobs', params);
+    },
+    cancelJob: (jobId) => {
+        assertString(jobId, 'Illustrator job id');
+        return ipcRenderer.invoke('illustrator:cancel-job', jobId);
+    },
+    retryJob: (jobId) => {
+        assertString(jobId, 'Illustrator job id');
+        return ipcRenderer.invoke('illustrator:retry-job', jobId);
+    },
     queueComfyUI: (params) => {
         assertPlainObject(params, 'ComfyUI queue params');
         return ipcRenderer.invoke('illustrator:queue-comfyui', params);

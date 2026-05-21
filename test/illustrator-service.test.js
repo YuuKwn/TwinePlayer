@@ -6,15 +6,22 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  cancelIllustratorJob,
   checkIllustratorHealth,
+  clearIllustratorJobsForTest,
   buildComfyUIWorkflow,
   createVisualPromptInstruction,
+  getIllustratorJob,
   generatePrompt,
+  ILLUSTRATOR_JOB_STATUSES,
   listComfyUIModels,
+  listIllustratorJobs,
   listTextModels,
   normalizeIllustrationMetadata,
   pollImage,
   queueComfyUI,
+  retryIllustratorJob,
+  startIllustratorGeneration,
 } = require('../src/main/illustrator-service');
 
 const PROMPT_LABEL_PATTERNS = {
@@ -24,6 +31,10 @@ const PROMPT_LABEL_PATTERNS = {
   manga_panel: 'Manga panel',
   concept_art: 'Concept art',
 };
+
+test.afterEach(() => {
+  clearIllustratorJobsForTest();
+});
 
 const readJsonBody = async (req) => {
   const chunks = [];
@@ -413,6 +424,159 @@ test('queueComfyUI builds workflow from configured image settings', async () => 
     assert.equal(requestBody.prompt['5'].inputs.steps, 33);
     assert.equal(requestBody.prompt['5'].inputs.cfg, 8.5);
     assert.equal(requestBody.prompt['7'].inputs.filename_prefix, 'chapter-one');
+  });
+});
+
+test('startIllustratorGeneration creates a durable job record', async () => {
+  await withServer(async (req, res) => {
+    assert.equal(req.method, 'POST');
+    assert.equal(req.url, '/prompt');
+    jsonResponse(res, { prompt_id: 'job-create' });
+  }, async (endpoint) => {
+    const job = await startIllustratorGeneration({
+      imagePrompt: 'a quiet garden',
+      outputFilename: 'chapter-one.png',
+      checkpoint: 'story.safetensors',
+      config: { comfyEndpoint: endpoint, seed: 123 },
+      metadata: { sourceSceneText: 'A quiet garden.' },
+    });
+
+    assert.equal(job.status, ILLUSTRATOR_JOB_STATUSES.POLLING);
+    assert.equal(job.promptId, 'job-create');
+    assert.equal(job.prompt.imagePrompt, 'a quiet garden');
+    assert.equal(job.prompt.outputFilename, 'chapter-one.png');
+    assert.equal(job.config.seed, 123);
+    assert.equal(job.metadata.sourceSceneText, 'A quiet garden.');
+    assert.match(job.jobId, /^[0-9a-f-]{36}$/);
+
+    const jobs = listIllustratorJobs();
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].jobId, job.jobId);
+    assert.equal(jobs[0].output, null);
+  });
+});
+
+test('getIllustratorJob transitions pending jobs to completed', async () => {
+  const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  let historyCalls = 0;
+
+  await withServer(async (req, res) => {
+    if (req.url === '/prompt') {
+      jsonResponse(res, { prompt_id: 'job-done' });
+      return;
+    }
+
+    if (req.url === '/history/job-done') {
+      historyCalls += 1;
+      if (historyCalls === 1) {
+        jsonResponse(res, {});
+        return;
+      }
+
+      jsonResponse(res, {
+        'job-done': {
+          outputs: {
+            7: {
+              images: [
+                { filename: 'chapter.png', subfolder: '', type: 'output' },
+              ],
+            },
+          },
+        },
+      });
+      return;
+    }
+
+    assert.equal(req.url, '/view?filename=chapter.png&subfolder=&type=output');
+    res.writeHead(200, { 'content-type': 'image/png' });
+    res.end(imageBytes);
+  }, async (endpoint) => {
+    const started = await startIllustratorGeneration({
+      imagePrompt: 'a quiet garden',
+      outputFilename: 'chapter-one.png',
+      checkpoint: 'story.safetensors',
+      config: { comfyEndpoint: endpoint, seed: 123 },
+    });
+
+    const pending = await getIllustratorJob(started.jobId);
+    assert.equal(pending.status, ILLUSTRATOR_JOB_STATUSES.POLLING);
+    assert.equal(pending.output, null);
+
+    const completed = await getIllustratorJob(started.jobId);
+    assert.equal(completed.status, ILLUSTRATOR_JOB_STATUSES.COMPLETED);
+    assert.equal(completed.output.filename, 'chapter.png');
+    assert.equal(completed.output.dataUrl, `data:image/png;base64,${imageBytes.toString('base64')}`);
+    assert.match(completed.timestamps.completedAt, /^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+test('getIllustratorJob transitions expired active jobs to timed_out', async () => {
+  await withServer((req, res) => {
+    assert.equal(req.url, '/prompt');
+    jsonResponse(res, { prompt_id: 'job-timeout' });
+  }, async (endpoint) => {
+    const started = await startIllustratorGeneration({
+      imagePrompt: 'a quiet garden',
+      outputFilename: 'chapter-one.png',
+      checkpoint: 'story.safetensors',
+      config: { comfyEndpoint: endpoint, maxPollingMs: 10000 },
+    });
+    const futureMs = Date.parse(started.timestamps.pollingStartedAt) + 10001;
+    const timedOut = await getIllustratorJob(started.jobId, { timestampMs: futureMs });
+
+    assert.equal(timedOut.status, ILLUSTRATOR_JOB_STATUSES.TIMED_OUT);
+    assert.match(timedOut.lastError, /timed out/);
+    assert.match(timedOut.timestamps.timedOutAt, /^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+test('cancelIllustratorJob stops local polling and marks the job canceled', async () => {
+  await withServer((req, res) => {
+    assert.equal(req.url, '/prompt');
+    jsonResponse(res, { prompt_id: 'job-cancel' });
+  }, async (endpoint) => {
+    const started = await startIllustratorGeneration({
+      imagePrompt: 'a quiet garden',
+      outputFilename: 'chapter-one.png',
+      checkpoint: 'story.safetensors',
+      config: { comfyEndpoint: endpoint },
+    });
+
+    const canceled = cancelIllustratorJob(started.jobId);
+    assert.equal(canceled.status, ILLUSTRATOR_JOB_STATUSES.CANCELED);
+    assert.match(canceled.timestamps.canceledAt, /^\d{4}-\d{2}-\d{2}T/);
+
+    const lookedUp = await getIllustratorJob(started.jobId);
+    assert.equal(lookedUp.status, ILLUSTRATOR_JOB_STATUSES.CANCELED);
+  });
+});
+
+test('retryIllustratorJob starts a new job from a timed out job snapshot', async () => {
+  const promptIds = ['job-original', 'job-retry'];
+
+  await withServer((req, res) => {
+    assert.equal(req.url, '/prompt');
+    jsonResponse(res, { prompt_id: promptIds.shift() });
+  }, async (endpoint) => {
+    const started = await startIllustratorGeneration({
+      imagePrompt: 'a quiet garden',
+      outputFilename: 'chapter-one.png',
+      checkpoint: 'story.safetensors',
+      config: { comfyEndpoint: endpoint, seed: 456, maxPollingMs: 10000 },
+      metadata: { passageTitle: 'Garden' },
+    });
+    const futureMs = Date.parse(started.timestamps.pollingStartedAt) + 10001;
+    const timedOut = await getIllustratorJob(started.jobId, { timestampMs: futureMs });
+    assert.equal(timedOut.status, ILLUSTRATOR_JOB_STATUSES.TIMED_OUT);
+
+    const retry = await retryIllustratorJob(started.jobId);
+    assert.notEqual(retry.jobId, started.jobId);
+    assert.equal(retry.retryOfJobId, started.jobId);
+    assert.equal(retry.promptId, 'job-retry');
+    assert.equal(retry.prompt.imagePrompt, started.prompt.imagePrompt);
+    assert.equal(retry.prompt.outputFilename, started.prompt.outputFilename);
+    assert.equal(retry.config.seed, 456);
+    assert.equal(retry.metadata.passageTitle, 'Garden');
   });
 });
 

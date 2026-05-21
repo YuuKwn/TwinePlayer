@@ -8,6 +8,9 @@ const test = require('node:test');
 const {
   registerIpcHandlers,
 } = require('../src/main/ipc-handlers');
+const {
+  clearIllustratorJobsForTest,
+} = require('../src/main/illustrator-service');
 
 const createHandlerRegistry = (dialogResult = { canceled: true, filePaths: [] }) => {
   const handlers = new Map();
@@ -71,6 +74,10 @@ const jsonResponse = (res, body, statusCode = 200) => {
   res.end(JSON.stringify(body));
 };
 
+test.afterEach(() => {
+  clearIllustratorJobsForTest();
+});
+
 test('registerIpcHandlers wires expected core channels', () => {
   const { handlers } = createHandlerRegistry();
 
@@ -86,6 +93,11 @@ test('registerIpcHandlers wires expected core channels', () => {
     'save:delete',
     'illustrator:get-default-config',
     'illustrator:check-health',
+    'illustrator:start-generation',
+    'illustrator:get-job',
+    'illustrator:list-jobs',
+    'illustrator:cancel-job',
+    'illustrator:retry-job',
   ].forEach(channel => assert.equal(handlers.has(channel), true, channel));
 });
 
@@ -375,6 +387,69 @@ test('authorized illustrator image copy writes inside the game illustration dire
       assert.equal(result.filename, 'chapter.png');
       assert.equal(result.localPath, localPath);
       assert.deepEqual([...fs.readFileSync(localPath)], [...imageBytes]);
+    });
+  });
+});
+
+test('illustrator job start requires an authorized game path', async () => {
+  await withTempGame(async (gamePath, tempDir) => {
+    const unknownPath = path.join(tempDir, 'Unknown.html');
+    fs.writeFileSync(unknownPath, '<html></html>');
+    const { invoke } = createHandlerRegistry();
+    await invoke('game:authorizePath', gamePath);
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      const result = await invoke('illustrator:start-generation', {
+        imagePrompt: 'a quiet garden',
+        outputFilename: 'chapter-one.png',
+        checkpoint: 'story.safetensors',
+        gamePath: unknownPath,
+        config: { comfyEndpoint: 'http://127.0.0.1:1' },
+      });
+
+      assert.equal(result.success, false);
+      assert.match(result.error, /not authorized/);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+});
+
+test('illustrator job IPC starts lists cancels and reads jobs', async () => {
+  await withTempGame(async (gamePath) => {
+    await withServer((req, res) => {
+      assert.equal(req.url, '/prompt');
+      jsonResponse(res, { prompt_id: 'ipc-job' });
+    }, async (endpoint) => {
+      const { invoke } = createHandlerRegistry();
+      await invoke('game:authorizePath', gamePath);
+
+      const started = await invoke('illustrator:start-generation', {
+        imagePrompt: 'a quiet garden',
+        outputFilename: 'chapter-one.png',
+        checkpoint: 'story.safetensors',
+        gamePath,
+        config: { comfyEndpoint: endpoint, seed: 123 },
+        metadata: { passageTitle: 'Garden' },
+      });
+      assert.equal(started.success, true);
+      assert.equal(started.job.status, 'polling');
+      assert.equal(started.job.promptId, 'ipc-job');
+
+      const listed = await invoke('illustrator:list-jobs', { gamePath });
+      assert.equal(listed.success, true);
+      assert.equal(listed.jobs.length, 1);
+      assert.equal(listed.jobs[0].jobId, started.job.jobId);
+
+      const canceled = await invoke('illustrator:cancel-job', started.job.jobId);
+      assert.equal(canceled.success, true);
+      assert.equal(canceled.job.status, 'canceled');
+
+      const lookedUp = await invoke('illustrator:get-job', started.job.jobId);
+      assert.equal(lookedUp.success, true);
+      assert.equal(lookedUp.job.status, 'canceled');
     });
   });
 });

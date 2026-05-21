@@ -15,14 +15,19 @@ const {
 } = require('./save-service');
 const {
   DEFAULT_ILLUSTRATOR_CONFIG,
+  cancelIllustratorJob,
   checkIllustratorHealth,
   ensureOutputDir,
   generatePrompt,
+  getIllustratorJob,
   listComfyUIModels,
+  listIllustratorJobs,
   listOllamaModels,
   listTextModels,
   pollImage,
   queueComfyUI,
+  retryIllustratorJob,
+  startIllustratorGeneration,
 } = require('./illustrator-service');
 const {
   assertPlainObject,
@@ -230,6 +235,72 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
       return { success: true, prompt: await generatePrompt(sceneText, model, config, promptContext) };
     } catch (err) {
       console.error('Text prompt generate error:', getErrorMessage(err));
+      return { success: false, error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:start-generation', async (event, params) => {
+    try {
+      const safeParams = assertPlainObject(params, 'Illustrator generation params');
+      const job = await startIllustratorGeneration({
+        ...safeParams,
+        gamePath: safeParams.gamePath
+          ? await gamePathAuthorizer.requireAuthorized(safeParams.gamePath)
+          : undefined,
+      }, {
+        requireAuthorizedGamePath: gamePathAuthorizer.requireAuthorized,
+      });
+      return { success: true, job };
+    } catch (err) {
+      console.error('Illustrator generation start error:', getErrorMessage(err));
+      return { success: false, error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:get-job', async (event, jobId) => {
+    try {
+      return { success: true, job: await getIllustratorJob(jobId) };
+    } catch (err) {
+      console.error('Illustrator job lookup error:', getErrorMessage(err));
+      return { success: false, error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:list-jobs', async (event, params = {}) => {
+    try {
+      const safeParams = params === undefined || params === null
+        ? {}
+        : assertPlainObject(params, 'Illustrator job list params');
+      const gamePath = safeParams.gamePath
+        ? await gamePathAuthorizer.requireAuthorized(safeParams.gamePath)
+        : undefined;
+      return {
+        success: true,
+        jobs: listIllustratorJobs({
+          ...safeParams,
+          gamePath,
+        }),
+      };
+    } catch (err) {
+      console.error('Illustrator job list error:', getErrorMessage(err));
+      return { success: false, jobs: [], error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:cancel-job', async (event, jobId) => {
+    try {
+      return { success: true, job: cancelIllustratorJob(jobId) };
+    } catch (err) {
+      console.error('Illustrator job cancel error:', getErrorMessage(err));
+      return { success: false, error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:retry-job', async (event, jobId) => {
+    try {
+      return { success: true, job: await retryIllustratorJob(jobId) };
+    } catch (err) {
+      console.error('Illustrator job retry error:', getErrorMessage(err));
       return { success: false, error: getErrorMessage(err) };
     }
   });

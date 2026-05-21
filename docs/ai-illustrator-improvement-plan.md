@@ -429,7 +429,7 @@ Relevant files:
 
 ## Slice 8: Job Model, Progress, Retry, and Cancellation
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -477,6 +477,14 @@ Relevant files:
 
 - Renderer refreshes or modal closes do not lose all knowledge of an active job during the current app session.
 - Users can see what happened when generation fails.
+
+### Progress Notes
+
+- Added in-memory main-process Illustrator job records with local job IDs, ComfyUI prompt IDs, statuses, timestamps, elapsed time, config/prompt/metadata snapshots, last errors, and completion output.
+- Added main-owned polling timers plus guarded `get-job` refreshes so active jobs survive modal close/reopen during the app session.
+- Added IPC/preload APIs for start, get, list, cancel, and retry while keeping the existing low-level queue/poll methods for compatibility.
+- Cancellation now stops local TwinePlayer polling and marks active jobs canceled; retries create a new job from failed or timed-out snapshots.
+- The Illustrator modal now restores the latest per-game job, surfaces elapsed job details, and exposes cancel/retry actions.
 
 ## Slice 9: Per-Game Gallery and Scene Image Dock
 
