@@ -600,7 +600,7 @@ Relevant files:
 
 ## Slice 11: Integration Tests With Mock AI Services
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -646,6 +646,13 @@ Relevant files:
 ### Acceptance Criteria
 
 - Illustrator regressions become visible before release.
+
+### Progress Notes
+
+- Added a mock AI HTTP fixture server inside `test/electron-integration.js` covering Ollama, OpenAI-compatible chat/models, ComfyUI model info, queue, history, and image view endpoints.
+- Added UI-driven integration scenarios for the Illustrator happy path, text backend failure, ComfyUI queue failure, bad image content type, and pending job cancellation.
+- The new integration coverage uses temporary fixture copies so generated illustration sidecars do not dirty repository fixtures.
+- Per instruction, the integration test file was syntax-checked but the integration suite was not executed.
 - Tests do not require real Ollama, OpenAI-compatible servers, or ComfyUI.
 
 ## Slice 12: Documentation and Release Readiness
