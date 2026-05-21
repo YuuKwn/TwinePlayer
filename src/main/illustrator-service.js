@@ -1,6 +1,8 @@
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const https = require('node:https');
+const path = require('node:path');
 const {
   getGameSidecarDir,
   normalizeImageFilename,
@@ -26,6 +28,61 @@ const DEFAULT_TIMEOUT_MS = 10000;
 const TEXT_TIMEOUT_MS = 60000;
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const ILLUSTRATION_METADATA_VERSION = 1;
+const DEFAULT_WORKFLOW_TEMPLATE = 'comfyui-default-txt2img';
+const DEFAULT_WORKFLOW_VERSION = 1;
+const MAX_METADATA_STRING_LENGTH = 512;
+const MAX_METADATA_TEXT_LENGTH = 5000;
+const MAX_SCENE_EXCERPT_LENGTH = 2000;
+
+const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const pickMetadataValue = (...values) => values.find(value => value !== undefined && value !== null);
+
+const normalizeOptionalString = (value, maxLength = MAX_METADATA_STRING_LENGTH) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, maxLength);
+};
+
+const normalizeOptionalNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeOptionalInteger = (value) => {
+  const parsed = normalizeOptionalNumber(value);
+  return parsed === null ? null : Math.round(parsed);
+};
+
+const normalizeIsoTimestamp = (value) => {
+  const timestamp = normalizeOptionalString(value, 64);
+  if (!timestamp) return null;
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+};
+
+const normalizeEndpointOrigin = (value) => {
+  const endpoint = normalizeOptionalString(value);
+  if (!endpoint) return null;
+
+  try {
+    return new URL(endpoint).origin;
+  } catch (err) {
+    return null;
+  }
+};
+
+const hashSceneText = (sceneText) => {
+  const text = normalizeOptionalString(sceneText, MAX_SCENE_TEXT_LENGTH);
+  if (!text) return null;
+  return crypto.createHash('sha256').update(text).digest('hex');
+};
+
+const createSceneExcerpt = (sceneText) => {
+  return normalizeOptionalString(sceneText, MAX_SCENE_EXCERPT_LENGTH);
+};
 
 const getTransport = (url) => url.protocol === 'https:' ? https : http;
 
@@ -129,6 +186,134 @@ const httpGetImage = async (url, timeoutMs = DEFAULT_TIMEOUT_MS) => {
   };
 };
 
+const normalizeIllustrationMetadata = (raw = {}) => {
+  const source = isPlainObject(raw) ? raw : {};
+  const game = isPlainObject(source.game) ? source.game : {};
+  const passage = isPlainObject(source.passage) ? source.passage : {};
+  const scene = isPlainObject(source.scene) ? source.scene : {};
+  const prompt = isPlainObject(source.prompt) ? source.prompt : {};
+  const comfyUI = isPlainObject(source.comfyUI) ? source.comfyUI : {};
+  const output = isPlainObject(source.output) ? source.output : {};
+  const workflow = isPlainObject(source.workflow) ? source.workflow : {};
+
+  return {
+    twinePlayerIllustrationVersion: ILLUSTRATION_METADATA_VERSION,
+    game: {
+      basename: normalizeOptionalString(pickMetadataValue(game.basename, source.gameBasename, source.gameName), 255),
+    },
+    passage: {
+      identity: normalizeOptionalString(pickMetadataValue(passage.identity, source.passageIdentity)),
+      title: normalizeOptionalString(pickMetadataValue(passage.title, source.passageTitle)),
+    },
+    scene: {
+      documentTitle: normalizeOptionalString(pickMetadataValue(scene.documentTitle, source.documentTitle)),
+      textExcerpt: normalizeOptionalString(pickMetadataValue(scene.textExcerpt, source.sceneTextExcerpt), MAX_SCENE_EXCERPT_LENGTH),
+      textHash: normalizeOptionalString(pickMetadataValue(scene.textHash, source.sceneTextHash), 128),
+    },
+    prompt: {
+      final: normalizeOptionalString(pickMetadataValue(prompt.final, source.imagePrompt), MAX_METADATA_TEXT_LENGTH),
+      negative: normalizeOptionalString(pickMetadataValue(prompt.negative, source.negativePrompt), MAX_METADATA_TEXT_LENGTH),
+      textBackend: normalizeOptionalString(pickMetadataValue(prompt.textBackend, source.textBackend), 64),
+      textModel: normalizeOptionalString(pickMetadataValue(prompt.textModel, source.textModel), MAX_MODEL_NAME_LENGTH),
+      generatedAt: normalizeIsoTimestamp(pickMetadataValue(prompt.generatedAt, source.promptGeneratedAt)),
+    },
+    comfyUI: {
+      endpointOrigin: normalizeEndpointOrigin(pickMetadataValue(comfyUI.endpointOrigin, source.comfyEndpointOrigin)),
+      checkpoint: normalizeOptionalString(pickMetadataValue(comfyUI.checkpoint, source.checkpoint), MAX_MODEL_NAME_LENGTH),
+      width: normalizeOptionalInteger(pickMetadataValue(comfyUI.width, source.imageWidth)),
+      height: normalizeOptionalInteger(pickMetadataValue(comfyUI.height, source.imageHeight)),
+      sampler: normalizeOptionalString(pickMetadataValue(comfyUI.sampler, source.sampler), 64),
+      scheduler: normalizeOptionalString(pickMetadataValue(comfyUI.scheduler, source.scheduler), 64),
+      steps: normalizeOptionalInteger(pickMetadataValue(comfyUI.steps, source.steps)),
+      cfg: normalizeOptionalNumber(pickMetadataValue(comfyUI.cfg, source.cfg)),
+      seed: normalizeOptionalInteger(pickMetadataValue(comfyUI.seed, source.seed)),
+      promptId: normalizeOptionalString(pickMetadataValue(comfyUI.promptId, source.promptId), 128),
+      sourceOutputFilename: normalizeOptionalString(pickMetadataValue(comfyUI.sourceOutputFilename, source.sourceOutputFilename, source.filename), 255),
+    },
+    output: {
+      localFilename: normalizeOptionalString(pickMetadataValue(output.localFilename, source.localFilename, source.filename), 255),
+      contentType: normalizeOptionalString(pickMetadataValue(output.contentType, source.contentType), 128),
+      byteSize: normalizeOptionalInteger(pickMetadataValue(output.byteSize, source.byteSize)),
+      generatedAt: normalizeIsoTimestamp(pickMetadataValue(output.generatedAt, source.generatedAt)) || new Date().toISOString(),
+    },
+    workflow: {
+      template: normalizeOptionalString(pickMetadataValue(workflow.template, source.workflowTemplate), 128) || DEFAULT_WORKFLOW_TEMPLATE,
+      version: normalizeOptionalInteger(pickMetadataValue(workflow.version, source.workflowVersion)) || DEFAULT_WORKFLOW_VERSION,
+    },
+  };
+};
+
+const createIllustrationMetadata = ({
+  promptId,
+  gamePath,
+  config,
+  checkpoint,
+  seed,
+  imagePrompt,
+  sourceSceneText,
+  promptGeneratedAt,
+  passageIdentity,
+  passageTitle,
+  documentTitle,
+  sourceOutputFilename,
+  localFilename,
+  contentType,
+  byteSize,
+  generatedAt,
+  workflowTemplate = DEFAULT_WORKFLOW_TEMPLATE,
+  workflowVersion = DEFAULT_WORKFLOW_VERSION,
+}) => {
+  const safeConfig = normalizeIllustratorConfig(config || {});
+  const safePromptId = assertPromptId(promptId);
+  const safeSceneText = normalizeOptionalString(sourceSceneText, MAX_SCENE_TEXT_LENGTH);
+  const safeCheckpoint = normalizeOptionalString(checkpoint, MAX_MODEL_NAME_LENGTH) || safeConfig.checkpoint;
+
+  return normalizeIllustrationMetadata({
+    game: {
+      basename: gamePath ? path.basename(gamePath) : null,
+    },
+    passage: {
+      identity: passageIdentity,
+      title: passageTitle,
+    },
+    scene: {
+      documentTitle,
+      textExcerpt: createSceneExcerpt(safeSceneText),
+      textHash: hashSceneText(safeSceneText),
+    },
+    prompt: {
+      final: imagePrompt,
+      negative: safeConfig.negativePrompt,
+      textBackend: safeConfig.textBackend,
+      textModel: safeConfig.textModel,
+      generatedAt: promptGeneratedAt,
+    },
+    comfyUI: {
+      endpointOrigin: safeConfig.comfyEndpoint,
+      checkpoint: safeCheckpoint,
+      width: safeConfig.imageWidth,
+      height: safeConfig.imageHeight,
+      sampler: safeConfig.sampler,
+      scheduler: safeConfig.scheduler,
+      steps: safeConfig.steps,
+      cfg: safeConfig.cfg,
+      seed,
+      promptId: safePromptId,
+      sourceOutputFilename,
+    },
+    output: {
+      localFilename,
+      contentType,
+      byteSize,
+      generatedAt,
+    },
+    workflow: {
+      template: workflowTemplate,
+      version: workflowVersion,
+    },
+  });
+};
+
 const createVisualPromptInstruction = (sceneText) => {
   return `You are a visual art director. Given the following scene from a text adventure game, write a concise image generation prompt (under 100 words) describing the visual scene. Focus on: setting, lighting, mood, colors, and any key characters or objects. Do not include any explanation - only the prompt text.\n\nScene:\n${sceneText}`;
 };
@@ -218,13 +403,14 @@ const queueComfyUI = async (params) => {
   const safePrompt = assertString(imagePrompt, 'Image prompt', MAX_IMAGE_PROMPT_LENGTH);
   const safeCheckpoint = assertString(checkpoint || safeConfig.checkpoint, 'ComfyUI checkpoint', MAX_MODEL_NAME_LENGTH);
   const outputPrefix = normalizeImageFilename(`${assertString(outputFilename, 'Output filename', 128).replace(/\.png$/i, '')}.png`).replace(/\.png$/i, '');
+  const seed = Math.floor(Math.random() * 1e9);
 
   const workflow = {
     "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": safeCheckpoint } },
     "2": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": safePrompt } },
     "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": safeConfig.negativePrompt } },
     "4": { "class_type": "EmptyLatentImage", "inputs": { "batch_size": 1, "height": safeConfig.imageHeight, "width": safeConfig.imageWidth } },
-    "5": { "class_type": "KSampler", "inputs": { "cfg": safeConfig.cfg, "denoise": 1, "latent_image": ["4", 0], "model": ["1", 0], "negative": ["3", 0], "positive": ["2", 0], "sampler_name": safeConfig.sampler, "scheduler": safeConfig.scheduler, "seed": Math.floor(Math.random() * 1e9), "steps": safeConfig.steps } },
+    "5": { "class_type": "KSampler", "inputs": { "cfg": safeConfig.cfg, "denoise": 1, "latent_image": ["4", 0], "model": ["1", 0], "negative": ["3", 0], "positive": ["2", 0], "sampler_name": safeConfig.sampler, "scheduler": safeConfig.scheduler, "seed": seed, "steps": safeConfig.steps } },
     "6": { "class_type": "VAEDecode", "inputs": { "samples": ["5", 0], "vae": ["1", 2] } },
     "7": { "class_type": "SaveImage", "inputs": { "filename_prefix": outputPrefix, "images": ["6", 0] } },
   };
@@ -233,14 +419,20 @@ const queueComfyUI = async (params) => {
   if (typeof json.prompt_id !== 'string' || json.prompt_id.trim() === '') {
     throw new Error('ComfyUI queue response did not include prompt_id');
   }
-  return json.prompt_id;
+  return {
+    promptId: json.prompt_id.trim(),
+    seed,
+    workflowTemplate: DEFAULT_WORKFLOW_TEMPLATE,
+    workflowVersion: DEFAULT_WORKFLOW_VERSION,
+  };
 };
 
 const pollImage = async (params) => {
-  const { promptId, gamePath, config } = assertPlainObject(params, 'ComfyUI poll params');
+  const { promptId, gamePath, config, metadata } = assertPlainObject(params, 'ComfyUI poll params');
   const safeConfig = normalizeIllustratorConfig(config || {});
   const safePromptId = assertPromptId(promptId);
   const outputDir = gamePath ? getGameSidecarDir(assertString(gamePath, 'Game path'), 'illustrations') : null;
+  const metadataInput = isPlainObject(metadata) ? metadata : {};
   const historyData = await httpGetJson(
     joinEndpointPath(safeConfig.comfyEndpoint, `/history/${encodeURIComponent(safePromptId)}`),
     DEFAULT_TIMEOUT_MS
@@ -266,26 +458,57 @@ const pollImage = async (params) => {
     const { buffer: imageBuffer, contentType } = await httpGetImage(imageUrl, DEFAULT_TIMEOUT_MS);
     const imageFilename = normalizeImageFilename(img.filename);
     const localPath = outputDir ? resolveChildPath(outputDir, imageFilename) : null;
+    let savedLocalPath = null;
+    let metadataPath = null;
+    let savedMetadata = null;
 
     if (localPath) {
       try {
         await ensureDir(outputDir);
         await fsp.writeFile(localPath, imageBuffer);
-        await fsp.writeFile(`${localPath}.json`, JSON.stringify({
-          promptId: safePromptId,
-          filename: imageFilename,
-          contentType,
-          generatedAt: new Date().toISOString(),
-        }, null, 2));
+        savedLocalPath = localPath;
       } catch (err) {
         console.warn('Illustrator: could not save local copy', getErrorMessage(err));
+      }
+
+      if (savedLocalPath) {
+        savedMetadata = createIllustrationMetadata({
+          promptId: safePromptId,
+          gamePath,
+          config: safeConfig,
+          checkpoint: metadataInput.checkpoint,
+          seed: metadataInput.seed,
+          imagePrompt: metadataInput.imagePrompt,
+          sourceSceneText: metadataInput.sourceSceneText,
+          promptGeneratedAt: metadataInput.promptGeneratedAt,
+          passageIdentity: metadataInput.passageIdentity,
+          passageTitle: metadataInput.passageTitle,
+          documentTitle: metadataInput.documentTitle,
+          sourceOutputFilename: img.filename,
+          localFilename: imageFilename,
+          contentType,
+          byteSize: imageBuffer.length,
+          generatedAt: new Date().toISOString(),
+          workflowTemplate: metadataInput.workflowTemplate,
+          workflowVersion: metadataInput.workflowVersion,
+        });
+
+        metadataPath = `${savedLocalPath}.json`;
+        try {
+          await fsp.writeFile(metadataPath, JSON.stringify(savedMetadata, null, 2));
+        } catch (err) {
+          metadataPath = null;
+          console.warn('Illustrator: could not save local metadata', getErrorMessage(err));
+        }
       }
     }
 
     return {
       dataUrl: `data:${contentType};base64,${imageBuffer.toString('base64')}`,
       filename: imageFilename,
-      localPath,
+      localPath: savedLocalPath,
+      metadataPath,
+      metadata: savedMetadata,
     };
   }
 
@@ -299,6 +522,7 @@ module.exports = {
   listComfyUIModels,
   listOllamaModels,
   listTextModels,
+  normalizeIllustrationMetadata,
   pollImage,
   queueComfyUI,
 };

@@ -226,7 +226,7 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('illustrator:queue-comfyui', async (event, params) => {
     try {
-      return { success: true, promptId: await queueComfyUI(params) };
+      return { success: true, ...(await queueComfyUI(params)) };
     } catch (err) {
       console.error('ComfyUI queue error:', getErrorMessage(err));
       return { success: false, error: getErrorMessage(err) };

@@ -9,6 +9,7 @@ const {
   generatePrompt,
   listComfyUIModels,
   listTextModels,
+  normalizeIllustrationMetadata,
   pollImage,
   queueComfyUI,
 } = require('../src/main/illustrator-service');
@@ -143,7 +144,7 @@ test('queueComfyUI builds workflow from configured image settings', async () => 
     requestBody = await readJsonBody(req);
     jsonResponse(res, { prompt_id: 'abc123' });
   }, async (endpoint) => {
-    assert.equal(await queueComfyUI({
+    const result = await queueComfyUI({
       imagePrompt: 'a quiet garden',
       outputFilename: 'chapter-one.png',
       checkpoint: 'story.safetensors',
@@ -157,14 +158,19 @@ test('queueComfyUI builds workflow from configured image settings', async () => 
         cfg: 8.5,
         negativePrompt: 'bad hands',
       },
-    }), 'abc123');
+    });
 
+    assert.equal(result.promptId, 'abc123');
+    assert.equal(Number.isInteger(result.seed), true);
+    assert.equal(result.workflowTemplate, 'comfyui-default-txt2img');
+    assert.equal(result.workflowVersion, 1);
     assert.equal(requestBody.prompt['1'].inputs.ckpt_name, 'story.safetensors');
     assert.equal(requestBody.prompt['3'].inputs.text, 'bad hands');
     assert.equal(requestBody.prompt['4'].inputs.width, 640);
     assert.equal(requestBody.prompt['4'].inputs.height, 768);
     assert.equal(requestBody.prompt['5'].inputs.sampler_name, 'dpmpp_2m');
     assert.equal(requestBody.prompt['5'].inputs.scheduler, 'karras');
+    assert.equal(requestBody.prompt['5'].inputs.seed, result.seed);
     assert.equal(requestBody.prompt['5'].inputs.steps, 33);
     assert.equal(requestBody.prompt['5'].inputs.cfg, 8.5);
     assert.equal(requestBody.prompt['7'].inputs.filename_prefix, 'chapter-one');
@@ -213,7 +219,32 @@ test('pollImage downloads image and writes local metadata sidecar', async () => 
       const result = await pollImage({
         promptId: 'done',
         gamePath,
-        config: { comfyEndpoint: endpoint },
+        config: {
+          textBackend: 'openai',
+          textEndpoint: `${endpoint}/v1`,
+          textModel: 'local-mlx',
+          comfyEndpoint: endpoint,
+          checkpoint: 'story.safetensors',
+          imageWidth: 640,
+          imageHeight: 768,
+          sampler: 'dpmpp_2m',
+          scheduler: 'karras',
+          steps: 33,
+          cfg: 8.5,
+          negativePrompt: 'bad hands',
+        },
+        metadata: {
+          sourceSceneText: 'A moonlit library with a velvet chair and blue dust.',
+          imagePrompt: 'moonlit library, blue dust, old velvet chair',
+          promptGeneratedAt: '2026-05-01T12:00:00.000Z',
+          documentTitle: 'Example Story',
+          passageIdentity: 'library-night',
+          passageTitle: 'Library at Night',
+          checkpoint: 'story.safetensors',
+          seed: 123456,
+          workflowTemplate: 'comfyui-default-txt2img',
+          workflowVersion: 1,
+        },
       });
 
       const outputDir = path.join(tempDir, 'Example Story_illustrations');
@@ -226,10 +257,127 @@ test('pollImage downloads image and writes local metadata sidecar', async () => 
       assert.deepEqual([...fs.readFileSync(localPath)], [...imageBytes]);
 
       const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
-      assert.equal(metadata.promptId, 'done');
-      assert.equal(metadata.filename, 'chapter.png');
-      assert.equal(metadata.contentType, 'image/png');
-      assert.match(metadata.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+      assert.equal(result.metadataPath, metadataPath);
+      assert.deepEqual(result.metadata, metadata);
+      assert.equal(metadata.twinePlayerIllustrationVersion, 1);
+      assert.equal(metadata.game.basename, 'Example Story.html');
+      assert.equal(metadata.passage.identity, 'library-night');
+      assert.equal(metadata.passage.title, 'Library at Night');
+      assert.equal(metadata.scene.documentTitle, 'Example Story');
+      assert.equal(metadata.scene.textExcerpt, 'A moonlit library with a velvet chair and blue dust.');
+      assert.match(metadata.scene.textHash, /^[a-f0-9]{64}$/);
+      assert.equal(metadata.prompt.final, 'moonlit library, blue dust, old velvet chair');
+      assert.equal(metadata.prompt.negative, 'bad hands');
+      assert.equal(metadata.prompt.textBackend, 'openai');
+      assert.equal(metadata.prompt.textModel, 'local-mlx');
+      assert.equal(metadata.prompt.generatedAt, '2026-05-01T12:00:00.000Z');
+      assert.equal(metadata.comfyUI.endpointOrigin, endpoint);
+      assert.equal(metadata.comfyUI.checkpoint, 'story.safetensors');
+      assert.equal(metadata.comfyUI.width, 640);
+      assert.equal(metadata.comfyUI.height, 768);
+      assert.equal(metadata.comfyUI.sampler, 'dpmpp_2m');
+      assert.equal(metadata.comfyUI.scheduler, 'karras');
+      assert.equal(metadata.comfyUI.steps, 33);
+      assert.equal(metadata.comfyUI.cfg, 8.5);
+      assert.equal(metadata.comfyUI.seed, 123456);
+      assert.equal(metadata.comfyUI.promptId, 'done');
+      assert.equal(metadata.comfyUI.sourceOutputFilename, 'chapter.png');
+      assert.equal(metadata.output.localFilename, 'chapter.png');
+      assert.equal(metadata.output.contentType, 'image/png');
+      assert.equal(metadata.output.byteSize, imageBytes.length);
+      assert.match(metadata.output.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+      assert.equal(metadata.workflow.template, 'comfyui-default-txt2img');
+      assert.equal(metadata.workflow.version, 1);
+    });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('normalizeIllustrationMetadata tolerates old minimal sidecars', () => {
+  const normalized = normalizeIllustrationMetadata({
+    promptId: 'done',
+    filename: 'chapter.png',
+    contentType: 'image/png',
+    generatedAt: '2026-05-01T12:00:00.000Z',
+  });
+
+  assert.equal(normalized.twinePlayerIllustrationVersion, 1);
+  assert.equal(normalized.comfyUI.promptId, 'done');
+  assert.equal(normalized.comfyUI.sourceOutputFilename, 'chapter.png');
+  assert.equal(normalized.output.localFilename, 'chapter.png');
+  assert.equal(normalized.output.contentType, 'image/png');
+  assert.equal(normalized.output.generatedAt, '2026-05-01T12:00:00.000Z');
+  assert.equal(normalized.workflow.template, 'comfyui-default-txt2img');
+});
+
+test('normalizeIllustrationMetadata bounds user strings as JSON text', () => {
+  const longPrompt = `<script>${'x'.repeat(6000)}</script>`;
+  const longScene = `<b>${'scene '.repeat(1000)}</b>`;
+  const normalized = normalizeIllustrationMetadata({
+    imagePrompt: longPrompt,
+    negativePrompt: '<img src=x onerror=alert(1)>'.repeat(300),
+    sceneTextExcerpt: longScene,
+    passageTitle: '<strong>Library</strong>',
+  });
+
+  assert.equal(typeof normalized.prompt.final, 'string');
+  assert.equal(normalized.prompt.final.length, 5000);
+  assert.match(normalized.prompt.final, /^<script>/);
+  assert.equal(typeof normalized.prompt.negative, 'string');
+  assert.equal(normalized.prompt.negative.length, 5000);
+  assert.equal(normalized.scene.textExcerpt.length, 2000);
+  assert.equal(normalized.passage.title, '<strong>Library</strong>');
+});
+
+test('metadata write failure does not hide a successfully copied image', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'twine-player-illus-'));
+  try {
+    const gamePath = path.join(tempDir, 'Example Story.html');
+    fs.writeFileSync(gamePath, '<html></html>');
+    const outputDir = path.join(tempDir, 'Example Story_illustrations');
+    const localPath = path.join(outputDir, 'chapter.png');
+    fs.mkdirSync(`${localPath}.json`, { recursive: true });
+    const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+    await withServer((req, res) => {
+      if (req.url === '/history/done') {
+        jsonResponse(res, {
+          done: {
+            outputs: {
+              7: {
+                images: [
+                  { filename: 'chapter.png', subfolder: '', type: 'output' },
+                ],
+              },
+            },
+          },
+        });
+        return;
+      }
+
+      res.writeHead(200, { 'content-type': 'image/png' });
+      res.end(imageBytes);
+    }, async (endpoint) => {
+      const originalConsoleWarn = console.warn;
+      console.warn = () => {};
+      try {
+        const result = await pollImage({
+          promptId: 'done',
+          gamePath,
+          config: { comfyEndpoint: endpoint },
+          metadata: { imagePrompt: '<script>alert(1)</script>' },
+        });
+
+        assert.equal(result.filename, 'chapter.png');
+        assert.equal(result.localPath, localPath);
+        assert.equal(result.metadataPath, null);
+        assert.equal(result.metadata.prompt.final, '<script>alert(1)</script>');
+        assert.deepEqual([...fs.readFileSync(localPath)], [...imageBytes]);
+        assert.equal(fs.statSync(`${localPath}.json`).isDirectory(), true);
+      } finally {
+        console.warn = originalConsoleWarn;
+      }
     });
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

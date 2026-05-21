@@ -49,6 +49,8 @@
         let illustratorDefaults = { ...DEFAULT_ILLUSTRATOR_CONFIG };
         let activePollTimer = null;
         let activePollStartedAt = 0;
+        let lastPromptGeneratedAt = null;
+        let lastSceneDocumentTitle = null;
 
         const setIllusStatus = (msg, type = 'idle') => {
             illusStatus.textContent = msg;
@@ -230,6 +232,7 @@
             try {
                 const cw = iframe.contentWindow;
                 const doc = cw.document;
+                lastSceneDocumentTitle = doc.title || null;
                 const passageEl =
                     doc.querySelector('#passage') ||
                     doc.querySelector('#passages .passage') ||
@@ -240,6 +243,7 @@
                     document.getElementById('illus-scene-text').value = sceneText.trim().slice(0, 2000);
                 }
             } catch (e) {
+                lastSceneDocumentTitle = null;
                 // Cross-origin games leave the textarea as-is.
             }
 
@@ -302,6 +306,7 @@
 
             if (res.success) {
                 document.getElementById('illus-prompt-text').value = res.prompt;
+                lastPromptGeneratedAt = new Date().toISOString();
                 setIllusStatus('Prompt ready. Edit it or generate the image directly.', 'done');
             } else {
                 setIllusStatus(`Text backend error: ${res.error}`, 'error');
@@ -350,6 +355,7 @@
             }
 
             const promptId = queueRes.promptId;
+            const seed = queueRes.seed;
             activePollStartedAt = Date.now();
             setIllusStatus('Generating... (polling ComfyUI)', 'working');
 
@@ -369,6 +375,16 @@
                     promptId,
                     gamePath: gameUrl,
                     config,
+                    metadata: {
+                        sourceSceneText: document.getElementById('illus-scene-text').value.trim(),
+                        imagePrompt: prompt,
+                        promptGeneratedAt: lastPromptGeneratedAt,
+                        documentTitle: lastSceneDocumentTitle,
+                        checkpoint,
+                        seed,
+                        workflowTemplate: queueRes.workflowTemplate,
+                        workflowVersion: queueRes.workflowVersion,
+                    },
                 });
 
                 if (pollRes.pending) return;

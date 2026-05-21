@@ -116,7 +116,7 @@ Relevant files:
 
 ## Slice 2: Rich Generation Metadata
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -157,6 +157,13 @@ Relevant files:
 
 - New generated images are reproducible from sidecar metadata.
 - Metadata remains backward-compatible with existing generated files.
+
+### Progress Notes
+
+- Local image sidecars now use `twinePlayerIllustrationVersion: 1` with game, passage, scene, prompt, ComfyUI, output, and workflow sections.
+- `queueComfyUI()` returns the actual seed sent to the default workflow so the renderer can pass it into saved metadata.
+- `pollImage()` accepts explicit metadata context, records bounded scene/prompt strings and a scene hash, and preserves successful image copies when metadata writing fails.
+- A metadata normalizer handles old minimal sidecars with prompt ID, filename, content type, and generated timestamp.
 
 ## Slice 3: Extract Illustrator Renderer Helpers
 
