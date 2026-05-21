@@ -7,6 +7,7 @@ const test = require('node:test');
 
 const {
   checkIllustratorHealth,
+  buildComfyUIWorkflow,
   createVisualPromptInstruction,
   generatePrompt,
   listComfyUIModels,
@@ -277,6 +278,99 @@ test('checkIllustratorHealth returns structured unreachable statuses', async () 
   });
 });
 
+test('buildComfyUIWorkflow handles deterministic seed, batch, and aspect presets', () => {
+  const built = buildComfyUIWorkflow({
+    imagePrompt: 'a quiet garden',
+    outputFilename: 'chapter-one.png',
+    checkpoint: 'story.safetensors',
+    config: {
+      seed: 1234,
+      batchSize: 3,
+      aspectPreset: 'vn_background',
+      sampler: 'dpmpp_2m',
+      scheduler: 'karras',
+    },
+  });
+
+  assert.equal(built.seed, 1234);
+  assert.equal(built.width, 1344);
+  assert.equal(built.height, 768);
+  assert.equal(built.workflowTemplate, 'comfyui-default-txt2img');
+  assert.equal(built.workflow['4'].inputs.batch_size, 3);
+  assert.equal(built.workflow['4'].inputs.width, 1344);
+  assert.equal(built.workflow['4'].inputs.height, 768);
+  assert.equal(built.workflow['5'].inputs.seed, 1234);
+});
+
+test('buildComfyUIWorkflow randomizes seed when requested', () => {
+  const built = buildComfyUIWorkflow({
+    imagePrompt: 'a quiet garden',
+    outputFilename: 'chapter-one.png',
+    checkpoint: 'story.safetensors',
+    config: { seed: 'random' },
+  });
+
+  assert.equal(Number.isInteger(built.seed), true);
+  assert.equal(built.seed >= 0, true);
+  assert.equal(built.seed < 1e9, true);
+});
+
+test('buildComfyUIWorkflow replaces custom workflow placeholders', () => {
+  const customWorkflowJson = JSON.stringify({
+    "1": { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: '{{checkpoint}}' } },
+    "2": { class_type: 'CLIPTextEncode', inputs: { text: '{{prompt}}' } },
+    "3": { class_type: 'CLIPTextEncode', inputs: { text: '{{negative_prompt}}' } },
+    "4": { class_type: 'EmptyLatentImage', inputs: { width: '{{width}}', height: '{{height}}', batch_size: '{{batch_size}}' } },
+    "5": { class_type: 'KSampler', inputs: { seed: '{{seed}}' } },
+    "6": { class_type: 'SaveImage', inputs: { filename_prefix: '{{output_prefix}}' } },
+  });
+
+  const built = buildComfyUIWorkflow({
+    imagePrompt: 'a quiet garden',
+    outputFilename: 'chapter-one.png',
+    checkpoint: 'story.safetensors',
+    config: {
+      workflowMode: 'custom',
+      customWorkflowJson,
+      seed: 99,
+      batchSize: 2,
+      aspectPreset: 'square',
+      negativePrompt: 'bad hands',
+    },
+  });
+
+  assert.equal(built.workflowTemplate, 'comfyui-custom-workflow');
+  assert.equal(built.workflow['1'].inputs.ckpt_name, 'story.safetensors');
+  assert.equal(built.workflow['2'].inputs.text, 'a quiet garden');
+  assert.equal(built.workflow['3'].inputs.text, 'bad hands');
+  assert.equal(built.workflow['4'].inputs.width, 1024);
+  assert.equal(built.workflow['4'].inputs.height, 1024);
+  assert.equal(built.workflow['4'].inputs.batch_size, 2);
+  assert.equal(built.workflow['5'].inputs.seed, 99);
+  assert.equal(built.workflow['6'].inputs.filename_prefix, 'chapter-one');
+});
+
+test('buildComfyUIWorkflow rejects invalid custom workflows clearly', () => {
+  assert.throws(
+    () => buildComfyUIWorkflow({
+      imagePrompt: 'a quiet garden',
+      outputFilename: 'chapter-one.png',
+      checkpoint: 'story.safetensors',
+      config: { workflowMode: 'custom', customWorkflowJson: '{"1":{"class_type":"SaveImage","inputs":{}}}' },
+    }),
+    /prompt text node/
+  );
+  assert.throws(
+    () => buildComfyUIWorkflow({
+      imagePrompt: 'a quiet garden',
+      outputFilename: 'chapter-one.png',
+      checkpoint: 'story.safetensors',
+      config: { workflowMode: 'custom', customWorkflowJson: '{"1":{"class_type":"CLIPTextEncode","inputs":{"text":"{{prompt}}"}}}' },
+    }),
+    /SaveImage output node/
+  );
+});
+
 test('queueComfyUI builds workflow from configured image settings', async () => {
   let requestBody;
   await withServer(async (req, res) => {
@@ -293,6 +387,8 @@ test('queueComfyUI builds workflow from configured image settings', async () => 
         comfyEndpoint: endpoint,
         imageWidth: 640,
         imageHeight: 768,
+        aspectPreset: 'custom',
+        seed: 42,
         sampler: 'dpmpp_2m',
         scheduler: 'karras',
         steps: 33,
@@ -302,7 +398,9 @@ test('queueComfyUI builds workflow from configured image settings', async () => 
     });
 
     assert.equal(result.promptId, 'abc123');
-    assert.equal(Number.isInteger(result.seed), true);
+    assert.equal(result.seed, 42);
+    assert.equal(result.width, 640);
+    assert.equal(result.height, 768);
     assert.equal(result.workflowTemplate, 'comfyui-default-txt2img');
     assert.equal(result.workflowVersion, 1);
     assert.equal(requestBody.prompt['1'].inputs.ckpt_name, 'story.safetensors');

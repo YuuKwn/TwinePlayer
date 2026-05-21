@@ -336,6 +336,35 @@
                         </label>
                     </div>
 
+                    <div class="illus-settings-grid illus-settings-grid-compact">
+                        <label>
+                            <span class="illus-label">Aspect</span>
+                            <select id="illus-aspect-preset-select" class="illus-select">
+                                <option value="custom">Custom</option>
+                                <option value="portrait">Portrait</option>
+                                <option value="landscape">Landscape</option>
+                                <option value="square">Square</option>
+                                <option value="vn_background">VN background</option>
+                                <option value="comic_panel">Comic panel</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span class="illus-label">Seed</span>
+                            <input id="illus-seed-input" class="illus-input" type="text" autocomplete="off">
+                        </label>
+                        <label>
+                            <span class="illus-label">Batch</span>
+                            <input id="illus-batch-size-input" class="illus-input" type="number" min="1" max="4" step="1">
+                        </label>
+                        <label>
+                            <span class="illus-label">Workflow</span>
+                            <select id="illus-workflow-mode-select" class="illus-select">
+                                <option value="default">Default</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </label>
+                    </div>
+
                     <div class="illus-settings-grid">
                         <label>
                             <span class="illus-label">Sampler</span>
@@ -351,6 +380,11 @@
                         <span class="illus-label">Negative Prompt</span>
                         <textarea id="illus-negative-prompt-text" class="illus-textarea illus-textarea-small"></textarea>
                     </label>
+
+                    <details class="illus-advanced-workflow">
+                        <summary>Custom ComfyUI Workflow</summary>
+                        <textarea id="illus-custom-workflow-text" class="illus-textarea illus-textarea-small" spellcheck="false"></textarea>
+                    </details>
 
                     <div class="illus-row">
                         <button id="illus-generate-image-btn" class="illus-btn illus-btn-primary flex-fill">Generate Image in ComfyUI</button>

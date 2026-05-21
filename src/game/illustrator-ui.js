@@ -53,6 +53,11 @@
         const heightInput = document.getElementById('illus-height-input');
         const stepsInput = document.getElementById('illus-steps-input');
         const cfgInput = document.getElementById('illus-cfg-input');
+        const aspectPresetSelect = document.getElementById('illus-aspect-preset-select');
+        const seedInput = document.getElementById('illus-seed-input');
+        const batchSizeInput = document.getElementById('illus-batch-size-input');
+        const workflowModeSelect = document.getElementById('illus-workflow-mode-select');
+        const customWorkflowText = document.getElementById('illus-custom-workflow-text');
         const samplerInput = document.getElementById('illus-sampler-input');
         const schedulerInput = document.getElementById('illus-scheduler-input');
         const negativePromptText = document.getElementById('illus-negative-prompt-text');
@@ -299,6 +304,11 @@
             scheduler: schedulerInput.value.trim() || illustratorDefaults.scheduler,
             steps: stepsInput.value,
             cfg: cfgInput.value,
+            seed: seedInput.value,
+            batchSize: batchSizeInput.value,
+            aspectPreset: aspectPresetSelect.value,
+            workflowMode: workflowModeSelect.value,
+            customWorkflowJson: customWorkflowText.value,
             negativePrompt: negativePromptText.value.trim() || illustratorDefaults.negativePrompt,
         }, illustratorDefaults);
 
@@ -352,6 +362,11 @@
             heightInput.value = config.imageHeight;
             stepsInput.value = config.steps;
             cfgInput.value = config.cfg;
+            seedInput.value = config.seed;
+            batchSizeInput.value = config.batchSize;
+            aspectPresetSelect.value = config.aspectPreset;
+            workflowModeSelect.value = config.workflowMode;
+            customWorkflowText.value = config.customWorkflowJson;
             samplerInput.value = config.sampler;
             schedulerInput.value = config.scheduler;
             negativePromptText.value = config.negativePrompt;
@@ -543,6 +558,11 @@
             heightInput,
             stepsInput,
             cfgInput,
+            aspectPresetSelect,
+            seedInput,
+            batchSizeInput,
+            workflowModeSelect,
+            customWorkflowText,
             samplerInput,
             schedulerInput,
             negativePromptText,
@@ -730,6 +750,8 @@
                         passageTitle,
                         checkpoint,
                         seed,
+                        width: queueRes.width,
+                        height: queueRes.height,
                         workflowTemplate: queueRes.workflowTemplate,
                         workflowVersion: queueRes.workflowVersion,
                     },

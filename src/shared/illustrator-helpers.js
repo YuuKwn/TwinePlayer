@@ -19,11 +19,18 @@
     scheduler: 'normal',
     steps: 20,
     cfg: 7,
+    seed: 'random',
+    batchSize: 1,
+    aspectPreset: 'portrait',
+    workflowMode: 'default',
+    customWorkflowJson: '',
     negativePrompt: 'blurry, low quality, watermark, text, ugly',
     maxPollingMs: 120000,
   });
 
   const TEXT_BACKENDS = new Set(['ollama', 'openai']);
+  const ASPECT_PRESETS = new Set(['custom', 'portrait', 'landscape', 'square', 'vn_background', 'comic_panel']);
+  const WORKFLOW_MODES = new Set(['default', 'custom']);
   const SAFE_FILENAME_PART_PATTERN = /[^a-z0-9_-]+/gi;
   const MAX_METADATA_STRING_LENGTH = 512;
   const MAX_METADATA_TEXT_LENGTH = 5000;
@@ -83,6 +90,13 @@
     return trimmed.slice(0, maxLength);
   };
 
+  const normalizeSeed = (value) => {
+    if (value === undefined || value === null || value === '' || value === 'random') return 'random';
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 'random';
+    return Math.round(Math.min(4294967295, Math.max(0, parsed)));
+  };
+
   const normalizeRendererIllustratorConfig = (config = {}, defaults = DEFAULT_RENDERER_ILLUSTRATOR_CONFIG) => {
     const source = isPlainObject(config) ? config : {};
     const safeDefaults = {
@@ -103,6 +117,11 @@
       scheduler: normalizeText(source.scheduler, safeDefaults.scheduler, 64),
       steps: parseNumber(source.steps, safeDefaults.steps, { min: 1, max: 150 }),
       cfg: parseNumber(source.cfg, safeDefaults.cfg, { min: 0, max: 30, integer: false }),
+      seed: normalizeSeed(source.seed),
+      batchSize: parseNumber(source.batchSize, safeDefaults.batchSize, { min: 1, max: 4 }),
+      aspectPreset: ASPECT_PRESETS.has(source.aspectPreset) ? source.aspectPreset : safeDefaults.aspectPreset,
+      workflowMode: WORKFLOW_MODES.has(source.workflowMode) ? source.workflowMode : safeDefaults.workflowMode,
+      customWorkflowJson: normalizeText(source.customWorkflowJson, safeDefaults.customWorkflowJson, 200000),
       negativePrompt: normalizeText(source.negativePrompt, safeDefaults.negativePrompt, 2000),
       maxPollingMs: parseNumber(source.maxPollingMs, safeDefaults.maxPollingMs, { min: 10000, max: 900000 }),
     };

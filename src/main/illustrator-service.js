@@ -40,6 +40,14 @@ const MAX_CHARACTER_NOTES_LENGTH = 4000;
 const MAX_WORLD_NOTES_LENGTH = 3000;
 const MAX_RECENT_CONTEXT_LENGTH = 4000;
 const MAX_PROMPT_TONE_LENGTH = 1000;
+const CUSTOM_WORKFLOW_TEMPLATE = 'comfyui-custom-workflow';
+const ASPECT_PRESET_DIMENSIONS = Object.freeze({
+  portrait: { width: 832, height: 1216 },
+  landscape: { width: 1216, height: 832 },
+  square: { width: 1024, height: 1024 },
+  vn_background: { width: 1344, height: 768 },
+  comic_panel: { width: 1024, height: 1536 },
+});
 
 const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -157,6 +165,8 @@ const createIllustrationMetadata = ({
   config,
   checkpoint,
   seed,
+  imageWidth,
+  imageHeight,
   imagePrompt,
   promptTemplateMode,
   sourceSceneText,
@@ -205,8 +215,8 @@ const createIllustrationMetadata = ({
     comfyUI: {
       endpointOrigin: safeConfig.comfyEndpoint,
       checkpoint: safeCheckpoint,
-      width: safeConfig.imageWidth,
-      height: safeConfig.imageHeight,
+      width: imageWidth || safeConfig.imageWidth,
+      height: imageHeight || safeConfig.imageHeight,
       sampler: safeConfig.sampler,
       scheduler: safeConfig.scheduler,
       steps: safeConfig.steps,
@@ -429,33 +439,153 @@ const generatePrompt = async (sceneText, modelOrParams, maybeConfig, maybePrompt
   return json.response.trim();
 };
 
-const queueComfyUI = async (params) => {
-  const { imagePrompt, outputFilename, checkpoint, config } = assertPlainObject(params, 'ComfyUI queue params');
-  const safeConfig = normalizeIllustratorConfig(config || {});
-  const safePrompt = assertString(imagePrompt, 'Image prompt', MAX_IMAGE_PROMPT_LENGTH);
-  const safeCheckpoint = assertString(checkpoint || safeConfig.checkpoint, 'ComfyUI checkpoint', MAX_MODEL_NAME_LENGTH);
-  const outputPrefix = normalizeImageFilename(`${assertString(outputFilename, 'Output filename', 128).replace(/\.png$/i, '')}.png`).replace(/\.png$/i, '');
-  const seed = Math.floor(Math.random() * 1e9);
+const getWorkflowDimensions = (safeConfig) => {
+  const preset = ASPECT_PRESET_DIMENSIONS[safeConfig.aspectPreset];
+  if (preset) return preset;
+  return {
+    width: safeConfig.imageWidth,
+    height: safeConfig.imageHeight,
+  };
+};
 
-  const workflow = {
+const resolveWorkflowSeed = (seed) => {
+  if (seed === 'random') return Math.floor(Math.random() * 1e9);
+  return seed;
+};
+
+const replaceWorkflowPlaceholders = (value, replacements) => {
+  if (Array.isArray(value)) {
+    return value.map(item => replaceWorkflowPlaceholders(item, replacements));
+  }
+
+  if (isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, replaceWorkflowPlaceholders(child, replacements)])
+    );
+  }
+
+  if (typeof value !== 'string') return value;
+
+  const exact = value.match(/^\{\{([a-z_]+)\}\}$/);
+  if (exact && Object.prototype.hasOwnProperty.call(replacements, exact[1])) {
+    return replacements[exact[1]];
+  }
+
+  return value.replace(/\{\{([a-z_]+)\}\}/g, (match, name) => {
+    if (!Object.prototype.hasOwnProperty.call(replacements, name)) return match;
+    return String(replacements[name]);
+  });
+};
+
+const parseCustomWorkflow = (workflowJson) => {
+  try {
+    const workflow = JSON.parse(assertString(workflowJson, 'Custom workflow JSON', 200000));
+    if (!isPlainObject(workflow)) {
+      throw new Error('Custom workflow must be a JSON object');
+    }
+    return workflow;
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error('Custom workflow JSON is invalid');
+    }
+    throw err;
+  }
+};
+
+const validateCustomWorkflow = (workflow) => {
+  const nodes = Object.values(workflow);
+  const hasPromptNode = nodes.some(node => {
+    if (!isPlainObject(node)) return false;
+    const classType = String(node.class_type || '').toLowerCase();
+    const inputs = isPlainObject(node.inputs) ? node.inputs : {};
+    return classType.includes('cliptextencode') ||
+      Object.values(inputs).some(value => typeof value === 'string' && value.includes('{{prompt}}'));
+  });
+  const hasImageOutputNode = nodes.some(node => {
+    if (!isPlainObject(node)) return false;
+    return String(node.class_type || '').toLowerCase().includes('saveimage');
+  });
+
+  if (!hasPromptNode) {
+    throw new Error('Custom workflow must include a prompt text node');
+  }
+  if (!hasImageOutputNode) {
+    throw new Error('Custom workflow must include a SaveImage output node');
+  }
+};
+
+const buildDefaultComfyUIWorkflow = ({ safePrompt, safeCheckpoint, safeConfig, outputPrefix, seed, width, height }) => {
+  return {
     "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": safeCheckpoint } },
     "2": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": safePrompt } },
     "3": { "class_type": "CLIPTextEncode", "inputs": { "clip": ["1", 1], "text": safeConfig.negativePrompt } },
-    "4": { "class_type": "EmptyLatentImage", "inputs": { "batch_size": 1, "height": safeConfig.imageHeight, "width": safeConfig.imageWidth } },
+    "4": { "class_type": "EmptyLatentImage", "inputs": { "batch_size": safeConfig.batchSize, "height": height, "width": width } },
     "5": { "class_type": "KSampler", "inputs": { "cfg": safeConfig.cfg, "denoise": 1, "latent_image": ["4", 0], "model": ["1", 0], "negative": ["3", 0], "positive": ["2", 0], "sampler_name": safeConfig.sampler, "scheduler": safeConfig.scheduler, "seed": seed, "steps": safeConfig.steps } },
     "6": { "class_type": "VAEDecode", "inputs": { "samples": ["5", 0], "vae": ["1", 2] } },
     "7": { "class_type": "SaveImage", "inputs": { "filename_prefix": outputPrefix, "images": ["6", 0] } },
   };
+};
 
-  const json = await httpPostJson(joinEndpointPath(safeConfig.comfyEndpoint, '/prompt'), { prompt: workflow }, DEFAULT_TIMEOUT_MS);
+const buildComfyUIWorkflow = (params) => {
+  const { imagePrompt, outputFilename, checkpoint, config } = assertPlainObject(params, 'ComfyUI workflow params');
+  const safeConfig = normalizeIllustratorConfig(config || {});
+  const safePrompt = assertString(imagePrompt, 'Image prompt', MAX_IMAGE_PROMPT_LENGTH);
+  const safeCheckpoint = assertString(checkpoint || safeConfig.checkpoint, 'ComfyUI checkpoint', MAX_MODEL_NAME_LENGTH);
+  const outputPrefix = normalizeImageFilename(`${assertString(outputFilename, 'Output filename', 128).replace(/\.png$/i, '')}.png`).replace(/\.png$/i, '');
+  const seed = resolveWorkflowSeed(safeConfig.seed);
+  const { width, height } = getWorkflowDimensions(safeConfig);
+
+  if (safeConfig.workflowMode === 'custom') {
+    const rawWorkflow = parseCustomWorkflow(safeConfig.customWorkflowJson);
+    validateCustomWorkflow(rawWorkflow);
+    const workflow = replaceWorkflowPlaceholders(rawWorkflow, {
+      prompt: safePrompt,
+      negative_prompt: safeConfig.negativePrompt,
+      checkpoint: safeCheckpoint,
+      seed,
+      width,
+      height,
+      batch_size: safeConfig.batchSize,
+      output_prefix: outputPrefix,
+    });
+
+    return {
+      workflow,
+      seed,
+      width,
+      height,
+      outputPrefix,
+      workflowTemplate: CUSTOM_WORKFLOW_TEMPLATE,
+      workflowVersion: DEFAULT_WORKFLOW_VERSION,
+    };
+  }
+
+  return {
+    workflow: buildDefaultComfyUIWorkflow({ safePrompt, safeCheckpoint, safeConfig, outputPrefix, seed, width, height }),
+    seed,
+    width,
+    height,
+    outputPrefix,
+    workflowTemplate: DEFAULT_WORKFLOW_TEMPLATE,
+    workflowVersion: DEFAULT_WORKFLOW_VERSION,
+  };
+};
+
+const queueComfyUI = async (params) => {
+  const built = buildComfyUIWorkflow(assertPlainObject(params, 'ComfyUI queue params'));
+
+  const safeConfig = normalizeIllustratorConfig(params.config || {});
+  const json = await httpPostJson(joinEndpointPath(safeConfig.comfyEndpoint, '/prompt'), { prompt: built.workflow }, DEFAULT_TIMEOUT_MS);
   if (typeof json.prompt_id !== 'string' || json.prompt_id.trim() === '') {
     throw new Error('ComfyUI queue response did not include prompt_id');
   }
   return {
     promptId: json.prompt_id.trim(),
-    seed,
-    workflowTemplate: DEFAULT_WORKFLOW_TEMPLATE,
-    workflowVersion: DEFAULT_WORKFLOW_VERSION,
+    seed: built.seed,
+    width: built.width,
+    height: built.height,
+    workflowTemplate: built.workflowTemplate,
+    workflowVersion: built.workflowVersion,
   };
 };
 
@@ -510,6 +640,8 @@ const pollImage = async (params) => {
           config: safeConfig,
           checkpoint: metadataInput.checkpoint,
           seed: metadataInput.seed,
+          imageWidth: metadataInput.width,
+          imageHeight: metadataInput.height,
           imagePrompt: metadataInput.imagePrompt,
           promptTemplateMode: metadataInput.promptTemplateMode,
           sourceSceneText: metadataInput.sourceSceneText,
@@ -550,6 +682,7 @@ const pollImage = async (params) => {
 
 module.exports = {
   DEFAULT_ILLUSTRATOR_CONFIG,
+  buildComfyUIWorkflow,
   checkIllustratorHealth,
   createVisualPromptInstruction,
   ensureOutputDir,

@@ -377,7 +377,7 @@ Relevant files:
 
 ## Slice 7: ComfyUI Workflow Builder Upgrade
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -418,6 +418,14 @@ Relevant files:
 
 - Generations can be reproduced by seed and metadata.
 - Advanced users can use custom workflows without breaking the simple default path.
+
+### Progress Notes
+
+- Extracted ComfyUI workflow construction into `buildComfyUIWorkflow()`.
+- Added seed, batch size, aspect preset, workflow mode, and custom workflow JSON config fields with normalization and renderer controls.
+- Default workflows now return the actual seed, width, and height used, and batch size is clamped conservatively.
+- Added guarded custom workflow support with placeholder replacement for prompt, negative prompt, checkpoint, seed, width, height, batch size, and output prefix.
+- Custom workflows are validated for prompt text and SaveImage output nodes before queueing.
 
 ## Slice 8: Job Model, Progress, Retry, and Cancellation
 

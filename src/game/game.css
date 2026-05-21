@@ -1235,6 +1235,26 @@
             color: #fca5a5;
         }
 
+        .illus-advanced-workflow {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .illus-advanced-workflow summary {
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .illus-advanced-workflow textarea {
+            margin-top: 8px;
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
+        }
+
         /* Right column: image display */
         .illus-image-panel {
             flex: 0 0 320px;
