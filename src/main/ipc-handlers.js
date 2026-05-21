@@ -225,9 +225,9 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
     }
   });
 
-  ipcMain.handle('illustrator:generate-prompt', async (event, sceneText, model, config) => {
+  ipcMain.handle('illustrator:generate-prompt', async (event, sceneText, model, config, promptContext) => {
     try {
-      return { success: true, prompt: await generatePrompt(sceneText, model, config) };
+      return { success: true, prompt: await generatePrompt(sceneText, model, config, promptContext) };
     } catch (err) {
       console.error('Text prompt generate error:', getErrorMessage(err));
       return { success: false, error: getErrorMessage(err) };

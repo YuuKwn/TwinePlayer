@@ -67,10 +67,11 @@ contextBridge.exposeInMainWorld('illustratorAPI', {
         assertPlainObject(config, 'Illustrator config');
         return ipcRenderer.invoke('illustrator:check-health', config);
     },
-    generatePrompt: (sceneText, model, config) => {
+    generatePrompt: (sceneText, model, config, promptContext = {}) => {
         assertString(sceneText, 'Scene text');
         assertString(model, 'Ollama model');
-        return ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model, config);
+        assertPlainObject(promptContext, 'Prompt context');
+        return ipcRenderer.invoke('illustrator:generate-prompt', sceneText, model, config, promptContext);
     },
     queueComfyUI: (params) => {
         assertPlainObject(params, 'ComfyUI queue params');

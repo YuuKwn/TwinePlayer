@@ -228,6 +228,39 @@
 
                     <div class="illus-settings-grid">
                         <label>
+                            <span class="illus-label">Prompt Mode</span>
+                            <select id="illus-prompt-mode-select" class="illus-select">
+                                <option value="vn_background">VN scene background</option>
+                                <option value="vn_character_cg">VN character CG</option>
+                                <option value="comic_panel">Comic panel</option>
+                                <option value="manga_panel">Manga panel</option>
+                                <option value="concept_art">Concept art</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span class="illus-label">Prompt Tone</span>
+                            <input id="illus-prompt-tone-input" class="illus-input" type="text" autocomplete="off">
+                        </label>
+                    </div>
+
+                    <label>
+                        <span class="illus-label">Visual Style Bible</span>
+                        <textarea id="illus-style-bible-text" class="illus-textarea illus-textarea-small"></textarea>
+                    </label>
+
+                    <div class="illus-settings-grid">
+                        <label>
+                            <span class="illus-label">Character Roster</span>
+                            <textarea id="illus-character-roster-text" class="illus-textarea illus-textarea-small"></textarea>
+                        </label>
+                        <label>
+                            <span class="illus-label">World Notes</span>
+                            <textarea id="illus-world-notes-text" class="illus-textarea illus-textarea-small"></textarea>
+                        </label>
+                    </div>
+
+                    <div class="illus-settings-grid">
+                        <label>
                             <span class="illus-label">Text Backend</span>
                             <select id="illus-text-backend-select" class="illus-select">
                                 <option value="ollama">Ollama</option>

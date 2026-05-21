@@ -7,6 +7,7 @@ const test = require('node:test');
 
 const {
   checkIllustratorHealth,
+  createVisualPromptInstruction,
   generatePrompt,
   listComfyUIModels,
   listTextModels,
@@ -14,6 +15,14 @@ const {
   pollImage,
   queueComfyUI,
 } = require('../src/main/illustrator-service');
+
+const PROMPT_LABEL_PATTERNS = {
+  vn_background: 'VN scene background',
+  vn_character_cg: 'VN character CG',
+  comic_panel: 'Comic panel',
+  manga_panel: 'Manga panel',
+  concept_art: 'Concept art',
+};
 
 const readJsonBody = async (req) => {
   const chunks = [];
@@ -118,6 +127,46 @@ test('generatePrompt rejects malformed OpenAI-compatible responses', async () =>
       /choices\[0\]\.message\.content/
     );
   });
+});
+
+test('createVisualPromptInstruction includes style bible and character memory', () => {
+  const instruction = createVisualPromptInstruction('A detective enters the rain-soaked arcade.', {
+    mode: 'comic_panel',
+    styleBible: 'neon noir, saturated reflections',
+    characterNotes: 'Mira: red coat, tired eyes',
+    worldNotes: 'The city is built over old canals.',
+    promptTone: 'punchy, visual, concrete',
+    recentContext: 'Mira found a broken token.',
+  });
+
+  assert.match(instruction, /Template mode: Comic panel/);
+  assert.match(instruction, /neon noir/);
+  assert.match(instruction, /Mira: red coat/);
+  assert.match(instruction, /old canals/);
+  assert.match(instruction, /broken token/);
+  assert.match(instruction, /Avoid speech bubbles/);
+});
+
+test('createVisualPromptInstruction rejects oversized structured prompt context', () => {
+  assert.throws(
+    () => createVisualPromptInstruction('Scene', { styleBible: 'x'.repeat(4001) }),
+    /Style bible is too long/
+  );
+  assert.throws(
+    () => createVisualPromptInstruction('Scene', { recentContext: 'x'.repeat(4001) }),
+    /Recent scene context is too long/
+  );
+});
+
+test('createVisualPromptInstruction creates distinguishable mode instructions', () => {
+  const scene = 'A hero watches the harbor.';
+  const modes = ['vn_background', 'vn_character_cg', 'comic_panel', 'manga_panel', 'concept_art'];
+  const instructions = modes.map(mode => createVisualPromptInstruction(scene, { mode }));
+
+  modes.forEach((mode, index) => {
+    assert.match(instructions[index], new RegExp(PROMPT_LABEL_PATTERNS[mode]));
+  });
+  assert.equal(new Set(instructions).size, modes.length);
 });
 
 test('listComfyUIModels reads checkpoint names', async () => {
@@ -328,6 +377,7 @@ test('pollImage downloads image and writes local metadata sidecar', async () => 
         metadata: {
           sourceSceneText: 'A moonlit library with a velvet chair and blue dust.',
           imagePrompt: 'moonlit library, blue dust, old velvet chair',
+          promptTemplateMode: 'vn_background',
           promptGeneratedAt: '2026-05-01T12:00:00.000Z',
           documentTitle: 'Example Story',
           passageIdentity: 'library-night',
@@ -360,6 +410,7 @@ test('pollImage downloads image and writes local metadata sidecar', async () => 
       assert.match(metadata.scene.textHash, /^[a-f0-9]{64}$/);
       assert.equal(metadata.prompt.final, 'moonlit library, blue dust, old velvet chair');
       assert.equal(metadata.prompt.negative, 'bad hands');
+      assert.equal(metadata.prompt.templateMode, 'vn_background');
       assert.equal(metadata.prompt.textBackend, 'openai');
       assert.equal(metadata.prompt.textModel, 'local-mlx');
       assert.equal(metadata.prompt.generatedAt, '2026-05-01T12:00:00.000Z');

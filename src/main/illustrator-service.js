@@ -25,6 +25,7 @@ const {
 const {
   DEFAULT_WORKFLOW_TEMPLATE,
   DEFAULT_WORKFLOW_VERSION,
+  PROMPT_TEMPLATE_MODES,
   createSceneExcerpt,
   normalizeIllustrationMetadata,
 } = require('../shared/illustrator-helpers');
@@ -34,6 +35,11 @@ const DEFAULT_TIMEOUT_MS = 10000;
 const TEXT_TIMEOUT_MS = 60000;
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_STYLE_BIBLE_LENGTH = 4000;
+const MAX_CHARACTER_NOTES_LENGTH = 4000;
+const MAX_WORLD_NOTES_LENGTH = 3000;
+const MAX_RECENT_CONTEXT_LENGTH = 4000;
+const MAX_PROMPT_TONE_LENGTH = 1000;
 
 const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -152,6 +158,7 @@ const createIllustrationMetadata = ({
   checkpoint,
   seed,
   imagePrompt,
+  promptTemplateMode,
   sourceSceneText,
   promptGeneratedAt,
   passageIdentity,
@@ -190,6 +197,7 @@ const createIllustrationMetadata = ({
     prompt: {
       final: imagePrompt,
       negative: safeConfig.negativePrompt,
+      templateMode: promptTemplateMode,
       textBackend: safeConfig.textBackend,
       textModel: safeConfig.textModel,
       generatedAt: promptGeneratedAt,
@@ -220,8 +228,60 @@ const createIllustrationMetadata = ({
   });
 };
 
-const createVisualPromptInstruction = (sceneText) => {
-  return `You are a visual art director. Given the following scene from a text adventure game, write a concise image generation prompt (under 100 words) describing the visual scene. Focus on: setting, lighting, mood, colors, and any key characters or objects. Do not include any explanation - only the prompt text.\n\nScene:\n${sceneText}`;
+const normalizeOptionalPromptText = (value, label, maxLength) => {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') return '';
+  if (!value.trim()) return '';
+  const text = assertString(value, label, maxLength);
+  return text;
+};
+
+const normalizePromptMode = (mode) => {
+  return Object.prototype.hasOwnProperty.call(PROMPT_TEMPLATE_MODES, mode) ? mode : 'vn_background';
+};
+
+const getModeInstruction = (mode) => {
+  switch (mode) {
+    case 'vn_character_cg':
+      return 'Create a visual novel character CG prompt focused on the key character pose, expression, outfit, lighting, and background support.';
+    case 'comic_panel':
+      return 'Create a western comic panel prompt with clear panel composition, camera angle, action, environment, and dramatic lighting.';
+    case 'manga_panel':
+      return 'Create a manga panel prompt with monochrome-friendly composition, expressive posing, screen-tone-ready lighting, and cinematic framing.';
+    case 'concept_art':
+      return 'Create a concept art prompt emphasizing design clarity, mood, materials, environment, and production-art readability.';
+    case 'vn_background':
+    default:
+      return 'Create a visual novel scene background prompt focused on setting, mood, time of day, lighting, color palette, and reusable background details.';
+  }
+};
+
+const createVisualPromptInstruction = (sceneText, promptContext = {}) => {
+  const safeSceneText = assertString(sceneText, 'Scene text', MAX_SCENE_TEXT_LENGTH);
+  const context = isPlainObject(promptContext) ? promptContext : {};
+  const mode = normalizePromptMode(context.mode || context.shotMode);
+  const recentContext = normalizeOptionalPromptText(context.recentContext, 'Recent scene context', MAX_RECENT_CONTEXT_LENGTH);
+  const styleBible = normalizeOptionalPromptText(context.styleBible, 'Style bible', MAX_STYLE_BIBLE_LENGTH);
+  const characterNotes = normalizeOptionalPromptText(context.characterNotes || context.characterRoster, 'Character notes', MAX_CHARACTER_NOTES_LENGTH);
+  const worldNotes = normalizeOptionalPromptText(context.worldNotes, 'World notes', MAX_WORLD_NOTES_LENGTH);
+  const promptTone = normalizeOptionalPromptText(context.promptTone || context.tone, 'Prompt tone', MAX_PROMPT_TONE_LENGTH);
+
+  const sections = [
+    'You are a visual art director adapting a Twine scene into image-generation art.',
+    getModeInstruction(mode),
+    'Write one concise image prompt under 100 words. Output only the prompt text, with no explanation.',
+    'Avoid speech bubbles, captions, UI, watermarks, logos, and readable text unless the scene explicitly requires readable text.',
+    `Template mode: ${PROMPT_TEMPLATE_MODES[mode]}.`,
+  ];
+
+  if (styleBible) sections.push(`Visual style bible:\n${styleBible}`);
+  if (characterNotes) sections.push(`Character roster and continuity notes:\n${characterNotes}`);
+  if (worldNotes) sections.push(`World and location notes:\n${worldNotes}`);
+  if (promptTone) sections.push(`Prompt language and tone preferences:\n${promptTone}`);
+  if (recentContext) sections.push(`Recent story context:\n${recentContext}`);
+  sections.push(`Current scene:\n${safeSceneText}`);
+
+  return sections.join('\n\n');
 };
 
 const ensureOutputDir = async (gamePath) => {
@@ -329,14 +389,14 @@ const checkIllustratorHealth = async (config = {}) => {
   };
 };
 
-const generatePrompt = async (sceneText, modelOrParams, maybeConfig) => {
+const generatePrompt = async (sceneText, modelOrParams, maybeConfig, maybePromptContext) => {
   const safeSceneText = assertString(sceneText, 'Scene text', MAX_SCENE_TEXT_LENGTH);
   const params = modelOrParams && typeof modelOrParams === 'object' && !Array.isArray(modelOrParams)
     ? modelOrParams
-    : { model: modelOrParams, config: maybeConfig };
+    : { model: modelOrParams, config: maybeConfig, promptContext: maybePromptContext };
   const safeConfig = normalizeIllustratorConfig(params.config || {});
   const safeModel = assertString(params.model || safeConfig.textModel, 'Text model', MAX_MODEL_NAME_LENGTH);
-  const prompt = createVisualPromptInstruction(safeSceneText);
+  const prompt = createVisualPromptInstruction(safeSceneText, params.promptContext || {});
 
   if (safeConfig.textBackend === 'openai') {
     const json = await httpPostJson(joinEndpointPath(safeConfig.textEndpoint, '/chat/completions'), {
@@ -451,6 +511,7 @@ const pollImage = async (params) => {
           checkpoint: metadataInput.checkpoint,
           seed: metadataInput.seed,
           imagePrompt: metadataInput.imagePrompt,
+          promptTemplateMode: metadataInput.promptTemplateMode,
           sourceSceneText: metadataInput.sourceSceneText,
           promptGeneratedAt: metadataInput.promptGeneratedAt,
           passageIdentity: metadataInput.passageIdentity,
@@ -490,6 +551,7 @@ const pollImage = async (params) => {
 module.exports = {
   DEFAULT_ILLUSTRATOR_CONFIG,
   checkIllustratorHealth,
+  createVisualPromptInstruction,
   ensureOutputDir,
   generatePrompt,
   listComfyUIModels,

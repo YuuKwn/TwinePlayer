@@ -50,6 +50,20 @@
       builtIn: true,
     },
   ]);
+  const PROMPT_TEMPLATE_MODES = Object.freeze({
+    vn_background: 'VN scene background',
+    vn_character_cg: 'VN character CG',
+    comic_panel: 'Comic panel',
+    manga_panel: 'Manga panel',
+    concept_art: 'Concept art',
+  });
+  const DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS = Object.freeze({
+    styleBible: '',
+    characterRoster: '',
+    worldNotes: '',
+    shotMode: 'vn_background',
+    promptTone: '',
+  });
 
   const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -91,6 +105,21 @@
       cfg: parseNumber(source.cfg, safeDefaults.cfg, { min: 0, max: 30, integer: false }),
       negativePrompt: normalizeText(source.negativePrompt, safeDefaults.negativePrompt, 2000),
       maxPollingMs: parseNumber(source.maxPollingMs, safeDefaults.maxPollingMs, { min: 10000, max: 900000 }),
+    };
+  };
+
+  const normalizeIllustratorProjectSettings = (settings = {}) => {
+    const source = isPlainObject(settings) ? settings : {};
+    const shotMode = Object.prototype.hasOwnProperty.call(PROMPT_TEMPLATE_MODES, source.shotMode)
+      ? source.shotMode
+      : DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS.shotMode;
+
+    return {
+      styleBible: normalizeText(source.styleBible, DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS.styleBible, 4000),
+      characterRoster: normalizeText(source.characterRoster, DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS.characterRoster, 4000),
+      worldNotes: normalizeText(source.worldNotes, DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS.worldNotes, 3000),
+      shotMode,
+      promptTone: normalizeText(source.promptTone, DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS.promptTone, 1000),
     };
   };
 
@@ -326,6 +355,7 @@
       prompt: {
         final: normalizeOptionalString(pickMetadataValue(prompt.final, source.imagePrompt), MAX_METADATA_TEXT_LENGTH),
         negative: normalizeOptionalString(pickMetadataValue(prompt.negative, source.negativePrompt), MAX_METADATA_TEXT_LENGTH),
+        templateMode: normalizeOptionalString(pickMetadataValue(prompt.templateMode, source.promptTemplateMode), 64),
         textBackend: normalizeOptionalString(pickMetadataValue(prompt.textBackend, source.textBackend), 64),
         textModel: normalizeOptionalString(pickMetadataValue(prompt.textModel, source.textModel), 256),
         generatedAt: normalizeIsoTimestamp(pickMetadataValue(prompt.generatedAt, source.promptGeneratedAt)),
@@ -357,16 +387,19 @@
   };
 
   return {
+    DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS,
     DEFAULT_SERVICE_PROFILES,
     DEFAULT_RENDERER_ILLUSTRATOR_CONFIG,
     DEFAULT_WORKFLOW_TEMPLATE,
     DEFAULT_WORKFLOW_VERSION,
+    PROMPT_TEMPLATE_MODES,
     classifyEndpointHost,
     createOutputFilename,
     createSceneExcerpt,
     createServiceProfileId,
     getIllustrationDisplayState,
     hashSceneText,
+    normalizeIllustratorProjectSettings,
     normalizeIllustrationMetadata,
     normalizeRendererIllustratorConfig,
     normalizeSceneContext,

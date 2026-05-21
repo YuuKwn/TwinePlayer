@@ -318,7 +318,7 @@ Relevant files:
 
 ## Slice 6: Prompt Templates, Style Bible, and Character Memory
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -366,6 +366,14 @@ Relevant files:
 
 - Users can build consistent visual identity across a game.
 - Prompt generation is still simple for first-time users.
+
+### Progress Notes
+
+- Added per-game Illustrator project settings in localStorage for style bible, character roster, world notes, prompt mode, and prompt tone.
+- Added prompt template modes for VN background, VN character CG, comic panel, manga panel, and concept art.
+- `createVisualPromptInstruction()` now accepts bounded structured context, includes continuity/style fields when present, and preserves the original simple scene-only path.
+- Generated prompt requests include recent captured scene context when available, and image metadata records the source prompt template mode.
+- Added Node coverage for project setting normalization, prompt mode distinctions, style/character inclusion, and oversized context rejection.
 
 ## Slice 7: ComfyUI Workflow Builder Upgrade
 

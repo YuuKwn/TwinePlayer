@@ -4,6 +4,7 @@
 
         const ILLUSTRATOR_CONFIG_KEY = 'twine_player_illustrator_config';
         const {
+            DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS,
             DEFAULT_RENDERER_ILLUSTRATOR_CONFIG,
             classifyEndpointHost,
             createOutputFilename,
@@ -11,12 +12,14 @@
             createServiceProfileId,
             getIllustrationDisplayState,
             hashSceneText,
+            normalizeIllustratorProjectSettings,
             normalizeRendererIllustratorConfig,
             normalizeSceneContext,
             normalizeServiceProfiles,
             updateSceneContextHistory,
         } = window.TwinePlayerIllustratorHelpers;
         const ILLUSTRATOR_PROFILES_KEY = 'twine_player_illustrator_profiles';
+        const ILLUSTRATOR_PROJECT_KEY_PREFIX = 'twine_player_illustrator_project';
 
         const illusOverlay = document.getElementById('illustrator-modal-overlay');
         const illusStatus = document.getElementById('illus-status');
@@ -32,6 +35,11 @@
         const profileSelect = document.getElementById('illus-profile-select');
         const saveProfileBtn = document.getElementById('illus-save-profile-btn');
         const testConnectionsBtn = document.getElementById('illus-test-connections-btn');
+        const promptModeSelect = document.getElementById('illus-prompt-mode-select');
+        const promptToneInput = document.getElementById('illus-prompt-tone-input');
+        const styleBibleText = document.getElementById('illus-style-bible-text');
+        const characterRosterText = document.getElementById('illus-character-roster-text');
+        const worldNotesText = document.getElementById('illus-world-notes-text');
         const textBackendSelect = document.getElementById('illus-text-backend-select');
         const textEndpointInput = document.getElementById('illus-text-endpoint-input');
         const textEndpointClass = document.getElementById('illus-text-endpoint-class');
@@ -238,6 +246,37 @@
             return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
         };
 
+        const getIllustratorProjectKey = () => {
+            return `${ILLUSTRATOR_PROJECT_KEY_PREFIX}:${hashSceneText(gameUrl || title || 'default')}`;
+        };
+
+        const readProjectSettings = () => {
+            return normalizeIllustratorProjectSettings(
+                window.TwinePlayerStorage.readJson(localStorage, getIllustratorProjectKey(), DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS)
+            );
+        };
+
+        const getProjectSettings = () => normalizeIllustratorProjectSettings({
+            styleBible: styleBibleText.value,
+            characterRoster: characterRosterText.value,
+            worldNotes: worldNotesText.value,
+            shotMode: promptModeSelect.value,
+            promptTone: promptToneInput.value,
+        });
+
+        const applyProjectSettings = (settings) => {
+            const normalized = normalizeIllustratorProjectSettings(settings);
+            styleBibleText.value = normalized.styleBible;
+            characterRosterText.value = normalized.characterRoster;
+            worldNotesText.value = normalized.worldNotes;
+            promptModeSelect.value = normalized.shotMode;
+            promptToneInput.value = normalized.promptTone;
+        };
+
+        const persistProjectSettings = () => {
+            window.TwinePlayerStorage.writeJson(localStorage, getIllustratorProjectKey(), getProjectSettings());
+        };
+
         const readStoredProfiles = () => {
             return window.TwinePlayerStorage.readJson(localStorage, ILLUSTRATOR_PROFILES_KEY, {});
         };
@@ -328,6 +367,7 @@
             }
             renderServiceProfiles();
             applyIllustratorConfig(normalizeRendererIllustratorConfig(readStoredConfig(), illustratorDefaults));
+            applyProjectSettings(readProjectSettings());
         };
 
         const getFocusableElements = (container) => {
@@ -483,6 +523,17 @@
         iframe.addEventListener('load', setupSceneObserver);
 
         [
+            promptModeSelect,
+            promptToneInput,
+            styleBibleText,
+            characterRosterText,
+            worldNotesText,
+        ].forEach(element => {
+            element.addEventListener('change', persistProjectSettings);
+            element.addEventListener('blur', persistProjectSettings);
+        });
+
+        [
             textBackendSelect,
             textEndpointInput,
             ollamaModelSelect,
@@ -548,6 +599,30 @@
             }
         });
 
+        const getRecentSceneContextText = () => {
+            const currentHash = currentSceneContext ? currentSceneContext.sceneHash : null;
+            return sceneContextHistory
+                .filter(context => context.sceneHash !== currentHash)
+                .slice(0, 4)
+                .map(context => {
+                    const label = context.passageName || context.documentTitle || 'Scene';
+                    return `${label}: ${context.textExcerpt}`;
+                })
+                .join('\n');
+        };
+
+        const getPromptContext = () => {
+            const settings = getProjectSettings();
+            return {
+                mode: settings.shotMode,
+                styleBible: settings.styleBible,
+                characterNotes: settings.characterRoster,
+                worldNotes: settings.worldNotes,
+                promptTone: settings.promptTone,
+                recentContext: getRecentSceneContextText(),
+            };
+        };
+
         document.getElementById('illus-generate-prompt-btn').addEventListener('click', async () => {
             const sceneText = illusSceneText.value.trim();
             if (!sceneText) {
@@ -556,13 +631,15 @@
             }
 
             persistIllustratorConfig();
+            persistProjectSettings();
             const config = getIllustratorConfig();
             const chosenModel = config.textModel;
+            const promptContext = getPromptContext();
 
             document.getElementById('illus-generate-prompt-btn').disabled = true;
             setIllusStatus(`Asking ${chosenModel}...`, 'working');
 
-            const res = await window.illustratorAPI.generatePrompt(sceneText, chosenModel, config);
+            const res = await window.illustratorAPI.generatePrompt(sceneText, chosenModel, config, promptContext);
 
             document.getElementById('illus-generate-prompt-btn').disabled = false;
 
@@ -583,7 +660,9 @@
             }
 
             persistIllustratorConfig();
+            persistProjectSettings();
             const config = getIllustratorConfig();
+            const projectSettings = getProjectSettings();
             const checkpoint = config.checkpoint;
             const sourceSceneText = illusSceneText.value.trim();
             const sceneIdentity = currentSceneContext && !sceneTextDirty
@@ -644,6 +723,7 @@
                     metadata: {
                         sourceSceneText,
                         imagePrompt: prompt,
+                        promptTemplateMode: projectSettings.shotMode,
                         promptGeneratedAt: lastPromptGeneratedAt,
                         documentTitle,
                         passageIdentity: sceneIdentity,

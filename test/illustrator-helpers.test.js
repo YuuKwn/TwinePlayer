@@ -8,6 +8,7 @@ const {
   createServiceProfileId,
   getIllustrationDisplayState,
   hashSceneText,
+  normalizeIllustratorProjectSettings,
   normalizeIllustrationMetadata,
   normalizeRendererIllustratorConfig,
   normalizeSceneContext,
@@ -79,7 +80,7 @@ test('normalizeIllustrationMetadata handles rich and legacy sidecars', () => {
     game: { basename: 'Example.html' },
     passage: { identity: 'library-night', title: 'Library Night' },
     scene: { textExcerpt: 'Moonlit room', textHash: 'abc123' },
-    prompt: { final: 'blue moonlight', generatedAt: '2026-05-01T12:00:00.000Z' },
+    prompt: { final: 'blue moonlight', templateMode: 'comic_panel', generatedAt: '2026-05-01T12:00:00.000Z' },
     comfyUI: { promptId: 'done', seed: 12, endpointOrigin: 'http://127.0.0.1:8188/path' },
     output: { localFilename: 'chapter.png', byteSize: 4 },
   });
@@ -87,6 +88,7 @@ test('normalizeIllustrationMetadata handles rich and legacy sidecars', () => {
   assert.equal(rich.twinePlayerIllustrationVersion, 1);
   assert.equal(rich.game.basename, 'Example.html');
   assert.equal(rich.comfyUI.endpointOrigin, 'http://127.0.0.1:8188');
+  assert.equal(rich.prompt.templateMode, 'comic_panel');
   assert.equal(rich.comfyUI.seed, 12);
   assert.equal(rich.output.localFilename, 'chapter.png');
 
@@ -180,4 +182,21 @@ test('updateSceneContextHistory dedupes and bounds recent contexts', () => {
     ['third', 'first']
   );
   assert.deepEqual(updateSceneContextHistory([first], { text: '   ' }), [first]);
+});
+
+test('normalizeIllustratorProjectSettings bounds project style memory', () => {
+  const settings = normalizeIllustratorProjectSettings({
+    styleBible: ` watercolor ${'x'.repeat(5000)} `,
+    characterRoster: ' Hero: silver hair ',
+    worldNotes: ' coastal city ',
+    shotMode: 'comic_panel',
+    promptTone: ' quiet and restrained ',
+  });
+
+  assert.equal(settings.styleBible.length, 4000);
+  assert.equal(settings.characterRoster, 'Hero: silver hair');
+  assert.equal(settings.worldNotes, 'coastal city');
+  assert.equal(settings.shotMode, 'comic_panel');
+  assert.equal(settings.promptTone, 'quiet and restrained');
+  assert.deepEqual(normalizeIllustratorProjectSettings({ shotMode: 'bad-mode' }).shotMode, 'vn_background');
 });
