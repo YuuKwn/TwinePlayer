@@ -11,7 +11,7 @@ It keeps a local game library, stores saves as files next to each game, includes
 - Native save manager with paginated save/load/delete controls.
 - Async, atomic save writes into `<game>_saves/` folders with filename validation and stale temp cleanup.
 - In-game developer console with autocomplete and per-game saved commands.
-- Configurable AI Illustrator with Ollama or OpenAI-compatible text backends plus ComfyUI image generation, local image copies, and metadata sidecars.
+- Configurable AI Illustrator with Ollama or OpenAI-compatible text backends, ComfyUI image generation, job history, gallery/dock views, local image copies, and metadata sidecars.
 - Hardened renderer/main IPC boundaries and CSP.
 - Windows CI workflow that runs syntax checks and the Node test suite.
 
@@ -43,7 +43,14 @@ Build outputs are written to `dist/`.
 
 ## AI Illustrator
 
-The Illustrator feature is optional.
+The Illustrator feature is optional and works as a local-first scene art workflow:
+
+1. Open a Twine game.
+2. Click **Illustrate** in the player top bar.
+3. Capture or edit the current scene text.
+4. Generate or write an image prompt.
+5. Queue the image in ComfyUI.
+6. Review the result in the modal gallery or the in-game Art Dock.
 
 Text backend options:
 - Ollama at `http://localhost:11434`
@@ -52,11 +59,13 @@ Text backend options:
 Image backend:
 - ComfyUI at `http://localhost:8188` by default
 
-All Illustrator endpoints and generation settings are configurable in the Illustrator panel.
+Generated images are copied beside the game into `<game>_illustrations/`. Each copied image gets a `.json` sidecar with prompt, scene, generation, workflow, and output metadata.
+
+All Illustrator endpoints and generation settings are configurable in the Illustrator panel. Local endpoints are the defaults. If you choose a LAN or remote endpoint, scene text and prompts are sent to that endpoint.
 
 ## Documentation
 
-See [docs/documentation.md](docs/documentation.md) for architecture, setup notes, IPC references, testing, troubleshooting, and release guidance. See [docs/remaining-phases-handoff.md](docs/remaining-phases-handoff.md) for the completed implementation-plan history and the current release-readiness handoff.
+See [docs/documentation.md](docs/documentation.md) for architecture, Illustrator setup, IPC references, testing, troubleshooting, and release guidance. See [docs/ai-illustrator-improvement-plan.md](docs/ai-illustrator-improvement-plan.md) for the completed Illustrator slice history.
 
 ## License
 

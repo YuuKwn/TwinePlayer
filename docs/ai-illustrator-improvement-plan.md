@@ -657,7 +657,7 @@ Relevant files:
 
 ## Slice 12: Documentation and Release Readiness
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -693,6 +693,14 @@ Relevant files:
 
 - A new user can understand how to set up the Illustrator.
 - A future Codex run can tell what remains planned and what is complete.
+
+### Progress Notes
+
+- Expanded README Illustrator guidance with the default workflow, service endpoints, output sidecar location, and privacy note for non-local endpoints.
+- Expanded `docs/documentation.md` with Ollama/OpenAI-compatible/ComfyUI setup, default workflow steps, configurable generation settings, gallery/dock behavior, sidecar metadata contents, and privacy expectations.
+- Added troubleshooting for empty model lists, missing checkpoints, pending jobs, and ComfyUI images that are not copied locally.
+- Updated IPC and release documentation to include gallery/job APIs, mocked Illustrator integration coverage, and one manual local-service smoke test when available.
+- Integration tests remain documented but unrun per user instruction.
 
 ## Trust and Safety Review Notes
 
