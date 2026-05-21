@@ -488,7 +488,7 @@ Relevant files:
 
 ## Slice 9: Per-Game Gallery and Scene Image Dock
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -538,6 +538,14 @@ Relevant files:
 
 - Generated images are discoverable inside TwinePlayer.
 - The player can use the app like a lightweight VN/comic adaptation viewer.
+
+### Progress Notes
+
+- Added authorized gallery operations for listing illustration metadata, reading images as data URLs, and deleting images with their sidecar metadata.
+- Added a bounded in-modal gallery with current-scene/all filters, thumbnail loading, dock assignment, delete, and prompt reuse for regeneration with a varied seed.
+- Added an in-game illustration dock with a preview, recent thumbnail strip, top-bar toggle, hide control, and keyboard arrow navigation between thumbnails.
+- Completed Node coverage for unauthorized gallery access, safe image reads, delete-with-sidecar behavior, and dock accessibility affordances.
+- Kept Electron integration tests unrun per project instruction.
 
 ## Slice 10: UI, Accessibility, and Reduced-Motion Polish
 

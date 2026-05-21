@@ -65,6 +65,16 @@
         const cancelImageBtn = document.getElementById('illus-cancel-image-btn');
         const retryImageBtn = document.getElementById('illus-retry-image-btn');
         const illusJobDetails = document.getElementById('illus-job-details');
+        const toggleIllustrationDockBtn = document.getElementById('toggle-illustration-dock');
+        const illustrationDock = document.getElementById('illustration-dock');
+        const illustrationDockHideBtn = document.getElementById('illustration-dock-hide-btn');
+        const illustrationDockGalleryBtn = document.getElementById('illustration-dock-gallery-btn');
+        const illustrationDockImg = document.getElementById('illustration-dock-img');
+        const illustrationDockPlaceholder = document.getElementById('illustration-dock-placeholder');
+        const illustrationDockThumbs = document.getElementById('illustration-dock-thumbs');
+        const galleryFilterSelect = document.getElementById('illus-gallery-filter-select');
+        const refreshGalleryBtn = document.getElementById('illus-refresh-gallery-btn');
+        const galleryGrid = document.getElementById('illus-gallery-grid');
 
         let illusOutputDir = null;
         let illusLastFilename = null;
@@ -78,6 +88,9 @@
         let sceneObserverTimer = null;
         let activeJobId = null;
         let activeJobRefreshTimer = null;
+        let galleryItems = [];
+        let galleryImages = new Map();
+        let selectedDockFilename = null;
         let lastPromptGeneratedAt = null;
         let lastSceneDocumentTitle = null;
 
@@ -331,6 +344,10 @@
             if (job.status === 'completed') {
                 setIllustrationDisplay('done');
                 setIllusStatus('Done! Image generated successfully.', 'done');
+                if (job.output && job.output.filename) {
+                    loadIllustrationGallery({ selectFilename: job.output.filename, showDock: true })
+                        .catch(err => console.warn('Illustrator: gallery refresh failed', err));
+                }
             } else if (job.status === 'canceled') {
                 setIllustrationDisplay('canceled');
                 setIllusStatus('Generation canceled.', 'idle');
@@ -368,6 +385,194 @@
 
             renderIllustratorJob(jobRes.job);
             if (isActiveIllustratorJob(jobRes.job)) startJobRefresh();
+        };
+
+        const setIllustrationDockVisible = (visible) => {
+            illustrationDock.classList.toggle('is-hidden', !visible);
+            toggleIllustrationDockBtn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+        };
+
+        const getCurrentGalleryPassageIdentity = () => {
+            if (currentSceneContext && !sceneTextDirty) return currentSceneContext.passageIdentity;
+            const sceneText = illusSceneText.value.trim();
+            return sceneText ? hashSceneText(sceneText) : null;
+        };
+
+        const setGalleryEmptyMessage = (message) => {
+            galleryGrid.textContent = '';
+            const empty = document.createElement('div');
+            empty.className = 'illus-gallery-empty';
+            empty.textContent = message;
+            galleryGrid.appendChild(empty);
+        };
+
+        const readGalleryImage = async (filename) => {
+            if (galleryImages.has(filename)) return galleryImages.get(filename);
+            const res = await window.illustratorAPI.readGalleryImage(gameUrl, filename);
+            if (!res.success) throw new Error(res.error);
+            galleryImages.set(filename, res.image);
+            return res.image;
+        };
+
+        const setDockImage = async (item) => {
+            if (!item || !window.illustratorAPI.readGalleryImage || !gameUrl) return;
+            const image = await readGalleryImage(item.filename);
+            selectedDockFilename = item.filename;
+            illustrationDockImg.src = image.dataUrl;
+            illustrationDockImg.classList.remove('is-hidden');
+            illustrationDockPlaceholder.classList.add('is-hidden');
+            setIllustrationDockVisible(true);
+        };
+
+        const createGalleryButton = (label, title, onClick) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = label;
+            button.title = title;
+            button.addEventListener('click', onClick);
+            return button;
+        };
+
+        const useGalleryPrompt = async (item) => {
+            const image = galleryImages.get(item.filename) || await readGalleryImage(item.filename);
+            const metadata = image.metadata || item.metadata;
+            if (!metadata) return;
+
+            const comfy = metadata.comfyUI || {};
+            const prompt = metadata.prompt || {};
+            if (prompt.final) {
+                document.getElementById('illus-prompt-text').value = prompt.final;
+            }
+            const currentConfig = getIllustratorConfig();
+            applyIllustratorConfig({
+                ...currentConfig,
+                checkpoint: comfy.checkpoint || currentConfig.checkpoint,
+                imageWidth: comfy.width || currentConfig.imageWidth,
+                imageHeight: comfy.height || currentConfig.imageHeight,
+                sampler: comfy.sampler || currentConfig.sampler,
+                scheduler: comfy.scheduler || currentConfig.scheduler,
+                steps: comfy.steps || currentConfig.steps,
+                cfg: comfy.cfg || currentConfig.cfg,
+                negativePrompt: prompt.negative || currentConfig.negativePrompt,
+                seed: 'random',
+                aspectPreset: 'custom',
+            });
+            persistIllustratorConfig();
+            lastPromptGeneratedAt = prompt.generatedAt || null;
+            setIllusStatus('Prompt copied from gallery. Seed set to random for a variation.', 'done');
+        };
+
+        const deleteGalleryItem = async (item) => {
+            if (!window.confirm(`Delete ${item.filename}?`)) return;
+            const res = await window.illustratorAPI.deleteGalleryImage(gameUrl, item.filename);
+            if (!res.success) {
+                setIllusStatus(`Delete failed: ${res.error}`, 'error');
+                return;
+            }
+            galleryImages.delete(item.filename);
+            if (selectedDockFilename === item.filename) {
+                selectedDockFilename = null;
+                illustrationDockImg.removeAttribute('src');
+                illustrationDockImg.classList.add('is-hidden');
+                illustrationDockPlaceholder.classList.remove('is-hidden');
+            }
+            await loadIllustrationGallery();
+            setIllusStatus('Illustration deleted.', 'done');
+        };
+
+        const renderGalleryCard = (item) => {
+            const card = document.createElement('article');
+            card.className = 'illus-gallery-card';
+
+            const image = galleryImages.get(item.filename);
+            if (image) {
+                const img = document.createElement('img');
+                img.src = image.dataUrl;
+                img.alt = item.passageTitle || item.filename;
+                card.appendChild(img);
+            }
+
+            const body = document.createElement('div');
+            body.className = 'illus-gallery-card-body';
+
+            const title = document.createElement('div');
+            title.className = 'illus-gallery-title';
+            title.textContent = item.passageTitle || item.filename;
+            body.appendChild(title);
+
+            const actions = document.createElement('div');
+            actions.className = 'illus-gallery-actions';
+            actions.appendChild(createGalleryButton('Dock', 'Send image to dock', () => setDockImage(item)));
+            actions.appendChild(createGalleryButton('Prompt', 'Copy prompt for regeneration', () => useGalleryPrompt(item)));
+            actions.appendChild(createGalleryButton('Delete', 'Delete image and metadata', () => deleteGalleryItem(item)));
+            body.appendChild(actions);
+            card.appendChild(body);
+            return card;
+        };
+
+        const renderDockThumbnails = (items) => {
+            illustrationDockThumbs.textContent = '';
+            items.slice(0, 8).forEach(item => {
+                const image = galleryImages.get(item.filename);
+                if (!image) return;
+
+                const wrapper = document.createElement('div');
+                wrapper.setAttribute('role', 'listitem');
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'illustration-dock-thumb';
+                button.setAttribute('aria-label', `Show ${item.passageTitle || item.filename} in dock`);
+                const img = document.createElement('img');
+                img.src = image.dataUrl;
+                img.alt = '';
+                button.appendChild(img);
+                button.addEventListener('click', () => setDockImage(item));
+                wrapper.appendChild(button);
+                illustrationDockThumbs.appendChild(wrapper);
+            });
+        };
+
+        const renderIllustrationGallery = () => {
+            galleryGrid.textContent = '';
+            if (!galleryItems.length) {
+                setGalleryEmptyMessage(galleryFilterSelect.value === 'current' ? 'No images for this scene yet.' : 'No images yet.');
+                renderDockThumbnails([]);
+                return;
+            }
+
+            galleryItems.forEach(item => galleryGrid.appendChild(renderGalleryCard(item)));
+            renderDockThumbnails(galleryItems);
+        };
+
+        const loadIllustrationGallery = async ({ selectFilename = null, showDock = false } = {}) => {
+            if (!window.illustratorAPI.listGallery || !window.illustratorAPI.readGalleryImage || !gameUrl) return;
+            const passageIdentity = galleryFilterSelect.value === 'current' ? getCurrentGalleryPassageIdentity() : null;
+            const res = await window.illustratorAPI.listGallery(gameUrl, {
+                limit: 24,
+                passageIdentity,
+            });
+            if (!res.success) {
+                setGalleryEmptyMessage(`Gallery error: ${res.error}`);
+                return;
+            }
+
+            galleryItems = res.items;
+            galleryImages.clear();
+            await Promise.all(galleryItems.slice(0, 12).map(async (item) => {
+                try {
+                    await readGalleryImage(item.filename);
+                } catch (err) {
+                    console.warn('Illustrator: could not load gallery thumbnail', err);
+                }
+            }));
+            renderIllustrationGallery();
+
+            const selected = selectFilename
+                ? galleryItems.find(item => item.filename === selectFilename)
+                : null;
+            if (selected && showDock) {
+                await setDockImage(selected);
+            }
         };
 
         const readStoredConfig = () => {
@@ -712,7 +917,48 @@
 
             await Promise.all([loadOllamaModels(), loadComfyUIModels()]);
             await restoreLatestIllustratorJob();
+            await loadIllustrationGallery();
             requestAnimationFrame(focusFirstIllustratorControl);
+        });
+
+        toggleIllustrationDockBtn.addEventListener('click', async () => {
+            const visible = illustrationDock.classList.contains('is-hidden');
+            setIllustrationDockVisible(visible);
+            if (visible) {
+                await loadIllustrationGallery();
+            }
+        });
+
+        illustrationDockHideBtn.addEventListener('click', () => {
+            setIllustrationDockVisible(false);
+            toggleIllustrationDockBtn.focus();
+        });
+
+        illustrationDockGalleryBtn.addEventListener('click', () => {
+            setIllustrationDockVisible(true);
+            document.getElementById('toggle-illustrator').click();
+        });
+
+        illustrationDockThumbs.addEventListener('keydown', (e) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+            const buttons = Array.from(illustrationDockThumbs.querySelectorAll('button'));
+            if (!buttons.length) return;
+            const currentIndex = buttons.indexOf(document.activeElement);
+            const nextIndex = e.key === 'Home'
+                ? 0
+                : e.key === 'End'
+                    ? buttons.length - 1
+                    : Math.max(0, Math.min(buttons.length - 1, currentIndex + (e.key === 'ArrowRight' ? 1 : -1)));
+            e.preventDefault();
+            buttons[nextIndex].focus();
+        });
+
+        galleryFilterSelect.addEventListener('change', () => {
+            loadIllustrationGallery().catch(err => console.warn('Illustrator: gallery filter failed', err));
+        });
+
+        refreshGalleryBtn.addEventListener('click', () => {
+            loadIllustrationGallery().catch(err => console.warn('Illustrator: gallery refresh failed', err));
         });
 
         document.getElementById('close-illustrator-btn').addEventListener('click', closeIllustratorModal);

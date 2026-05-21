@@ -26,15 +26,21 @@ test('library controls and cards expose keyboard and screen reader affordances',
 test('game page icon-only controls have accessible labels', () => {
   const html = readRootFile('game.html');
   const devConsoleSource = readRootFile('src/game/dev-console.js');
+  const illustratorSource = readRootFile('src/game/illustrator-ui.js');
 
   assert.match(html, /id="pin-bar-btn"[^>]*aria-label="Pin top bar"/);
   assert.match(html, /id="layout-toggle"[^>]*aria-label="Toggle developer console layout"/);
   assert.match(html, /id="close-console"[^>]*aria-label="Close developer console"/);
   assert.match(html, /id="console-save"[^>]*aria-label="Save console command"/);
+  assert.match(html, /id="toggle-illustration-dock"[^>]*aria-label="Toggle illustration dock"[^>]*aria-pressed="false"/);
+  assert.match(html, /id="illustration-dock"[^>]*aria-label="Illustration dock"/);
+  assert.match(html, /id="illustration-dock-thumbs"[^>]*role="list"[^>]*aria-label="Recent illustrations"/);
   assert.match(devConsoleSource, /layoutToggleBtn\.setAttribute\('aria-pressed'/);
   assert.match(devConsoleSource, /pinBarBtn\.setAttribute\('aria-pressed'/);
   assert.match(devConsoleSource, /runBtn\.setAttribute\('aria-label'/);
   assert.match(devConsoleSource, /delBtn\.setAttribute\('aria-label'/);
+  assert.match(illustratorSource, /illustrationDockThumbs\.addEventListener\('keydown'/);
+  assert.match(illustratorSource, /toggleIllustrationDockBtn\.setAttribute\('aria-pressed'/);
 });
 
 test('save modal declares dialog relationships and keyboard-reachable save slots', () => {

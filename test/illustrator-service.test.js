@@ -11,15 +11,18 @@ const {
   clearIllustratorJobsForTest,
   buildComfyUIWorkflow,
   createVisualPromptInstruction,
+  deleteIllustration,
   getIllustratorJob,
   generatePrompt,
   ILLUSTRATOR_JOB_STATUSES,
   listComfyUIModels,
+  listIllustrations,
   listIllustratorJobs,
   listTextModels,
   normalizeIllustrationMetadata,
   pollImage,
   queueComfyUI,
+  readIllustrationImage,
   retryIllustratorJob,
   startIllustratorGeneration,
 } = require('../src/main/illustrator-service');
@@ -66,6 +69,19 @@ const withServer = async (handler, fn) => {
 const jsonResponse = (res, body, statusCode = 200) => {
   res.writeHead(statusCode, { 'content-type': 'application/json' });
   res.end(JSON.stringify(body));
+};
+
+const withTempIllustrationGame = async (fn) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'twine-player-gallery-'));
+  try {
+    const gamePath = path.join(tempDir, 'Gallery Story.html');
+    const outputDir = path.join(tempDir, 'Gallery Story_illustrations');
+    fs.writeFileSync(gamePath, '<html></html>');
+    fs.mkdirSync(outputDir);
+    return await fn({ gamePath, outputDir, tempDir });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 };
 
 test('listTextModels reads Ollama model names', async () => {
@@ -697,6 +713,64 @@ test('pollImage downloads image and writes local metadata sidecar', async () => 
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test('listIllustrations and readIllustrationImage expose bounded gallery data', async () => {
+  await withTempIllustrationGame(async ({ gamePath, outputDir }) => {
+    const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const firstPath = path.join(outputDir, 'first.png');
+    const secondPath = path.join(outputDir, 'second.png');
+    fs.writeFileSync(firstPath, imageBytes);
+    fs.writeFileSync(secondPath, imageBytes);
+    fs.writeFileSync(`${firstPath}.json`, JSON.stringify(normalizeIllustrationMetadata({
+      passage: { identity: 'intro', title: 'Intro' },
+      prompt: { final: 'first prompt' },
+      comfyUI: { seed: 1, width: 640, height: 768 },
+      output: { localFilename: 'first.png', generatedAt: '2026-05-01T10:00:00.000Z', contentType: 'image/png' },
+    })));
+    fs.writeFileSync(`${secondPath}.json`, JSON.stringify(normalizeIllustrationMetadata({
+      passage: { identity: 'second', title: 'Second' },
+      prompt: { final: 'second prompt' },
+      comfyUI: { seed: 2, width: 832, height: 1216 },
+      output: { localFilename: 'second.png', generatedAt: '2026-05-01T11:00:00.000Z', contentType: 'image/png' },
+    })));
+
+    const allItems = await listIllustrations(gamePath);
+    assert.deepEqual(allItems.map(item => item.filename), ['second.png', 'first.png']);
+    assert.equal(allItems[0].passageIdentity, 'second');
+    assert.equal(allItems[0].prompt, 'second prompt');
+    assert.equal(allItems[0].seed, 2);
+
+    const filteredItems = await listIllustrations(gamePath, { passageIdentity: 'intro' });
+    assert.deepEqual(filteredItems.map(item => item.filename), ['first.png']);
+
+    const image = await readIllustrationImage(gamePath, 'second.png');
+    assert.equal(image.filename, 'second.png');
+    assert.equal(image.dataUrl, `data:image/png;base64,${imageBytes.toString('base64')}`);
+    assert.equal(image.metadata.passage.title, 'Second');
+  });
+});
+
+test('gallery image reads reject path traversal and delete removes sidecars', async () => {
+  await withTempIllustrationGame(async ({ gamePath, outputDir }) => {
+    const imagePath = path.join(outputDir, 'chapter.png');
+    fs.writeFileSync(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    fs.writeFileSync(`${imagePath}.json`, JSON.stringify({ output: { localFilename: 'chapter.png' } }));
+
+    await assert.rejects(
+      () => readIllustrationImage(gamePath, '..\\outside.png'),
+      /plain filename/
+    );
+
+    const result = await deleteIllustration(gamePath, 'chapter.png');
+    assert.deepEqual(result, {
+      filename: 'chapter.png',
+      deleted: true,
+      metadataDeleted: true,
+    });
+    assert.equal(fs.existsSync(imagePath), false);
+    assert.equal(fs.existsSync(`${imagePath}.json`), false);
+  });
 });
 
 test('normalizeIllustrationMetadata tolerates old minimal sidecars', () => {

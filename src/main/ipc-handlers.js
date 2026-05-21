@@ -17,15 +17,18 @@ const {
   DEFAULT_ILLUSTRATOR_CONFIG,
   cancelIllustratorJob,
   checkIllustratorHealth,
+  deleteIllustration,
   ensureOutputDir,
   generatePrompt,
   getIllustratorJob,
   listComfyUIModels,
+  listIllustrations,
   listIllustratorJobs,
   listOllamaModels,
   listTextModels,
   pollImage,
   queueComfyUI,
+  readIllustrationImage,
   retryIllustratorJob,
   startIllustratorGeneration,
 } = require('./illustrator-service');
@@ -190,6 +193,54 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
       const outputDir = await ensureOutputDir(await gamePathAuthorizer.requireAuthorized(gamePath));
       return { success: true, path: outputDir, dir: outputDir };
     } catch (err) {
+      return { success: false, error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:list-gallery', async (event, gamePath, options = {}) => {
+    try {
+      const safeOptions = options === undefined || options === null
+        ? {}
+        : assertPlainObject(options, 'Illustrator gallery list options');
+      return {
+        success: true,
+        items: await listIllustrations(
+          await gamePathAuthorizer.requireAuthorized(gamePath),
+          safeOptions
+        ),
+      };
+    } catch (err) {
+      console.error('Illustrator gallery list error:', getErrorMessage(err));
+      return { success: false, items: [], error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:read-gallery-image', async (event, gamePath, filename) => {
+    try {
+      return {
+        success: true,
+        image: await readIllustrationImage(
+          await gamePathAuthorizer.requireAuthorized(gamePath),
+          assertString(filename, 'Illustration filename')
+        ),
+      };
+    } catch (err) {
+      console.error('Illustrator gallery read error:', getErrorMessage(err));
+      return { success: false, error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:delete-gallery-image', async (event, gamePath, filename) => {
+    try {
+      return {
+        success: true,
+        result: await deleteIllustration(
+          await gamePathAuthorizer.requireAuthorized(gamePath),
+          assertString(filename, 'Illustration filename')
+        ),
+      };
+    } catch (err) {
+      console.error('Illustrator gallery delete error:', getErrorMessage(err));
       return { success: false, error: getErrorMessage(err) };
     }
   });

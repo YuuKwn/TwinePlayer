@@ -93,6 +93,9 @@ test('registerIpcHandlers wires expected core channels', () => {
     'save:delete',
     'illustrator:get-default-config',
     'illustrator:check-health',
+    'illustrator:list-gallery',
+    'illustrator:read-gallery-image',
+    'illustrator:delete-gallery-image',
     'illustrator:start-generation',
     'illustrator:get-job',
     'illustrator:list-jobs',
@@ -388,6 +391,67 @@ test('authorized illustrator image copy writes inside the game illustration dire
       assert.equal(result.localPath, localPath);
       assert.deepEqual([...fs.readFileSync(localPath)], [...imageBytes]);
     });
+  });
+});
+
+test('illustrator gallery rejects unauthorized game paths', async () => {
+  await withTempGame(async (gamePath) => {
+    const { invoke } = createHandlerRegistry();
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      const result = await invoke('illustrator:list-gallery', gamePath);
+      assert.equal(result.success, false);
+      assert.match(result.error, /not authorized/);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+});
+
+test('illustrator gallery reads and deletes only sidecar images', async () => {
+  await withTempGame(async (gamePath, tempDir) => {
+    const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const outputDir = path.join(tempDir, 'Example Story_illustrations');
+    const imagePath = path.join(outputDir, 'chapter.png');
+    fs.mkdirSync(outputDir);
+    fs.writeFileSync(imagePath, imageBytes);
+    fs.writeFileSync(`${imagePath}.json`, JSON.stringify({
+      passage: { identity: 'intro', title: 'Intro' },
+      prompt: { final: 'moonlit room' },
+      output: { localFilename: 'chapter.png', generatedAt: '2026-05-01T10:00:00.000Z', contentType: 'image/png' },
+    }));
+
+    const { invoke } = createHandlerRegistry();
+    await invoke('game:authorizePath', gamePath);
+
+    const listed = await invoke('illustrator:list-gallery', gamePath);
+    assert.equal(listed.success, true);
+    assert.equal(listed.items.length, 1);
+    assert.equal(listed.items[0].filename, 'chapter.png');
+    assert.equal(listed.items[0].passageTitle, 'Intro');
+
+    const image = await invoke('illustrator:read-gallery-image', gamePath, 'chapter.png');
+    assert.equal(image.success, true);
+    assert.equal(image.image.dataUrl, `data:image/png;base64,${imageBytes.toString('base64')}`);
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      const escaped = await invoke('illustrator:read-gallery-image', gamePath, '..\\outside.png');
+      assert.equal(escaped.success, false);
+      assert.match(escaped.error, /plain filename/);
+    } finally {
+      console.error = originalConsoleError;
+    }
+
+    const deleted = await invoke('illustrator:delete-gallery-image', gamePath, 'chapter.png');
+    assert.equal(deleted.success, true);
+    assert.equal(deleted.result.deleted, true);
+    assert.equal(deleted.result.metadataDeleted, true);
+    assert.equal(fs.existsSync(imagePath), false);
+    assert.equal(fs.existsSync(`${imagePath}.json`), false);
   });
 });
 

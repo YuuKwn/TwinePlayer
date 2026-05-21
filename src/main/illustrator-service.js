@@ -68,6 +68,12 @@ const JOB_POLL_INTERVAL_MS = 2000;
 const MAX_JOB_HISTORY = 50;
 const MAX_JOB_SNAPSHOT_BYTES = 300 * 1024;
 const illustratorJobs = new Map();
+const GALLERY_IMAGE_CONTENT_TYPES = Object.freeze({
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+});
 
 const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -788,6 +794,148 @@ const pollImage = async (params) => {
   return { pending: true };
 };
 
+const getIllustrationContentType = (filename, fallback = 'image/png') => {
+  return GALLERY_IMAGE_CONTENT_TYPES[path.extname(filename).toLowerCase()] || fallback;
+};
+
+const readIllustrationMetadataSidecar = async (imagePath, imageFilename) => {
+  try {
+    const text = await fsp.readFile(`${imagePath}.json`, 'utf8');
+    const parsed = JSON.parse(text);
+    return normalizeIllustrationMetadata({
+      ...parsed,
+      output: {
+        ...(isPlainObject(parsed.output) ? parsed.output : {}),
+        localFilename: parsed.output?.localFilename || imageFilename,
+      },
+    });
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return null;
+    if (err instanceof SyntaxError) return null;
+    console.warn('Illustrator: could not read illustration metadata', getErrorMessage(err));
+    return null;
+  }
+};
+
+const getGalleryImagePath = (gamePath, filename) => {
+  const outputDir = getGameSidecarDir(assertString(gamePath, 'Game path'), 'illustrations');
+  const imageFilename = normalizeImageFilename(filename);
+  const ext = path.extname(imageFilename).toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(GALLERY_IMAGE_CONTENT_TYPES, ext)) {
+    throw new Error('Illustration filename must be a supported image file');
+  }
+  return {
+    outputDir,
+    imageFilename,
+    imagePath: resolveChildPath(outputDir, imageFilename),
+  };
+};
+
+const createGalleryItem = async (outputDir, entry) => {
+  if (!entry.isFile()) return null;
+  let imageFilename;
+  try {
+    imageFilename = normalizeImageFilename(entry.name);
+  } catch (err) {
+    return null;
+  }
+  const ext = path.extname(imageFilename).toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(GALLERY_IMAGE_CONTENT_TYPES, ext)) return null;
+
+  const imagePath = resolveChildPath(outputDir, imageFilename);
+  const stats = await fsp.stat(imagePath);
+  const metadata = await readIllustrationMetadataSidecar(imagePath, imageFilename);
+  const generatedAt = metadata?.output?.generatedAt || stats.mtime.toISOString();
+
+  return {
+    filename: imageFilename,
+    byteSize: stats.size,
+    modifiedAt: stats.mtime.toISOString(),
+    generatedAt,
+    contentType: metadata?.output?.contentType || getIllustrationContentType(imageFilename),
+    passageIdentity: metadata?.passage?.identity || null,
+    passageTitle: metadata?.passage?.title || null,
+    prompt: metadata?.prompt?.final || null,
+    seed: metadata?.comfyUI?.seed || null,
+    width: metadata?.comfyUI?.width || null,
+    height: metadata?.comfyUI?.height || null,
+    metadata,
+  };
+};
+
+const listIllustrations = async (gamePath, options = {}) => {
+  const safeGamePath = assertString(gamePath, 'Game path');
+  const safeOptions = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
+  const outputDir = getGameSidecarDir(safeGamePath, 'illustrations');
+  const limit = Math.min(100, Math.max(1, Number.isFinite(Number(safeOptions.limit)) ? Math.round(Number(safeOptions.limit)) : 40));
+  const passageIdentity = typeof safeOptions.passageIdentity === 'string' && safeOptions.passageIdentity.trim()
+    ? safeOptions.passageIdentity.trim().slice(0, 256)
+    : null;
+  let entries;
+
+  try {
+    entries = await fsp.readdir(outputDir, { withFileTypes: true });
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return [];
+    throw err;
+  }
+
+  const items = (await Promise.all(entries.map(entry => createGalleryItem(outputDir, entry))))
+    .filter(Boolean)
+    .filter(item => !passageIdentity || item.passageIdentity === passageIdentity)
+    .sort((a, b) => Date.parse(b.generatedAt) - Date.parse(a.generatedAt));
+
+  return items.slice(0, limit);
+};
+
+const readIllustrationImage = async (gamePath, filename) => {
+  const { imageFilename, imagePath } = getGalleryImagePath(gamePath, filename);
+  const stats = await fsp.stat(imagePath);
+  if (!stats.isFile()) {
+    throw new Error('Illustration path is not a file');
+  }
+  if (stats.size > MAX_IMAGE_BYTES) {
+    throw new Error('Illustration image is too large to display');
+  }
+
+  const buffer = await fsp.readFile(imagePath);
+  const metadata = await readIllustrationMetadataSidecar(imagePath, imageFilename);
+  const contentType = metadata?.output?.contentType || getIllustrationContentType(imageFilename);
+  return {
+    filename: imageFilename,
+    contentType,
+    byteSize: buffer.length,
+    dataUrl: `data:${contentType};base64,${buffer.toString('base64')}`,
+    metadata,
+  };
+};
+
+const deleteIllustration = async (gamePath, filename) => {
+  const { imageFilename, imagePath } = getGalleryImagePath(gamePath, filename);
+  let deleted = false;
+  let metadataDeleted = false;
+
+  try {
+    await fsp.unlink(imagePath);
+    deleted = true;
+  } catch (err) {
+    if (!err || err.code !== 'ENOENT') throw err;
+  }
+
+  try {
+    await fsp.unlink(`${imagePath}.json`);
+    metadataDeleted = true;
+  } catch (err) {
+    if (!err || err.code !== 'ENOENT') throw err;
+  }
+
+  return {
+    filename: imageFilename,
+    deleted,
+    metadataDeleted,
+  };
+};
+
 const normalizeGenerationRequest = (params) => {
   const source = assertPlainObject(params, 'Illustrator generation params');
   const safeConfig = normalizeIllustratorConfig(source.config || {});
@@ -1055,16 +1203,19 @@ module.exports = {
   checkIllustratorHealth,
   clearIllustratorJobsForTest,
   createVisualPromptInstruction,
+  deleteIllustration,
   ensureOutputDir,
   generatePrompt,
   getIllustratorJob,
   listComfyUIModels,
+  listIllustrations,
   listIllustratorJobs,
   listOllamaModels,
   listTextModels,
   normalizeIllustrationMetadata,
   pollImage,
   queueComfyUI,
+  readIllustrationImage,
   retryIllustratorJob,
   startIllustratorGeneration,
 };

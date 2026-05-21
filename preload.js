@@ -60,6 +60,21 @@ contextBridge.exposeInMainWorld('illustratorAPI', {
         assertString(gamePath, 'Game path');
         return ipcRenderer.invoke('illustrator:ensure-output-dir', gamePath);
     },
+    listGallery: (gamePath, options = {}) => {
+        assertString(gamePath, 'Game path');
+        assertPlainObject(options, 'Illustrator gallery list options');
+        return ipcRenderer.invoke('illustrator:list-gallery', gamePath, options);
+    },
+    readGalleryImage: (gamePath, filename) => {
+        assertString(gamePath, 'Game path');
+        assertString(filename, 'Illustration filename');
+        return ipcRenderer.invoke('illustrator:read-gallery-image', gamePath, filename);
+    },
+    deleteGalleryImage: (gamePath, filename) => {
+        assertString(gamePath, 'Game path');
+        assertString(filename, 'Illustration filename');
+        return ipcRenderer.invoke('illustrator:delete-gallery-image', gamePath, filename);
+    },
     listTextModels: (config) => ipcRenderer.invoke('illustrator:list-text-models', config),
     listOllamaModels: (config) => ipcRenderer.invoke('illustrator:list-ollama-models', config),
     listComfyUIModels: (config) => ipcRenderer.invoke('illustrator:list-comfyui-models', config),
