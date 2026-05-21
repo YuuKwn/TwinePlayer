@@ -208,6 +208,22 @@
 
                     <div class="illus-settings-grid">
                         <label>
+                            <span class="illus-label">Service Profile</span>
+                            <select id="illus-profile-select" class="illus-select"></select>
+                        </label>
+                        <div>
+                            <span class="illus-label">Connection</span>
+                            <div class="illus-row">
+                                <button id="illus-save-profile-btn" class="illus-btn flex-fill" type="button">Save Profile</button>
+                                <button id="illus-test-connections-btn" class="illus-btn flex-fill" type="button">Test Connections</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="illus-health-summary" class="illus-health-summary idle">Connections not tested yet.</div>
+
+                    <div class="illus-settings-grid">
+                        <label>
                             <span class="illus-label">Text Backend</span>
                             <select id="illus-text-backend-select" class="illus-select">
                                 <option value="ollama">Ollama</option>
@@ -215,7 +231,7 @@
                             </select>
                         </label>
                         <label>
-                            <span class="illus-label">Text Endpoint</span>
+                            <span class="illus-label">Text Endpoint <span id="illus-text-endpoint-class" class="illus-endpoint-class local">Local</span></span>
                             <input id="illus-text-endpoint-input" class="illus-input" type="url" autocomplete="off">
                         </label>
                     </div>
@@ -245,7 +261,7 @@
                     </div>
 
                     <label>
-                        <span class="illus-label">ComfyUI Endpoint</span>
+                        <span class="illus-label">ComfyUI Endpoint <span id="illus-comfy-endpoint-class" class="illus-endpoint-class local">Local</span></span>
                         <input id="illus-comfy-endpoint-input" class="illus-input" type="url" autocomplete="off">
                     </label>
 

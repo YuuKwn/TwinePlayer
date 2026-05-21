@@ -263,6 +263,72 @@ const listComfyUIModels = async (config = {}) => {
   return inputs[0];
 };
 
+const createTextHealth = async (safeConfig) => {
+  try {
+    const models = await listTextModels(safeConfig);
+    const modelAvailable = models.includes(safeConfig.textModel);
+    return {
+      status: modelAvailable ? 'ok' : 'missing_model',
+      reachable: true,
+      backend: safeConfig.textBackend,
+      endpoint: safeConfig.textEndpoint,
+      model: safeConfig.textModel,
+      modelAvailable,
+      modelCount: models.length,
+    };
+  } catch (err) {
+    return {
+      status: 'unreachable',
+      reachable: false,
+      backend: safeConfig.textBackend,
+      endpoint: safeConfig.textEndpoint,
+      model: safeConfig.textModel,
+      modelAvailable: false,
+      modelCount: 0,
+      error: getErrorMessage(err),
+    };
+  }
+};
+
+const createComfyUIHealth = async (safeConfig) => {
+  try {
+    const checkpoints = await listComfyUIModels(safeConfig);
+    const checkpointAvailable = checkpoints.includes(safeConfig.checkpoint);
+    return {
+      status: checkpointAvailable ? 'ok' : 'missing_checkpoint',
+      reachable: true,
+      endpoint: safeConfig.comfyEndpoint,
+      checkpoint: safeConfig.checkpoint,
+      checkpointAvailable,
+      checkpointCount: checkpoints.length,
+    };
+  } catch (err) {
+    return {
+      status: 'unreachable',
+      reachable: false,
+      endpoint: safeConfig.comfyEndpoint,
+      checkpoint: safeConfig.checkpoint,
+      checkpointAvailable: false,
+      checkpointCount: 0,
+      error: getErrorMessage(err),
+    };
+  }
+};
+
+const checkIllustratorHealth = async (config = {}) => {
+  const safeConfig = normalizeIllustratorConfig(config);
+  const [text, comfyUI] = await Promise.all([
+    createTextHealth(safeConfig),
+    createComfyUIHealth(safeConfig),
+  ]);
+
+  return {
+    checkedAt: new Date().toISOString(),
+    text,
+    comfyUI,
+  };
+};
+
 const generatePrompt = async (sceneText, modelOrParams, maybeConfig) => {
   const safeSceneText = assertString(sceneText, 'Scene text', MAX_SCENE_TEXT_LENGTH);
   const params = modelOrParams && typeof modelOrParams === 'object' && !Array.isArray(modelOrParams)
@@ -423,6 +489,7 @@ const pollImage = async (params) => {
 
 module.exports = {
   DEFAULT_ILLUSTRATOR_CONFIG,
+  checkIllustratorHealth,
   ensureOutputDir,
   generatePrompt,
   listComfyUIModels,

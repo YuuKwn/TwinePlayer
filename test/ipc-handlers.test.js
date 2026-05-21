@@ -85,6 +85,7 @@ test('registerIpcHandlers wires expected core channels', () => {
     'save:read',
     'save:delete',
     'illustrator:get-default-config',
+    'illustrator:check-health',
   ].forEach(channel => assert.equal(handlers.has(channel), true, channel));
 });
 
@@ -403,5 +404,37 @@ test('illustrator model listing and prompt generation do not require a game path
       success: true,
       prompt: 'moonlit room, blue shadows',
     });
+  });
+});
+
+test('illustrator health check does not require a game path', async () => {
+  await withServer((req, res) => {
+    if (req.url === '/api/tags') {
+      jsonResponse(res, { models: [{ name: 'llama3.2' }] });
+      return;
+    }
+
+    assert.equal(req.url, '/object_info/CheckpointLoaderSimple');
+    jsonResponse(res, {
+      CheckpointLoaderSimple: {
+        input: {
+          required: {
+            ckpt_name: [['story.safetensors']],
+          },
+        },
+      },
+    });
+  }, async (endpoint) => {
+    const { invoke } = createHandlerRegistry();
+    const result = await invoke('illustrator:check-health', {
+      textEndpoint: endpoint,
+      textModel: 'llama3.2',
+      comfyEndpoint: endpoint,
+      checkpoint: 'story.safetensors',
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.health.text.status, 'ok');
+    assert.equal(result.health.comfyUI.status, 'ok');
   });
 });

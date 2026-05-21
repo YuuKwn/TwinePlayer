@@ -63,6 +63,10 @@ contextBridge.exposeInMainWorld('illustratorAPI', {
     listTextModels: (config) => ipcRenderer.invoke('illustrator:list-text-models', config),
     listOllamaModels: (config) => ipcRenderer.invoke('illustrator:list-ollama-models', config),
     listComfyUIModels: (config) => ipcRenderer.invoke('illustrator:list-comfyui-models', config),
+    checkHealth: (config) => {
+        assertPlainObject(config, 'Illustrator config');
+        return ipcRenderer.invoke('illustrator:check-health', config);
+    },
     generatePrompt: (sceneText, model, config) => {
         assertString(sceneText, 'Scene text');
         assertString(model, 'Ollama model');

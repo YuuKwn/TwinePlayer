@@ -964,6 +964,39 @@
             text-transform: none;
         }
 
+        .illus-endpoint-class {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 1px 6px;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0;
+            text-transform: uppercase;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        .illus-endpoint-class.local {
+            background: rgba(74, 222, 128, 0.12);
+            color: #86efac;
+        }
+
+        .illus-endpoint-class.lan {
+            background: rgba(96, 165, 250, 0.14);
+            color: #93c5fd;
+        }
+
+        .illus-endpoint-class.remote {
+            background: rgba(251, 191, 36, 0.14);
+            color: #fde68a;
+        }
+
+        .illus-endpoint-class.invalid {
+            background: rgba(239, 68, 68, 0.14);
+            color: #fca5a5;
+        }
+
         .flex-fill {
             flex: 1;
         }
@@ -1153,6 +1186,31 @@
         .illus-status.working { color: #60a5fa; }
         .illus-status.done { color: #4ade80; }
         .illus-status.error { color: #ef4444; }
+
+        .illus-health-summary {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 10px;
+            color: #94a3b8;
+            font-size: 12px;
+            line-height: 1.4;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .illus-health-summary.done {
+            border-color: rgba(74, 222, 128, 0.24);
+            color: #86efac;
+        }
+
+        .illus-health-summary.warning {
+            border-color: rgba(251, 191, 36, 0.24);
+            color: #fde68a;
+        }
+
+        .illus-health-summary.error {
+            border-color: rgba(239, 68, 68, 0.28);
+            color: #fca5a5;
+        }
 
         /* Right column: image display */
         .illus-image-panel {

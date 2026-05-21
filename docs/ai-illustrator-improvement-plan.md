@@ -214,7 +214,7 @@ Relevant files:
 
 ## Slice 4: Service Profiles and Health Checks
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -255,6 +255,14 @@ Relevant files:
 
 - Users can understand setup failures before starting generation.
 - Existing direct model-refresh buttons continue to work.
+
+### Progress Notes
+
+- Added main-process Illustrator health checks for text backend reachability, selected text model availability, ComfyUI reachability, and selected checkpoint availability.
+- Added `illustrator:check-health` IPC/preload access and a renderer "Test Connections" action with structured status summaries.
+- Added localStorage-backed service profiles with built-in local/LAN presets and a save-current-profile flow.
+- Added endpoint classification badges (`Local`, `LAN`, `Remote`, `Invalid`) as UX guidance while keeping endpoint validation in the main process.
+- Added Node coverage for health checks, OpenAI-compatible and Ollama model paths, malformed profile normalization, and endpoint classification.
 
 ## Slice 5: Scene Capture and Passage Context
 

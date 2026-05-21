@@ -15,6 +15,7 @@ const {
 } = require('./save-service');
 const {
   DEFAULT_ILLUSTRATOR_CONFIG,
+  checkIllustratorHealth,
   ensureOutputDir,
   generatePrompt,
   listComfyUIModels,
@@ -212,6 +213,15 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
     } catch (err) {
       console.error('ComfyUI model list error:', getErrorMessage(err));
       return { success: false, models: [], error: getErrorMessage(err) };
+    }
+  });
+
+  ipcMain.handle('illustrator:check-health', async (event, config) => {
+    try {
+      return { success: true, health: await checkIllustratorHealth(config) };
+    } catch (err) {
+      console.error('Illustrator health check error:', getErrorMessage(err));
+      return { success: false, error: getErrorMessage(err) };
     }
   });
 

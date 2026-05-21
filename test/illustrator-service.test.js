@@ -6,6 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  checkIllustratorHealth,
   generatePrompt,
   listComfyUIModels,
   listTextModels,
@@ -133,6 +134,97 @@ test('listComfyUIModels reads checkpoint names', async () => {
     });
   }, async (endpoint) => {
     assert.deepEqual(await listComfyUIModels({ comfyEndpoint: endpoint }), ['a.safetensors', 'b.safetensors']);
+  });
+});
+
+test('checkIllustratorHealth reports reachable selected Ollama and ComfyUI models', async () => {
+  await withServer((req, res) => {
+    if (req.url === '/api/tags') {
+      jsonResponse(res, { models: [{ name: 'llama3.2' }] });
+      return;
+    }
+
+    assert.equal(req.url, '/object_info/CheckpointLoaderSimple');
+    jsonResponse(res, {
+      CheckpointLoaderSimple: {
+        input: {
+          required: {
+            ckpt_name: [['story.safetensors']],
+          },
+        },
+      },
+    });
+  }, async (endpoint) => {
+    const health = await checkIllustratorHealth({
+      textEndpoint: endpoint,
+      textModel: 'llama3.2',
+      comfyEndpoint: endpoint,
+      checkpoint: 'story.safetensors',
+    });
+
+    assert.match(health.checkedAt, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(health.text.status, 'ok');
+    assert.equal(health.text.reachable, true);
+    assert.equal(health.text.modelAvailable, true);
+    assert.equal(health.text.modelCount, 1);
+    assert.equal(health.comfyUI.status, 'ok');
+    assert.equal(health.comfyUI.reachable, true);
+    assert.equal(health.comfyUI.checkpointAvailable, true);
+    assert.equal(health.comfyUI.checkpointCount, 1);
+  });
+});
+
+test('checkIllustratorHealth reports OpenAI-compatible missing model and checkpoint', async () => {
+  await withServer((req, res) => {
+    if (req.url === '/v1/models') {
+      jsonResponse(res, { data: [{ id: 'other-model' }] });
+      return;
+    }
+
+    assert.equal(req.url, '/object_info/CheckpointLoaderSimple');
+    jsonResponse(res, {
+      CheckpointLoaderSimple: {
+        input: {
+          required: {
+            ckpt_name: [['other.safetensors']],
+          },
+        },
+      },
+    });
+  }, async (endpoint) => {
+    const health = await checkIllustratorHealth({
+      textBackend: 'openai',
+      textEndpoint: `${endpoint}/v1`,
+      textModel: 'wanted-model',
+      comfyEndpoint: endpoint,
+      checkpoint: 'wanted.safetensors',
+    });
+
+    assert.equal(health.text.backend, 'openai');
+    assert.equal(health.text.status, 'missing_model');
+    assert.equal(health.text.reachable, true);
+    assert.equal(health.text.modelAvailable, false);
+    assert.equal(health.comfyUI.status, 'missing_checkpoint');
+    assert.equal(health.comfyUI.reachable, true);
+    assert.equal(health.comfyUI.checkpointAvailable, false);
+  });
+});
+
+test('checkIllustratorHealth returns structured unreachable statuses', async () => {
+  await withServer((req, res) => {
+    jsonResponse(res, { error: 'down' }, 503);
+  }, async (endpoint) => {
+    const health = await checkIllustratorHealth({
+      textEndpoint: endpoint,
+      comfyEndpoint: endpoint,
+    });
+
+    assert.equal(health.text.status, 'unreachable');
+    assert.equal(health.text.reachable, false);
+    assert.match(health.text.error, /HTTP 503/);
+    assert.equal(health.comfyUI.status, 'unreachable');
+    assert.equal(health.comfyUI.reachable, false);
+    assert.match(health.comfyUI.error, /HTTP 503/);
   });
 });
 

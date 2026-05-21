@@ -30,6 +30,24 @@
   const MAX_SCENE_EXCERPT_LENGTH = 2000;
   const DEFAULT_WORKFLOW_TEMPLATE = 'comfyui-default-txt2img';
   const DEFAULT_WORKFLOW_VERSION = 1;
+  const DEFAULT_SERVICE_PROFILES = Object.freeze([
+    {
+      id: 'local-ollama-local-comfyui',
+      name: 'Local Ollama + Local ComfyUI',
+      config: DEFAULT_RENDERER_ILLUSTRATOR_CONFIG,
+      builtIn: true,
+    },
+    {
+      id: 'lan-openai-local-comfyui',
+      name: 'LAN OpenAI-compatible + Local ComfyUI',
+      config: {
+        ...DEFAULT_RENDERER_ILLUSTRATOR_CONFIG,
+        textBackend: 'openai',
+        textEndpoint: 'http://192.168.1.10:8000/v1',
+      },
+      builtIn: true,
+    },
+  ]);
 
   const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
@@ -97,6 +115,91 @@
       .replace(/^-+|-+$/g, '')
       .slice(0, 48);
     return cleaned || 'scene';
+  };
+
+  const createServiceProfileId = (name, fallbackSuffix = '') => {
+    const base = sanitizeFilenamePart(name).slice(0, 64);
+    const suffix = String(fallbackSuffix || '').trim()
+      ? sanitizeFilenamePart(fallbackSuffix).slice(0, 32)
+      : '';
+    return suffix ? `${base}-${suffix}` : base;
+  };
+
+  const normalizeServiceProfile = (profile, fallbackIndex = 0, builtIn = false) => {
+    if (!isPlainObject(profile)) return null;
+    const name = normalizeText(profile.name, '', 80);
+    if (!name) return null;
+    const id = normalizeText(profile.id, createServiceProfileId(name, String(fallbackIndex)), 96);
+
+    return {
+      id: createServiceProfileId(id, ''),
+      name,
+      config: normalizeRendererIllustratorConfig(profile.config || {}),
+      builtIn: Boolean(profile.builtIn || builtIn),
+    };
+  };
+
+  const normalizeServiceProfiles = (rawProfiles = {}) => {
+    const storedProfiles = Array.isArray(rawProfiles)
+      ? rawProfiles
+      : (isPlainObject(rawProfiles) && Array.isArray(rawProfiles.profiles) ? rawProfiles.profiles : []);
+    const profiles = [];
+    const seenIds = new Set();
+
+    DEFAULT_SERVICE_PROFILES.forEach((profile, index) => {
+      const normalized = normalizeServiceProfile(profile, index, true);
+      if (normalized && !seenIds.has(normalized.id)) {
+        seenIds.add(normalized.id);
+        profiles.push(normalized);
+      }
+    });
+
+    storedProfiles.forEach((profile, index) => {
+      const normalized = normalizeServiceProfile(profile, index, false);
+      if (normalized && !seenIds.has(normalized.id)) {
+        seenIds.add(normalized.id);
+        profiles.push(normalized);
+      }
+    });
+
+    return profiles;
+  };
+
+  const isPrivateIpv4 = (hostname) => {
+    const parts = hostname.split('.').map(part => Number(part));
+    if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+    const [first, second] = parts;
+    return first === 10 ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168) ||
+      (first === 169 && second === 254);
+  };
+
+  const classifyEndpointHost = (endpoint) => {
+    try {
+      const url = new URL(endpoint);
+      const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        return { kind: 'invalid', label: 'Invalid' };
+      }
+
+      if (
+        hostname === 'localhost' ||
+        hostname === '::1' ||
+        hostname === '0:0:0:0:0:0:0:1' ||
+        hostname.startsWith('127.')
+      ) {
+        return { kind: 'local', label: 'Local' };
+      }
+
+      if (hostname.endsWith('.local') || isPrivateIpv4(hostname)) {
+        return { kind: 'lan', label: 'LAN' };
+      }
+
+      return { kind: 'remote', label: 'Remote' };
+    } catch (err) {
+      return { kind: 'invalid', label: 'Invalid' };
+    }
   };
 
   const createOutputFilename = (now = Date.now(), passageIdentity = '') => {
@@ -215,14 +318,18 @@
   };
 
   return {
+    DEFAULT_SERVICE_PROFILES,
     DEFAULT_RENDERER_ILLUSTRATOR_CONFIG,
     DEFAULT_WORKFLOW_TEMPLATE,
     DEFAULT_WORKFLOW_VERSION,
+    classifyEndpointHost,
     createOutputFilename,
     createSceneExcerpt,
+    createServiceProfileId,
     getIllustrationDisplayState,
     hashSceneText,
     normalizeIllustrationMetadata,
     normalizeRendererIllustratorConfig,
+    normalizeServiceProfiles,
   };
 });

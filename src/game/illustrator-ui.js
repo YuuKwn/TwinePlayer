@@ -5,12 +5,16 @@
         const ILLUSTRATOR_CONFIG_KEY = 'twine_player_illustrator_config';
         const {
             DEFAULT_RENDERER_ILLUSTRATOR_CONFIG,
+            classifyEndpointHost,
             createOutputFilename,
             createSceneExcerpt,
+            createServiceProfileId,
             getIllustrationDisplayState,
             hashSceneText,
             normalizeRendererIllustratorConfig,
+            normalizeServiceProfiles,
         } = window.TwinePlayerIllustratorHelpers;
+        const ILLUSTRATOR_PROFILES_KEY = 'twine_player_illustrator_profiles';
 
         const illusOverlay = document.getElementById('illustrator-modal-overlay');
         const illusStatus = document.getElementById('illus-status');
@@ -18,11 +22,17 @@
         const illusPlaceholder = document.getElementById('illus-image-placeholder');
         const illusResultImg = document.getElementById('illus-result-img');
         const illusDownloadBtn = document.getElementById('illus-download-btn');
+        const illusHealthSummary = document.getElementById('illus-health-summary');
 
+        const profileSelect = document.getElementById('illus-profile-select');
+        const saveProfileBtn = document.getElementById('illus-save-profile-btn');
+        const testConnectionsBtn = document.getElementById('illus-test-connections-btn');
         const textBackendSelect = document.getElementById('illus-text-backend-select');
         const textEndpointInput = document.getElementById('illus-text-endpoint-input');
+        const textEndpointClass = document.getElementById('illus-text-endpoint-class');
         const ollamaModelSelect = document.getElementById('illus-ollama-model-select');
         const comfyEndpointInput = document.getElementById('illus-comfy-endpoint-input');
+        const comfyEndpointClass = document.getElementById('illus-comfy-endpoint-class');
         const checkpointSelect = document.getElementById('illus-checkpoint-select');
         const reloadOllamaBtn = document.getElementById('illus-reload-ollama-btn');
         const reloadComfyBtn = document.getElementById('illus-reload-comfy-btn');
@@ -40,6 +50,7 @@
         let illusLastFilename = null;
         let previouslyFocusedIllustratorElement = null;
         let illustratorDefaults = { ...DEFAULT_RENDERER_ILLUSTRATOR_CONFIG };
+        let illustratorProfiles = [];
         let activePollTimer = null;
         let activePollStartedAt = 0;
         let lastPromptGeneratedAt = null;
@@ -48,6 +59,22 @@
         const setIllusStatus = (msg, type = 'idle') => {
             illusStatus.textContent = msg;
             illusStatus.className = `illus-status ${type}`;
+        };
+
+        const setHealthSummary = (msg, type = 'idle') => {
+            illusHealthSummary.textContent = msg;
+            illusHealthSummary.className = `illus-health-summary ${type}`;
+        };
+
+        const updateEndpointBadge = (badge, endpoint) => {
+            const classification = classifyEndpointHost(endpoint);
+            badge.textContent = classification.label;
+            badge.className = `illus-endpoint-class ${classification.kind}`;
+        };
+
+        const updateEndpointClassifications = () => {
+            updateEndpointBadge(textEndpointClass, textEndpointInput.value || illustratorDefaults.textEndpoint);
+            updateEndpointBadge(comfyEndpointClass, comfyEndpointInput.value || illustratorDefaults.comfyEndpoint);
         };
 
         const hasIllustrationImage = () => Boolean(illusResultImg.getAttribute('src'));
@@ -64,6 +91,16 @@
         const readStoredConfig = () => {
             const stored = window.TwinePlayerStorage.readJson(localStorage, ILLUSTRATOR_CONFIG_KEY, {});
             return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+        };
+
+        const readStoredProfiles = () => {
+            return window.TwinePlayerStorage.readJson(localStorage, ILLUSTRATOR_PROFILES_KEY, {});
+        };
+
+        const persistCustomProfiles = () => {
+            window.TwinePlayerStorage.writeJson(localStorage, ILLUSTRATOR_PROFILES_KEY, {
+                profiles: illustratorProfiles.filter(profile => !profile.builtIn),
+            });
         };
 
         const getIllustratorConfig = () => normalizeRendererIllustratorConfig({
@@ -83,6 +120,31 @@
 
         const persistIllustratorConfig = () => {
             window.TwinePlayerStorage.writeJson(localStorage, ILLUSTRATOR_CONFIG_KEY, getIllustratorConfig());
+            updateEndpointClassifications();
+        };
+
+        const renderServiceProfiles = (selectedId = profileSelect.value) => {
+            illustratorProfiles = normalizeServiceProfiles(readStoredProfiles());
+            profileSelect.textContent = '';
+
+            illustratorProfiles.forEach(profile => {
+                const option = document.createElement('option');
+                option.value = profile.id;
+                option.textContent = profile.name;
+                profileSelect.appendChild(option);
+            });
+
+            if (selectedId && illustratorProfiles.some(profile => profile.id === selectedId)) {
+                profileSelect.value = selectedId;
+            }
+        };
+
+        const applyServiceProfile = (profileId) => {
+            const profile = illustratorProfiles.find(item => item.id === profileId);
+            if (!profile) return;
+            applyIllustratorConfig(profile.config);
+            persistIllustratorConfig();
+            setHealthSummary(`Loaded profile: ${profile.name}`, 'idle');
         };
 
         const addOrSelectOption = (selectEl, value) => {
@@ -109,6 +171,7 @@
             samplerInput.value = config.sampler;
             schedulerInput.value = config.scheduler;
             negativePromptText.value = config.negativePrompt;
+            updateEndpointClassifications();
         };
 
         const loadIllustratorConfig = async () => {
@@ -118,6 +181,7 @@
                     illustratorDefaults = normalizeRendererIllustratorConfig(res.config, DEFAULT_RENDERER_ILLUSTRATOR_CONFIG);
                 }
             }
+            renderServiceProfiles();
             applyIllustratorConfig(normalizeRendererIllustratorConfig(readStoredConfig(), illustratorDefaults));
         };
 
@@ -196,6 +260,71 @@
             });
         };
 
+        const describeServiceHealth = (health) => {
+            const textLabel = health.text.status === 'ok'
+                ? `${health.text.backend} text model ready`
+                : health.text.status === 'missing_model'
+                    ? `${health.text.model} not found at text endpoint`
+                    : `Text endpoint unreachable: ${health.text.error}`;
+            const comfyLabel = health.comfyUI.status === 'ok'
+                ? 'ComfyUI checkpoint ready'
+                : health.comfyUI.status === 'missing_checkpoint'
+                    ? `${health.comfyUI.checkpoint} not found in ComfyUI`
+                    : `ComfyUI unreachable: ${health.comfyUI.error}`;
+            const type = health.text.status === 'ok' && health.comfyUI.status === 'ok'
+                ? 'done'
+                : (health.text.reachable || health.comfyUI.reachable ? 'warning' : 'error');
+
+            return {
+                message: `${textLabel}. ${comfyLabel}.`,
+                type,
+            };
+        };
+
+        const testConnections = async () => {
+            persistIllustratorConfig();
+            const config = getIllustratorConfig();
+            testConnectionsBtn.disabled = true;
+            setHealthSummary('Testing configured services...', 'idle');
+            setIllusStatus('Testing Illustrator connections...', 'working');
+
+            try {
+                const res = await window.illustratorAPI.checkHealth(config);
+                if (!res.success) {
+                    setHealthSummary(`Connection test failed: ${res.error}`, 'error');
+                    setIllusStatus(`Connection test failed: ${res.error}`, 'error');
+                    return;
+                }
+
+                const summary = describeServiceHealth(res.health);
+                setHealthSummary(summary.message, summary.type);
+                setIllusStatus(summary.type === 'done' ? 'Connections ready.' : 'Connection test found issues.', summary.type === 'done' ? 'done' : 'error');
+            } finally {
+                testConnectionsBtn.disabled = false;
+            }
+        };
+
+        const saveCurrentProfile = () => {
+            const profileName = window.prompt('Profile name', 'Custom profile');
+            if (!profileName || !profileName.trim()) return;
+
+            const profile = {
+                id: createServiceProfileId(profileName, String(Date.now())),
+                name: profileName.trim().slice(0, 80),
+                config: getIllustratorConfig(),
+            };
+            illustratorProfiles = normalizeServiceProfiles({
+                profiles: illustratorProfiles.filter(item => !item.builtIn).concat(profile),
+            });
+            persistCustomProfiles();
+            renderServiceProfiles(profile.id);
+            profileSelect.value = profile.id;
+            setHealthSummary(`Saved profile: ${profile.name}`, 'idle');
+        };
+
+        profileSelect.addEventListener('change', () => applyServiceProfile(profileSelect.value));
+        saveProfileBtn.addEventListener('click', saveCurrentProfile);
+        testConnectionsBtn.addEventListener('click', testConnections);
         reloadOllamaBtn.addEventListener('click', loadOllamaModels);
         reloadComfyBtn.addEventListener('click', loadComfyUIModels);
 
