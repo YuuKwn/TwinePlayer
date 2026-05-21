@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
@@ -38,6 +39,36 @@ const withTempGame = async (fn) => {
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+};
+
+const readJsonBody = async (req) => {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+};
+
+const withServer = async (handler, fn) => {
+  const server = http.createServer(async (req, res) => {
+    try {
+      await handler(req, res);
+    } catch (err) {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  try {
+    return await fn(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+};
+
+const jsonResponse = (res, body, statusCode = 200) => {
+  res.writeHead(statusCode, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(body));
 };
 
 test('registerIpcHandlers wires expected core channels', () => {
@@ -250,4 +281,127 @@ test('illustrator:get-default-config returns renderer-safe defaults', async () =
   assert.equal(result.config.textBackend, 'ollama');
   assert.equal(result.config.textEndpoint, 'http://localhost:11434');
   assert.equal(result.config.comfyEndpoint, 'http://localhost:8188');
+});
+
+test('illustrator output directory requires an authorized game path', async () => {
+  await withTempGame(async (gamePath, tempDir) => {
+    const { invoke } = createHandlerRegistry();
+
+    const unauthorized = await invoke('illustrator:ensure-output-dir', gamePath);
+    assert.equal(unauthorized.success, false);
+    assert.match(unauthorized.error, /not authorized/);
+
+    await invoke('game:authorizePath', gamePath);
+    const authorized = await invoke('illustrator:ensure-output-dir', gamePath);
+
+    assert.equal(authorized.success, true);
+    assert.equal(authorized.path, path.join(tempDir, 'Example Story_illustrations'));
+    assert.equal(fs.existsSync(authorized.path), true);
+  });
+});
+
+test('illustrator output directory authorization revalidates the selected HTML file', async () => {
+  await withTempGame(async (gamePath) => {
+    const { invoke } = createHandlerRegistry();
+    await invoke('game:authorizePath', gamePath);
+    fs.unlinkSync(gamePath);
+
+    const result = await invoke('illustrator:ensure-output-dir', gamePath);
+    assert.equal(result.success, false);
+    assert.match(result.error, /no such file|ENOENT/i);
+  });
+});
+
+test('illustrator image copy rejects unknown game paths before polling', async () => {
+  await withTempGame(async (gamePath, tempDir) => {
+    const unknownPath = path.join(tempDir, 'Unknown.html');
+    fs.writeFileSync(unknownPath, '<html></html>');
+    const { invoke } = createHandlerRegistry();
+    await invoke('game:authorizePath', gamePath);
+
+    const originalConsoleError = console.error;
+    console.error = () => {};
+    try {
+      const result = await invoke('illustrator:poll-image', {
+        promptId: 'done',
+        gamePath: unknownPath,
+        config: { comfyEndpoint: 'http://127.0.0.1:1' },
+      });
+
+      assert.equal(result.success, false);
+      assert.match(result.error, /not authorized/);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+});
+
+test('authorized illustrator image copy writes inside the game illustration directory', async () => {
+  await withTempGame(async (gamePath, tempDir) => {
+    const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+    await withServer((req, res) => {
+      if (req.url === '/history/done') {
+        jsonResponse(res, {
+          done: {
+            outputs: {
+              7: {
+                images: [
+                  { filename: 'chapter.png', subfolder: '', type: 'output' },
+                ],
+              },
+            },
+          },
+        });
+        return;
+      }
+
+      assert.equal(req.url, '/view?filename=chapter.png&subfolder=&type=output');
+      res.writeHead(200, { 'content-type': 'image/png' });
+      res.end(imageBytes);
+    }, async (endpoint) => {
+      const { invoke } = createHandlerRegistry();
+      await invoke('game:authorizePath', gamePath);
+
+      const result = await invoke('illustrator:poll-image', {
+        promptId: 'done',
+        gamePath,
+        config: { comfyEndpoint: endpoint },
+      });
+
+      const localPath = path.join(tempDir, 'Example Story_illustrations', 'chapter.png');
+      assert.equal(result.success, true);
+      assert.equal(result.filename, 'chapter.png');
+      assert.equal(result.localPath, localPath);
+      assert.deepEqual([...fs.readFileSync(localPath)], [...imageBytes]);
+    });
+  });
+});
+
+test('illustrator model listing and prompt generation do not require a game path', async () => {
+  await withServer(async (req, res) => {
+    if (req.url === '/api/tags') {
+      jsonResponse(res, { models: [{ name: 'llama3.2' }] });
+      return;
+    }
+
+    assert.equal(req.url, '/api/generate');
+    const body = await readJsonBody(req);
+    assert.equal(body.model, 'llama3.2');
+    assert.match(body.prompt, /A moonlit room/);
+    jsonResponse(res, { response: 'moonlit room, blue shadows' });
+  }, async (endpoint) => {
+    const { invoke } = createHandlerRegistry();
+    const config = { textEndpoint: endpoint, textModel: 'llama3.2' };
+
+    assert.deepEqual(await invoke('illustrator:list-text-models', config), {
+      success: true,
+      models: ['llama3.2'],
+    });
+
+    assert.deepEqual(await invoke('illustrator:generate-prompt', 'A moonlit room.', 'llama3.2', config), {
+      success: true,
+      prompt: 'moonlit room, blue shadows',
+    });
+  });
 });

@@ -24,6 +24,7 @@ const {
   queueComfyUI,
 } = require('./illustrator-service');
 const {
+  assertPlainObject,
   assertString,
   getErrorMessage,
 } = require('./validation');
@@ -180,7 +181,7 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('illustrator:ensure-output-dir', async (event, gamePath) => {
     try {
-      const outputDir = await ensureOutputDir(gamePath);
+      const outputDir = await ensureOutputDir(await gamePathAuthorizer.requireAuthorized(gamePath));
       return { success: true, path: outputDir, dir: outputDir };
     } catch (err) {
       return { success: false, error: getErrorMessage(err) };
@@ -234,7 +235,13 @@ const registerIpcHandlers = ({ ipcMain, dialog }) => {
 
   ipcMain.handle('illustrator:poll-image', async (event, params) => {
     try {
-      const result = await pollImage(params);
+      const safeParams = assertPlainObject(params, 'ComfyUI poll params');
+      const result = await pollImage({
+        ...safeParams,
+        gamePath: safeParams.gamePath
+          ? await gamePathAuthorizer.requireAuthorized(safeParams.gamePath)
+          : undefined,
+      });
       if (result.pending) {
         return { success: false, pending: true };
       }
