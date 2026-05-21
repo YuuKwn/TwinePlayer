@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const rootDir = path.resolve(__dirname, '..');
 
@@ -43,6 +44,30 @@ test('game scripts avoid HTML parsing for clear-only DOM updates', () => {
     const source = readRootFile(file);
     assert.doesNotMatch(source, /innerHTML\s*=\s*['"]{2}/, `${file} should use textContent for clearing nodes`);
   }
+});
+
+test('game page classic scripts do not redeclare global lexical names', () => {
+  const scriptFiles = [
+    'src/storage-utils.js',
+    'src/shared/save-filename.js',
+    'src/shared/game-player-helpers.js',
+    'src/shared/illustrator-helpers.js',
+    'src/game/player.js',
+    'src/game/twine-bridge.js',
+    'src/game/dev-console.js',
+    'src/game/save-engine.js',
+    'src/game/save-modal.js',
+    'src/game/illustrator-ui.js',
+    'src/game/bootstrap.js',
+  ];
+  const combinedSource = scriptFiles
+    .map(file => `\n/* ${file} */\n${readRootFile(file)}`)
+    .join('\n');
+
+  assert.doesNotThrow(
+    () => new vm.Script(combinedSource, { filename: 'game-classic-scripts.js' }),
+    'game.html classic scripts should be parseable together'
+  );
 });
 
 test('library cards use CSS classes for animation delays', () => {

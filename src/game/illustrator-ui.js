@@ -718,13 +718,13 @@
             applyProjectSettings(readProjectSettings());
         };
 
-        const getFocusableElements = (container) => {
+        const getIllustratorFocusableElements = (container) => {
             return Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
                 .filter(el => !el.disabled && el.offsetParent !== null);
         };
 
         const focusFirstIllustratorControl = () => {
-            const firstControl = getFocusableElements(illusOverlay)[0];
+            const firstControl = getIllustratorFocusableElements(illusOverlay)[0];
             if (firstControl) firstControl.focus();
         };
 
@@ -983,7 +983,7 @@
             }
 
             if (e.key !== 'Tab') return;
-            const focusable = getFocusableElements(illusOverlay);
+            const focusable = getIllustratorFocusableElements(illusOverlay);
             if (focusable.length === 0) return;
 
             const first = focusable[0];
