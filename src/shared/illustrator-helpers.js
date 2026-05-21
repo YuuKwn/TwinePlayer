@@ -13,18 +13,18 @@
     textModel: 'llama3.2',
     comfyEndpoint: 'http://localhost:8188',
     checkpoint: 'waiIllustriousSDXL_v160.safetensors',
-    imageWidth: 832,
-    imageHeight: 1216,
+    imageWidth: 1344,
+    imageHeight: 768,
     sampler: 'euler',
     scheduler: 'normal',
     steps: 20,
     cfg: 7,
     seed: 'random',
     batchSize: 1,
-    aspectPreset: 'portrait',
+    aspectPreset: 'vn_background',
     workflowMode: 'default',
     customWorkflowJson: '',
-    negativePrompt: 'blurry, low quality, watermark, text, ugly',
+    negativePrompt: 'blurry, low quality, distorted anatomy, extra fingers, watermark, logo, readable text',
     maxPollingMs: 120000,
   });
 
@@ -35,7 +35,7 @@
   const MAX_METADATA_STRING_LENGTH = 512;
   const MAX_METADATA_TEXT_LENGTH = 5000;
   const MAX_SCENE_EXCERPT_LENGTH = 2000;
-  const MAX_SCENE_CONTEXT_TEXT_LENGTH = 10000;
+  const MAX_SCENE_CONTEXT_TEXT_LENGTH = 1000000;
   const DEFAULT_SCENE_HISTORY_LIMIT = 6;
   const DEFAULT_WORKFLOW_TEMPLATE = 'comfyui-default-txt2img';
   const DEFAULT_WORKFLOW_VERSION = 1;
@@ -63,6 +63,9 @@
     comic_panel: 'Comic panel',
     manga_panel: 'Manga panel',
     concept_art: 'Concept art',
+    establishing_shot: 'Establishing shot',
+    close_up: 'Close-up',
+    item_prop: 'Item or prop',
   });
   const DEFAULT_ILLUSTRATOR_PROJECT_SETTINGS = Object.freeze({
     styleBible: '',

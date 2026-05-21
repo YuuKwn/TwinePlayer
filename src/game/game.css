@@ -918,9 +918,8 @@
             background: rgba(15, 23, 42, 0.97);
             border: 1px solid rgba(167, 139, 250, 0.25);
             border-radius: 16px;
-            width: 860px;
-            max-width: 94vw;
-            max-height: 90vh;
+            width: min(1480px, calc(100vw - 32px));
+            max-height: calc(100vh - 32px);
             box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.7);
             display: flex;
             flex-direction: column;
@@ -943,9 +942,10 @@
         }
 
         .illus-body {
-            display: flex;
-            gap: 1.25rem;
-            padding: 1.25rem;
+            display: grid;
+            grid-template-columns: minmax(380px, 1.08fr) minmax(340px, 0.92fr);
+            gap: clamp(0.9rem, 2vw, 1.5rem);
+            padding: clamp(1rem, 2vw, 1.35rem);
             overflow: hidden;
             flex: 1;
             min-height: 0;
@@ -956,7 +956,6 @@
             display: flex;
             flex-direction: column;
             gap: 0.85rem;
-            flex: 1 1 0;
             min-width: 0;
             overflow-y: auto;
         }
@@ -979,6 +978,38 @@
             color: #e2e8f0;
             font-size: 13px;
             font-weight: 700;
+        }
+
+        .illus-advanced-section {
+            gap: 0.65rem;
+        }
+
+        .illus-advanced-toggle {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            max-width: 100%;
+            justify-content: center;
+        }
+
+        .illus-advanced-toggle::after {
+            content: "Show";
+            color: #c4b5fd;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+
+        .illus-advanced-toggle[aria-expanded="true"]::after {
+            content: "Hide";
+        }
+
+        .illus-advanced-content {
+            display: grid;
+            gap: 0.85rem;
+            padding: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.13);
+            border-radius: 8px;
+            background: rgba(2, 6, 23, 0.2);
         }
 
         .illus-label {
@@ -1305,16 +1336,19 @@
 
         /* Right column: image display */
         .illus-image-panel {
-            flex: 0 0 320px;
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
-            align-items: center;
+            align-items: stretch;
+            min-width: 0;
+            overflow-y: auto;
         }
 
         .illus-image-box {
             width: 100%;
-            aspect-ratio: 832 / 1216;
+            aspect-ratio: 16 / 9;
+            min-height: min(320px, 42vh);
+            max-height: min(58vh, 620px);
             background: rgba(0, 0, 0, 0.4);
             border: 1px dashed rgba(255, 255, 255, 0.1);
             border-radius: 10px;
@@ -1586,14 +1620,14 @@
         }
         /* --- End Illustrator Feature Styles --- */
 
-        @media (max-width: 780px) {
+        @media (max-width: 1040px) {
             #illustrator-modal {
-                width: 96vw;
-                max-height: 94vh;
+                width: calc(100vw - 20px);
+                max-height: calc(100vh - 20px);
             }
 
             .illus-body {
-                flex-direction: column;
+                grid-template-columns: 1fr;
                 overflow-y: auto;
             }
 
@@ -1602,12 +1636,12 @@
             }
 
             .illus-image-panel {
-                flex: 0 0 auto;
                 width: 100%;
+                overflow: visible;
             }
 
             .illus-image-box {
-                max-height: 58vh;
+                max-height: min(58vh, 520px);
             }
 
             .illus-gallery-grid {
@@ -1619,6 +1653,39 @@
                 right: 10px;
                 bottom: 10px;
                 width: calc(100vw - 20px);
+            }
+        }
+
+        @media (max-width: 640px) {
+            #illustrator-modal {
+                border-radius: 10px;
+                width: calc(100vw - 12px);
+                max-height: calc(100vh - 12px);
+            }
+
+            .illus-body {
+                padding: 12px;
+            }
+
+            .illus-settings-grid,
+            .illus-settings-grid-compact {
+                grid-template-columns: 1fr;
+            }
+
+            .illus-row {
+                flex-wrap: wrap;
+            }
+
+            .illus-btn {
+                white-space: normal;
+            }
+
+            .illus-gallery-header {
+                grid-template-columns: 1fr;
+            }
+
+            .illus-gallery-grid {
+                grid-template-columns: 1fr;
             }
         }
 

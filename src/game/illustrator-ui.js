@@ -105,6 +105,21 @@
             illusHealthSummary.className = `illus-health-summary ${type}`;
         };
 
+        const setupAdvancedToggles = () => {
+            document.querySelectorAll('.illus-advanced-toggle').forEach(button => {
+                if (button.dataset.illusAdvancedReady === 'true') return;
+                const content = document.getElementById(button.getAttribute('aria-controls'));
+                if (!content) return;
+                button.dataset.illusAdvancedReady = 'true';
+
+                button.addEventListener('click', () => {
+                    const expanded = button.getAttribute('aria-expanded') === 'true';
+                    button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                    content.classList.toggle('is-hidden', expanded);
+                });
+            });
+        };
+
         const updateEndpointBadge = (badge, endpoint) => {
             const classification = classifyEndpointHost(endpoint);
             badge.textContent = classification.label;
@@ -191,11 +206,11 @@
 
             currentSceneContext = context;
             lastSceneDocumentTitle = context.documentTitle || null;
-            illusSceneText.value = createSceneExcerpt(context.text, 2000);
+            illusSceneText.value = context.text;
             sceneTextDirty = false;
             const label = context.passageName || context.documentTitle || 'current scene';
             const detail = fromObserver ? 'Auto-captured' : 'Captured';
-            setSceneContextSummary(`${detail}: ${label} (${context.textExcerpt.length} chars shown).`);
+            setSceneContextSummary(`${detail}: ${label} (${context.text.length} chars captured).`);
             return true;
         };
 
@@ -1037,7 +1052,7 @@
             const generatePromptBtn = document.getElementById('illus-generate-prompt-btn');
             generatePromptBtn.disabled = true;
             generatePromptBtn.setAttribute('aria-busy', 'true');
-            setIllusStatus(`Asking ${chosenModel}...`, 'working');
+            setIllusStatus(`Asking ${chosenModel}... long scenes can take a few minutes.`, 'working');
 
             let res;
             try {
@@ -1222,6 +1237,7 @@
 
         function initIllustrator() {
             // Model loading happens on modal open.
+            setupAdvancedToggles();
         }
 
         /* ================================================================

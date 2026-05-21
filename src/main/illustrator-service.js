@@ -32,7 +32,7 @@ const {
 
 const fsp = fs.promises;
 const DEFAULT_TIMEOUT_MS = 10000;
-const TEXT_TIMEOUT_MS = 60000;
+const TEXT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_STYLE_BIBLE_LENGTH = 4000;
@@ -374,6 +374,12 @@ const getModeInstruction = (mode) => {
       return 'Create a manga panel prompt with monochrome-friendly composition, expressive posing, screen-tone-ready lighting, and cinematic framing.';
     case 'concept_art':
       return 'Create a concept art prompt emphasizing design clarity, mood, materials, environment, and production-art readability.';
+    case 'establishing_shot':
+      return 'Create an establishing shot prompt focused on clearly presenting the location, spatial layout, atmosphere, time of day, and story-relevant environmental details.';
+    case 'close_up':
+      return 'Create a close-up prompt focused on the most important face, expression, gesture, object interaction, or intimate visual detail explicitly present in the scene.';
+    case 'item_prop':
+      return 'Create an item or prop illustration prompt focused on the key object, its materials, condition, scale, lighting, and any scene-specific symbolic or practical details.';
     case 'vn_background':
     default:
       return 'Create a visual novel scene background prompt focused on setting, mood, time of day, lighting, color palette, and reusable background details.';
@@ -394,6 +400,9 @@ const createVisualPromptInstruction = (sceneText, promptContext = {}) => {
     'You are a visual art director adapting a Twine scene into image-generation art.',
     getModeInstruction(mode),
     'Write one concise image prompt under 100 words. Output only the prompt text, with no explanation.',
+    'Treat the current scene as the source of truth. Preserve named characters, relationships, physical traits, outfits, locations, time of day, important objects, and actions when they are provided.',
+    'Do not invent or change character identities, character details, locations, or major scene facts unless the scene and notes provide no usable details. When details are missing, add only minimal visual specifics needed for a coherent image.',
+    'If style, character, world, or recent-context notes conflict with the current scene, keep the current scene details.',
     'Avoid speech bubbles, captions, UI, watermarks, logos, and readable text unless the scene explicitly requires readable text.',
     `Template mode: ${PROMPT_TEMPLATE_MODES[mode]}.`,
   ];

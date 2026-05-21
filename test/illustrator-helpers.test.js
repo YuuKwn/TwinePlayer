@@ -150,15 +150,16 @@ test('createServiceProfileId creates stable plain identifiers', () => {
 });
 
 test('normalizeSceneContext derives bounded scene identity fields', () => {
+  const sourceText = 'scene '.repeat(3000).trim();
   const context = normalizeSceneContext({
-    text: `  ${'scene '.repeat(3000)}  `,
+    text: `  ${sourceText}  `,
     documentTitle: ' Fixture Story ',
     passageName: ' Start ',
     engine: ' SugarCube ',
     capturedAt: '2026-05-01T12:00:00.000Z',
   });
 
-  assert.equal(context.text.length, 10000);
+  assert.equal(context.text.length, sourceText.length);
   assert.equal(context.textExcerpt.length, 2000);
   assert.equal(context.documentTitle, 'Fixture Story');
   assert.equal(context.passageName, 'Start');

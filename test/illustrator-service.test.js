@@ -33,6 +33,9 @@ const PROMPT_LABEL_PATTERNS = {
   comic_panel: 'Comic panel',
   manga_panel: 'Manga panel',
   concept_art: 'Concept art',
+  establishing_shot: 'Establishing shot',
+  close_up: 'Close-up',
+  item_prop: 'Item or prop',
 };
 
 test.afterEach(() => {
@@ -173,6 +176,8 @@ test('createVisualPromptInstruction includes style bible and character memory', 
   assert.match(instruction, /old canals/);
   assert.match(instruction, /broken token/);
   assert.match(instruction, /Avoid speech bubbles/);
+  assert.match(instruction, /Treat the current scene as the source of truth/);
+  assert.match(instruction, /Do not invent or change character identities/);
 });
 
 test('createVisualPromptInstruction rejects oversized structured prompt context', () => {
@@ -188,7 +193,7 @@ test('createVisualPromptInstruction rejects oversized structured prompt context'
 
 test('createVisualPromptInstruction creates distinguishable mode instructions', () => {
   const scene = 'A hero watches the harbor.';
-  const modes = ['vn_background', 'vn_character_cg', 'comic_panel', 'manga_panel', 'concept_art'];
+  const modes = ['vn_background', 'vn_character_cg', 'comic_panel', 'manga_panel', 'concept_art', 'establishing_shot', 'close_up', 'item_prop'];
   const instructions = modes.map(mode => createVisualPromptInstruction(scene, { mode }));
 
   modes.forEach((mode, index) => {

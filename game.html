@@ -236,202 +236,213 @@
                     </div>
                     </section>
 
-                    <section class="illus-section" aria-labelledby="illus-section-settings-title">
-                        <h3 id="illus-section-settings-title">Settings</h3>
-                    <div class="illus-settings-grid">
-                        <label>
-                            <span class="illus-label">Service Profile</span>
-                            <select id="illus-profile-select" class="illus-select"></select>
-                        </label>
-                        <div>
-                            <span class="illus-label">Connection</span>
-                            <div class="illus-row">
-                                <button id="illus-save-profile-btn" class="illus-btn flex-fill" type="button">Save Profile</button>
-                                <button id="illus-test-connections-btn" class="illus-btn flex-fill" type="button">Test Connections</button>
+                    <section class="illus-section illus-advanced-section" aria-labelledby="illus-section-settings-title">
+                        <h3 id="illus-section-settings-title">Setup</h3>
+                        <button class="illus-btn illus-advanced-toggle" id="illus-setup-advanced-toggle" type="button" aria-expanded="false" aria-controls="illus-setup-advanced-content">Advanced setup</button>
+                        <div class="illus-advanced-content is-hidden" id="illus-setup-advanced-content">
+                            <div class="illus-settings-grid">
+                                <label>
+                                    <span class="illus-label">Service Profile</span>
+                                    <select id="illus-profile-select" class="illus-select"></select>
+                                </label>
+                                <div>
+                                    <span class="illus-label">Connection</span>
+                                    <div class="illus-row">
+                                        <button id="illus-save-profile-btn" class="illus-btn flex-fill" type="button">Save Profile</button>
+                                        <button id="illus-test-connections-btn" class="illus-btn flex-fill" type="button">Test Connections</button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <div id="illus-health-summary" class="illus-health-summary idle">Connections not tested yet.</div>
+                            <div id="illus-health-summary" class="illus-health-summary idle">Connections not tested yet.</div>
+                        </div>
                     </section>
 
                     <section class="illus-section" aria-labelledby="illus-section-prompt-title">
                         <h3 id="illus-section-prompt-title">Prompt</h3>
-                    <div class="illus-settings-grid">
                         <label>
-                            <span class="illus-label">Prompt Mode</span>
+                            <span class="illus-label">Image Mode</span>
                             <select id="illus-prompt-mode-select" class="illus-select">
                                 <option value="vn_background">VN scene background</option>
                                 <option value="vn_character_cg">VN character CG</option>
                                 <option value="comic_panel">Comic panel</option>
                                 <option value="manga_panel">Manga panel</option>
                                 <option value="concept_art">Concept art</option>
+                                <option value="establishing_shot">Establishing shot</option>
+                                <option value="close_up">Close-up</option>
+                                <option value="item_prop">Item or prop</option>
                             </select>
                         </label>
-                        <label>
-                            <span class="illus-label">Prompt Tone</span>
-                            <input id="illus-prompt-tone-input" class="illus-input" type="text" autocomplete="off">
-                        </label>
-                    </div>
 
-                    <label>
-                        <span class="illus-label">Visual Style Bible</span>
-                        <textarea id="illus-style-bible-text" class="illus-textarea illus-textarea-small"></textarea>
-                    </label>
-
-                    <div class="illus-settings-grid">
-                        <label>
-                            <span class="illus-label">Character Roster</span>
-                            <textarea id="illus-character-roster-text" class="illus-textarea illus-textarea-small"></textarea>
-                        </label>
-                        <label>
-                            <span class="illus-label">World Notes</span>
-                            <textarea id="illus-world-notes-text" class="illus-textarea illus-textarea-small"></textarea>
-                        </label>
-                    </div>
-
-                    <div class="illus-settings-grid">
-                        <label>
-                            <span class="illus-label">Text Backend</span>
-                            <select id="illus-text-backend-select" class="illus-select">
-                                <option value="ollama">Ollama</option>
-                                <option value="openai">OpenAI-compatible</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span class="illus-label">Text Endpoint <span id="illus-text-endpoint-class" class="illus-endpoint-class local">Local</span></span>
-                            <span id="illus-text-endpoint-help" class="sr-only">HTTP endpoint for the selected text backend.</span>
-                            <input id="illus-text-endpoint-input" class="illus-input" type="url" autocomplete="off" aria-describedby="illus-text-endpoint-help">
-                        </label>
-                    </div>
-
-                    <div>
-                        <div class="illus-label">Text Model</div>
                         <div class="illus-row">
-                            <span id="illus-text-model-help" class="sr-only">Model used to turn scene text into an image prompt.</span>
-                            <select id="illus-ollama-model-select" class="illus-select" aria-describedby="illus-text-model-help">
-                                <option value="">Loading models...</option>
-                            </select>
-                            <button id="illus-reload-ollama-btn" class="illus-reload-btn" title="Refresh Ollama model list">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                                </svg>
-                            </button>
+                            <button id="illus-generate-prompt-btn" class="illus-btn flex-fill">Generate Prompt</button>
                         </div>
-                    </div>
 
-                    <div class="illus-row">
-                        <button id="illus-generate-prompt-btn" class="illus-btn flex-fill">Generate Prompt</button>
-                    </div>
+                        <div>
+                            <div class="illus-label">Image Prompt <span class="illus-label-hint">(edit freely before generating)</span></div>
+                            <textarea id="illus-prompt-text" class="illus-textarea" placeholder="The image generation prompt will appear here after Ollama processes the scene. You can edit it."></textarea>
+                        </div>
 
-                    <div>
-                        <div class="illus-label">Image Prompt <span class="illus-label-hint">(edit freely before generating)</span></div>
-                        <textarea id="illus-prompt-text" class="illus-textarea" placeholder="The image generation prompt will appear here after Ollama processes the scene. You can edit it."></textarea>
-                    </div>
+                        <button class="illus-btn illus-advanced-toggle" id="illus-prompt-advanced-toggle" type="button" aria-expanded="false" aria-controls="illus-prompt-advanced-content">Advanced prompt</button>
+                        <div class="illus-advanced-content is-hidden" id="illus-prompt-advanced-content">
+                            <label>
+                                <span class="illus-label">Prompt Tone</span>
+                                <input id="illus-prompt-tone-input" class="illus-input" type="text" autocomplete="off">
+                            </label>
+
+                            <label>
+                                <span class="illus-label">Visual Style Bible</span>
+                                <textarea id="illus-style-bible-text" class="illus-textarea illus-textarea-small"></textarea>
+                            </label>
+
+                            <div class="illus-settings-grid">
+                                <label>
+                                    <span class="illus-label">Character Roster</span>
+                                    <textarea id="illus-character-roster-text" class="illus-textarea illus-textarea-small"></textarea>
+                                </label>
+                                <label>
+                                    <span class="illus-label">World Notes</span>
+                                    <textarea id="illus-world-notes-text" class="illus-textarea illus-textarea-small"></textarea>
+                                </label>
+                            </div>
+
+                            <div class="illus-settings-grid">
+                                <label>
+                                    <span class="illus-label">Text Backend</span>
+                                    <select id="illus-text-backend-select" class="illus-select">
+                                        <option value="ollama">Ollama</option>
+                                        <option value="openai">OpenAI-compatible</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span class="illus-label">Text Endpoint <span id="illus-text-endpoint-class" class="illus-endpoint-class local">Local</span></span>
+                                    <span id="illus-text-endpoint-help" class="sr-only">HTTP endpoint for the selected text backend.</span>
+                                    <input id="illus-text-endpoint-input" class="illus-input" type="url" autocomplete="off" aria-describedby="illus-text-endpoint-help">
+                                </label>
+                            </div>
+
+                            <div>
+                                <div class="illus-label">Text Model</div>
+                                <div class="illus-row">
+                                    <span id="illus-text-model-help" class="sr-only">Model used to turn scene text into an image prompt.</span>
+                                    <select id="illus-ollama-model-select" class="illus-select" aria-describedby="illus-text-model-help">
+                                        <option value="">Loading models...</option>
+                                    </select>
+                                    <button id="illus-reload-ollama-btn" class="illus-reload-btn" title="Refresh Ollama model list">
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </section>
 
                     <section class="illus-section" aria-labelledby="illus-section-generate-title">
                         <h3 id="illus-section-generate-title">Generate</h3>
-                    <label>
-                        <span class="illus-label">ComfyUI Endpoint <span id="illus-comfy-endpoint-class" class="illus-endpoint-class local">Local</span></span>
-                        <span id="illus-comfy-endpoint-help" class="sr-only">HTTP endpoint for ComfyUI image generation.</span>
-                        <input id="illus-comfy-endpoint-input" class="illus-input" type="url" autocomplete="off" aria-describedby="illus-comfy-endpoint-help">
-                    </label>
-
-                    <div>
-                        <div class="illus-label">Checkpoint Model</div>
                         <div class="illus-row">
-                            <span id="illus-checkpoint-help" class="sr-only">ComfyUI checkpoint model used for image generation.</span>
-                            <select id="illus-checkpoint-select" class="illus-select" aria-describedby="illus-checkpoint-help">
-                                <option value="">Loading checkpoints...</option>
-                            </select>
-                            <button id="illus-reload-comfy-btn" class="illus-reload-btn" title="Refresh ComfyUI checkpoint list">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                                </svg>
-                            </button>
+                            <button id="illus-generate-image-btn" class="illus-btn illus-btn-primary flex-fill">Generate Image in ComfyUI</button>
+                            <button id="illus-cancel-image-btn" class="illus-btn is-hidden">Cancel</button>
+                            <button id="illus-retry-image-btn" class="illus-btn is-hidden">Retry</button>
                         </div>
-                    </div>
 
-                    <div class="illus-settings-grid illus-settings-grid-compact">
-                        <label>
-                            <span class="illus-label">Width</span>
-                            <input id="illus-width-input" class="illus-input" type="number" min="256" max="2048" step="64">
-                        </label>
-                        <label>
-                            <span class="illus-label">Height</span>
-                            <input id="illus-height-input" class="illus-input" type="number" min="256" max="2048" step="64">
-                        </label>
-                        <label>
-                            <span class="illus-label">Steps</span>
-                            <input id="illus-steps-input" class="illus-input" type="number" min="1" max="150" step="1">
-                        </label>
-                        <label>
-                            <span class="illus-label">CFG</span>
-                            <input id="illus-cfg-input" class="illus-input" type="number" min="0" max="30" step="0.5">
-                        </label>
-                    </div>
+                        <div id="illus-status" class="illus-status idle" role="status" aria-live="polite" aria-atomic="true">Ready. Capture the scene or paste text to begin.</div>
+                        <div id="illus-job-details" class="illus-job-details is-hidden"></div>
 
-                    <div class="illus-settings-grid illus-settings-grid-compact">
-                        <label>
-                            <span class="illus-label">Aspect</span>
-                            <select id="illus-aspect-preset-select" class="illus-select">
-                                <option value="custom">Custom</option>
-                                <option value="portrait">Portrait</option>
-                                <option value="landscape">Landscape</option>
-                                <option value="square">Square</option>
-                                <option value="vn_background">VN background</option>
-                                <option value="comic_panel">Comic panel</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span class="illus-label">Seed</span>
-                            <input id="illus-seed-input" class="illus-input" type="text" autocomplete="off">
-                        </label>
-                        <label>
-                            <span class="illus-label">Batch</span>
-                            <input id="illus-batch-size-input" class="illus-input" type="number" min="1" max="4" step="1">
-                        </label>
-                        <label>
-                            <span class="illus-label">Workflow</span>
-                            <select id="illus-workflow-mode-select" class="illus-select">
-                                <option value="default">Default</option>
-                                <option value="custom">Custom</option>
-                            </select>
-                        </label>
-                    </div>
+                        <button class="illus-btn illus-advanced-toggle" id="illus-image-advanced-toggle" type="button" aria-expanded="false" aria-controls="illus-image-advanced-content">Advanced image settings</button>
+                        <div class="illus-advanced-content is-hidden" id="illus-image-advanced-content">
+                            <label>
+                                <span class="illus-label">ComfyUI Endpoint <span id="illus-comfy-endpoint-class" class="illus-endpoint-class local">Local</span></span>
+                                <span id="illus-comfy-endpoint-help" class="sr-only">HTTP endpoint for ComfyUI image generation.</span>
+                                <input id="illus-comfy-endpoint-input" class="illus-input" type="url" autocomplete="off" aria-describedby="illus-comfy-endpoint-help">
+                            </label>
 
-                    <div class="illus-settings-grid">
-                        <label>
-                            <span class="illus-label">Sampler</span>
-                            <input id="illus-sampler-input" class="illus-input" type="text" autocomplete="off">
-                        </label>
-                        <label>
-                            <span class="illus-label">Scheduler</span>
-                            <input id="illus-scheduler-input" class="illus-input" type="text" autocomplete="off">
-                        </label>
-                    </div>
+                            <div>
+                                <div class="illus-label">Checkpoint Model</div>
+                                <div class="illus-row">
+                                    <span id="illus-checkpoint-help" class="sr-only">ComfyUI checkpoint model used for image generation.</span>
+                                    <select id="illus-checkpoint-select" class="illus-select" aria-describedby="illus-checkpoint-help">
+                                        <option value="">Loading checkpoints...</option>
+                                    </select>
+                                    <button id="illus-reload-comfy-btn" class="illus-reload-btn" title="Refresh ComfyUI checkpoint list">
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
 
-                    <label>
-                        <span class="illus-label">Negative Prompt</span>
-                        <textarea id="illus-negative-prompt-text" class="illus-textarea illus-textarea-small"></textarea>
-                    </label>
+                            <div class="illus-settings-grid illus-settings-grid-compact">
+                                <label>
+                                    <span class="illus-label">Width</span>
+                                    <input id="illus-width-input" class="illus-input" type="number" min="256" max="2048" step="64">
+                                </label>
+                                <label>
+                                    <span class="illus-label">Height</span>
+                                    <input id="illus-height-input" class="illus-input" type="number" min="256" max="2048" step="64">
+                                </label>
+                                <label>
+                                    <span class="illus-label">Steps</span>
+                                    <input id="illus-steps-input" class="illus-input" type="number" min="1" max="150" step="1">
+                                </label>
+                                <label>
+                                    <span class="illus-label">CFG</span>
+                                    <input id="illus-cfg-input" class="illus-input" type="number" min="0" max="30" step="0.5">
+                                </label>
+                            </div>
 
-                    <details class="illus-advanced-workflow">
-                        <summary>Custom ComfyUI Workflow</summary>
-                        <textarea id="illus-custom-workflow-text" class="illus-textarea illus-textarea-small" spellcheck="false"></textarea>
-                    </details>
+                            <div class="illus-settings-grid illus-settings-grid-compact">
+                                <label>
+                                    <span class="illus-label">Aspect</span>
+                                    <select id="illus-aspect-preset-select" class="illus-select">
+                                        <option value="custom">Custom</option>
+                                        <option value="portrait">Portrait</option>
+                                        <option value="landscape">Landscape</option>
+                                        <option value="square">Square</option>
+                                        <option value="vn_background">VN background</option>
+                                        <option value="comic_panel">Comic panel</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span class="illus-label">Seed</span>
+                                    <input id="illus-seed-input" class="illus-input" type="text" autocomplete="off">
+                                </label>
+                                <label>
+                                    <span class="illus-label">Batch</span>
+                                    <input id="illus-batch-size-input" class="illus-input" type="number" min="1" max="4" step="1">
+                                </label>
+                                <label>
+                                    <span class="illus-label">Workflow</span>
+                                    <select id="illus-workflow-mode-select" class="illus-select">
+                                        <option value="default">Default</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                </label>
+                            </div>
 
-                    <div class="illus-row">
-                        <button id="illus-generate-image-btn" class="illus-btn illus-btn-primary flex-fill">Generate Image in ComfyUI</button>
-                        <button id="illus-cancel-image-btn" class="illus-btn is-hidden">Cancel</button>
-                        <button id="illus-retry-image-btn" class="illus-btn is-hidden">Retry</button>
-                    </div>
+                            <div class="illus-settings-grid">
+                                <label>
+                                    <span class="illus-label">Sampler</span>
+                                    <input id="illus-sampler-input" class="illus-input" type="text" autocomplete="off">
+                                </label>
+                                <label>
+                                    <span class="illus-label">Scheduler</span>
+                                    <input id="illus-scheduler-input" class="illus-input" type="text" autocomplete="off">
+                                </label>
+                            </div>
 
-                    <div id="illus-status" class="illus-status idle" role="status" aria-live="polite" aria-atomic="true">Ready. Capture the scene or paste text to begin.</div>
-                    <div id="illus-job-details" class="illus-job-details is-hidden"></div>
+                            <label>
+                                <span class="illus-label">Negative Prompt</span>
+                                <textarea id="illus-negative-prompt-text" class="illus-textarea illus-textarea-small"></textarea>
+                            </label>
+
+                            <details class="illus-advanced-workflow">
+                                <summary>Custom ComfyUI Workflow</summary>
+                                <textarea id="illus-custom-workflow-text" class="illus-textarea illus-textarea-small" spellcheck="false"></textarea>
+                            </details>
+                        </div>
                     </section>
                 </div>
 
