@@ -97,6 +97,7 @@
         const setIllusStatus = (msg, type = 'idle') => {
             illusStatus.textContent = msg;
             illusStatus.className = `illus-status ${type}`;
+            illusOverlay.setAttribute('aria-busy', type === 'working' ? 'true' : 'false');
         };
 
         const setHealthSummary = (msg, type = 'idle') => {
@@ -316,6 +317,7 @@
                 activeJobId = null;
                 stopJobRefresh();
                 generateImageBtn.disabled = false;
+                generateImageBtn.setAttribute('aria-busy', 'false');
                 retryImageBtn.classList.add('is-hidden');
                 setJobDetails('');
                 setIllustrationDisplay('idle');
@@ -326,6 +328,7 @@
             const active = isActiveIllustratorJob(job);
             const retryable = isRetryableIllustratorJob(job);
             generateImageBtn.disabled = active;
+            generateImageBtn.setAttribute('aria-busy', active ? 'true' : 'false');
             retryImageBtn.classList.toggle('is-hidden', !retryable);
             setJobDetails(describeJobStatus(job));
 
@@ -368,6 +371,7 @@
             } else {
                 stopJobRefresh();
                 generateImageBtn.disabled = false;
+                generateImageBtn.setAttribute('aria-busy', 'false');
                 setIllustrationDisplay('error');
                 setIllusStatus(`Job refresh failed: ${res.error}`, 'error');
             }
@@ -754,11 +758,13 @@
         const withSpinningReload = async (btn, fn) => {
             btn.classList.add('spinning');
             btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
             try {
                 await fn();
             } finally {
                 btn.classList.remove('spinning');
                 btn.disabled = false;
+                btn.setAttribute('aria-busy', 'false');
             }
         };
 
@@ -1028,12 +1034,20 @@
             const chosenModel = config.textModel;
             const promptContext = getPromptContext();
 
-            document.getElementById('illus-generate-prompt-btn').disabled = true;
+            const generatePromptBtn = document.getElementById('illus-generate-prompt-btn');
+            generatePromptBtn.disabled = true;
+            generatePromptBtn.setAttribute('aria-busy', 'true');
             setIllusStatus(`Asking ${chosenModel}...`, 'working');
 
-            const res = await window.illustratorAPI.generatePrompt(sceneText, chosenModel, config, promptContext);
-
-            document.getElementById('illus-generate-prompt-btn').disabled = false;
+            let res;
+            try {
+                res = await window.illustratorAPI.generatePrompt(sceneText, chosenModel, config, promptContext);
+            } catch (err) {
+                res = { success: false, error: err && err.message ? err.message : String(err) };
+            } finally {
+                generatePromptBtn.disabled = false;
+                generatePromptBtn.setAttribute('aria-busy', 'false');
+            }
 
             if (res.success) {
                 document.getElementById('illus-prompt-text').value = res.prompt;
@@ -1075,6 +1089,7 @@
             const outputFilename = createOutputFilename(Date.now(), sceneIdentity);
 
             generateImageBtn.disabled = true;
+            generateImageBtn.setAttribute('aria-busy', 'true');
             retryImageBtn.classList.add('is-hidden');
             setJobDetails('');
             setIllusStatus(`Queuing job with ${checkpoint}...`, 'working');
@@ -1111,6 +1126,7 @@
                 setIllusStatus(`ComfyUI error: ${startRes.error}`, 'error');
                 setIllustrationDisplay('error');
                 generateImageBtn.disabled = false;
+                generateImageBtn.setAttribute('aria-busy', 'false');
                 return;
             }
 
@@ -1143,6 +1159,7 @@
 
                 clearInterval(legacyPollTimer);
                 generateImageBtn.disabled = false;
+                generateImageBtn.setAttribute('aria-busy', 'false');
 
                 if (pollRes.success) {
                     illusResultImg.src = pollRes.dataUrl;
@@ -1169,6 +1186,7 @@
             stopJobRefresh();
             setIllustrationDisplay('canceled');
             generateImageBtn.disabled = false;
+            generateImageBtn.setAttribute('aria-busy', 'false');
             setIllusStatus('Generation canceled. The ComfyUI job may still finish in its queue.', 'idle');
         });
 
@@ -1176,12 +1194,14 @@
             if (!activeJobId || !window.illustratorAPI.retryJob) return;
             retryImageBtn.disabled = true;
             generateImageBtn.disabled = true;
+            generateImageBtn.setAttribute('aria-busy', 'true');
             setIllusStatus('Retrying generation...', 'working');
             try {
                 const res = await window.illustratorAPI.retryJob(activeJobId);
                 if (!res.success) {
                     setIllusStatus(`Retry failed: ${res.error}`, 'error');
                     generateImageBtn.disabled = false;
+                    generateImageBtn.setAttribute('aria-busy', 'false');
                     return;
                 }
                 illusResultImg.removeAttribute('src');

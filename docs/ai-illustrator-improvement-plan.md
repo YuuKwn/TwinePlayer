@@ -549,7 +549,7 @@ Relevant files:
 
 ## Slice 10: UI, Accessibility, and Reduced-Motion Polish
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -589,6 +589,14 @@ Relevant files:
 
 - The Illustrator remains comfortable to use as it gains features.
 - No primary action requires a mouse.
+
+### Progress Notes
+
+- Split the Illustrator modal into semantic Scene, Settings, Prompt, Generate, and Gallery sections without changing the underlying workflow.
+- Added dialog description wiring, polite live status updates, endpoint/model descriptions, and semantic busy states for prompt/model/generation operations.
+- Added reduced-motion safeguards for Illustrator spinners and modal motion, plus narrow-viewport layout rules for the modal and dock.
+- Extended accessibility policy tests for Illustrator sections, live regions, described controls, dock keyboard navigation, and busy-state wiring.
+- Electron integration coverage remains unrun per project instruction.
 
 ## Slice 11: Integration Tests With Mock AI Services
 

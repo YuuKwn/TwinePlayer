@@ -202,7 +202,7 @@
     </div>
 
     <!-- Illustrator Modal -->
-    <div id="illustrator-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="illustrator-title">
+    <div id="illustrator-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="illustrator-title" aria-describedby="illustrator-desc" aria-busy="false">
         <div id="illustrator-modal">
             <div class="modal-header">
                 <h2 id="illustrator-title">
@@ -213,6 +213,7 @@
                     </svg>
                     Scene Illustrator
                 </h2>
+                <p id="illustrator-desc" class="sr-only">Create and manage generated illustrations for the current Twine scene.</p>
                 <button class="close-console" id="close-illustrator-btn" title="Close illustrator modal" aria-label="Close illustrator modal">
                     <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -223,6 +224,8 @@
             <div class="illus-body">
                 <!-- Left: controls -->
                 <div class="illus-controls">
+                    <section class="illus-section" aria-labelledby="illus-section-scene-title">
+                        <h3 id="illus-section-scene-title">Scene</h3>
                     <div>
                         <div class="illus-label-row">
                             <div class="illus-label">Scene Text <span class="illus-label-hint">(auto-captured or paste manually)</span></div>
@@ -231,7 +234,10 @@
                         <textarea id="illus-scene-text" class="illus-textarea" placeholder="Scene text will appear here. You can also paste or type your own."></textarea>
                         <div id="illus-scene-context-summary" class="illus-scene-context-summary">No scene captured yet.</div>
                     </div>
+                    </section>
 
+                    <section class="illus-section" aria-labelledby="illus-section-settings-title">
+                        <h3 id="illus-section-settings-title">Settings</h3>
                     <div class="illus-settings-grid">
                         <label>
                             <span class="illus-label">Service Profile</span>
@@ -247,7 +253,10 @@
                     </div>
 
                     <div id="illus-health-summary" class="illus-health-summary idle">Connections not tested yet.</div>
+                    </section>
 
+                    <section class="illus-section" aria-labelledby="illus-section-prompt-title">
+                        <h3 id="illus-section-prompt-title">Prompt</h3>
                     <div class="illus-settings-grid">
                         <label>
                             <span class="illus-label">Prompt Mode</span>
@@ -291,14 +300,16 @@
                         </label>
                         <label>
                             <span class="illus-label">Text Endpoint <span id="illus-text-endpoint-class" class="illus-endpoint-class local">Local</span></span>
-                            <input id="illus-text-endpoint-input" class="illus-input" type="url" autocomplete="off">
+                            <span id="illus-text-endpoint-help" class="sr-only">HTTP endpoint for the selected text backend.</span>
+                            <input id="illus-text-endpoint-input" class="illus-input" type="url" autocomplete="off" aria-describedby="illus-text-endpoint-help">
                         </label>
                     </div>
 
                     <div>
                         <div class="illus-label">Text Model</div>
                         <div class="illus-row">
-                            <select id="illus-ollama-model-select" class="illus-select">
+                            <span id="illus-text-model-help" class="sr-only">Model used to turn scene text into an image prompt.</span>
+                            <select id="illus-ollama-model-select" class="illus-select" aria-describedby="illus-text-model-help">
                                 <option value="">Loading models...</option>
                             </select>
                             <button id="illus-reload-ollama-btn" class="illus-reload-btn" title="Refresh Ollama model list">
@@ -318,16 +329,21 @@
                         <div class="illus-label">Image Prompt <span class="illus-label-hint">(edit freely before generating)</span></div>
                         <textarea id="illus-prompt-text" class="illus-textarea" placeholder="The image generation prompt will appear here after Ollama processes the scene. You can edit it."></textarea>
                     </div>
+                    </section>
 
+                    <section class="illus-section" aria-labelledby="illus-section-generate-title">
+                        <h3 id="illus-section-generate-title">Generate</h3>
                     <label>
                         <span class="illus-label">ComfyUI Endpoint <span id="illus-comfy-endpoint-class" class="illus-endpoint-class local">Local</span></span>
-                        <input id="illus-comfy-endpoint-input" class="illus-input" type="url" autocomplete="off">
+                        <span id="illus-comfy-endpoint-help" class="sr-only">HTTP endpoint for ComfyUI image generation.</span>
+                        <input id="illus-comfy-endpoint-input" class="illus-input" type="url" autocomplete="off" aria-describedby="illus-comfy-endpoint-help">
                     </label>
 
                     <div>
                         <div class="illus-label">Checkpoint Model</div>
                         <div class="illus-row">
-                            <select id="illus-checkpoint-select" class="illus-select">
+                            <span id="illus-checkpoint-help" class="sr-only">ComfyUI checkpoint model used for image generation.</span>
+                            <select id="illus-checkpoint-select" class="illus-select" aria-describedby="illus-checkpoint-help">
                                 <option value="">Loading checkpoints...</option>
                             </select>
                             <button id="illus-reload-comfy-btn" class="illus-reload-btn" title="Refresh ComfyUI checkpoint list">
@@ -414,8 +430,9 @@
                         <button id="illus-retry-image-btn" class="illus-btn is-hidden">Retry</button>
                     </div>
 
-                    <div id="illus-status" class="illus-status idle">Ready. Capture the scene or paste text to begin.</div>
+                    <div id="illus-status" class="illus-status idle" role="status" aria-live="polite" aria-atomic="true">Ready. Capture the scene or paste text to begin.</div>
                     <div id="illus-job-details" class="illus-job-details is-hidden"></div>
+                    </section>
                 </div>
 
                 <!-- Right: image -->
@@ -433,9 +450,9 @@
                         <img id="illus-result-img" src="" alt="Generated illustration" class="is-hidden" />
                     </div>
                     <button class="illus-download-btn is-hidden" id="illus-download-btn">&#8595; Save to illustrations folder</button>
-                    <div class="illus-gallery-panel">
+                    <section class="illus-gallery-panel" aria-labelledby="illus-section-gallery-title">
                         <div class="illus-gallery-header">
-                            <span>Gallery</span>
+                            <h3 id="illus-section-gallery-title">Gallery</h3>
                             <select id="illus-gallery-filter-select" class="illus-select" aria-label="Filter illustration gallery">
                                 <option value="current">Current scene</option>
                                 <option value="all">All images</option>
@@ -443,7 +460,7 @@
                             <button id="illus-refresh-gallery-btn" class="illus-reload-btn" type="button" title="Refresh gallery">Refresh</button>
                         </div>
                         <div id="illus-gallery-grid" class="illus-gallery-grid" aria-live="polite"></div>
-                    </div>
+                    </section>
                 </div>
             </div>
         </div>

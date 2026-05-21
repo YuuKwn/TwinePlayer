@@ -27,6 +27,7 @@ test('game page icon-only controls have accessible labels', () => {
   const html = readRootFile('game.html');
   const devConsoleSource = readRootFile('src/game/dev-console.js');
   const illustratorSource = readRootFile('src/game/illustrator-ui.js');
+  const css = readRootFile('src/game/game.css');
 
   assert.match(html, /id="pin-bar-btn"[^>]*aria-label="Pin top bar"/);
   assert.match(html, /id="layout-toggle"[^>]*aria-label="Toggle developer console layout"/);
@@ -35,12 +36,20 @@ test('game page icon-only controls have accessible labels', () => {
   assert.match(html, /id="toggle-illustration-dock"[^>]*aria-label="Toggle illustration dock"[^>]*aria-pressed="false"/);
   assert.match(html, /id="illustration-dock"[^>]*aria-label="Illustration dock"/);
   assert.match(html, /id="illustration-dock-thumbs"[^>]*role="list"[^>]*aria-label="Recent illustrations"/);
+  assert.match(html, /id="illustrator-modal-overlay"[^>]*aria-describedby="illustrator-desc"[^>]*aria-busy="false"/);
+  assert.match(html, /id="illus-status"[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"/);
+  assert.match(html, /id="illus-text-endpoint-input"[^>]*aria-describedby="illus-text-endpoint-help"/);
+  assert.match(html, /id="illus-comfy-endpoint-input"[^>]*aria-describedby="illus-comfy-endpoint-help"/);
+  assert.match(html, /aria-labelledby="illus-section-scene-title"/);
+  assert.match(html, /aria-labelledby="illus-section-gallery-title"/);
   assert.match(devConsoleSource, /layoutToggleBtn\.setAttribute\('aria-pressed'/);
   assert.match(devConsoleSource, /pinBarBtn\.setAttribute\('aria-pressed'/);
   assert.match(devConsoleSource, /runBtn\.setAttribute\('aria-label'/);
   assert.match(devConsoleSource, /delBtn\.setAttribute\('aria-label'/);
   assert.match(illustratorSource, /illustrationDockThumbs\.addEventListener\('keydown'/);
   assert.match(illustratorSource, /toggleIllustrationDockBtn\.setAttribute\('aria-pressed'/);
+  assert.match(illustratorSource, /illusOverlay\.setAttribute\('aria-busy'/);
+  assert.match(css, /\.illus-section/);
 });
 
 test('save modal declares dialog relationships and keyboard-reachable save slots', () => {
@@ -65,6 +74,7 @@ test('styles include reduced-motion safeguards without disabling hidden-panel tr
   assert.match(gameCss, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(indexCss, /transition-duration: 0\.01ms !important/);
   assert.match(gameCss, /transition-duration: 0\.01ms !important/);
+  assert.match(gameCss, /\.illus-spinner,\s*[\s\S]*?\.spinning svg\s*\{\s*animation: none !important;/);
 
   const reducedMotionBlock = gameCss.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n        \}/);
   assert.ok(reducedMotionBlock, 'game.css should define a reduced-motion block');

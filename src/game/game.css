@@ -153,6 +153,18 @@
             display: none !important;
         }
 
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
         .game-title {
             color: #e2e8f0;
             margin-left: 1rem;
@@ -949,6 +961,26 @@
             overflow-y: auto;
         }
 
+        .illus-section {
+            display: grid;
+            gap: 0.85rem;
+            padding: 0 0 0.95rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+        }
+
+        .illus-section:last-child {
+            border-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .illus-section h3,
+        .illus-gallery-header h3 {
+            margin: 0;
+            color: #e2e8f0;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
         .illus-label {
             display: block;
             font-size: 11px;
@@ -1554,6 +1586,42 @@
         }
         /* --- End Illustrator Feature Styles --- */
 
+        @media (max-width: 780px) {
+            #illustrator-modal {
+                width: 96vw;
+                max-height: 94vh;
+            }
+
+            .illus-body {
+                flex-direction: column;
+                overflow-y: auto;
+            }
+
+            .illus-controls {
+                overflow: visible;
+            }
+
+            .illus-image-panel {
+                flex: 0 0 auto;
+                width: 100%;
+            }
+
+            .illus-image-box {
+                max-height: 58vh;
+            }
+
+            .illus-gallery-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                max-height: none;
+            }
+
+            .illustration-dock {
+                right: 10px;
+                bottom: 10px;
+                width: calc(100vw - 20px);
+            }
+        }
+
 .spin {
             animation: spin 1s linear infinite;
         }
@@ -1585,5 +1653,15 @@
             .save-slot:hover,
             .save-slot:focus-visible {
                 transform: none;
+            }
+
+            .illus-spinner,
+            .spinning svg {
+                animation: none !important;
+            }
+
+            #illustrator-modal,
+            #illustrator-modal-overlay {
+                transform: none !important;
             }
         }
