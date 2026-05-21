@@ -167,7 +167,7 @@ Relevant files:
 
 ## Slice 3: Extract Illustrator Renderer Helpers
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -204,6 +204,13 @@ Relevant files:
 - Pure Illustrator behavior is covered by Node tests.
 - The UI script is smaller and easier to modify.
 - Existing modal behavior is preserved.
+
+### Progress Notes
+
+- Added `src/shared/illustrator-helpers.js` as a browser/Node-compatible helper module loaded before the Illustrator UI.
+- Extracted renderer config normalization, output filename creation, scene hashing/excerpts, display-state decisions, and metadata normalization into pure tested helpers.
+- Updated the Illustrator UI to use helper-driven config, filenames, scene excerpts, and CSS class toggles for spinner/image/download/cancel visibility.
+- Reused the shared metadata normalizer from the main Illustrator service to avoid drift between sidecar writes and future gallery reads.
 
 ## Slice 4: Service Profiles and Health Checks
 

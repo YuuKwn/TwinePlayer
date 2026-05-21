@@ -22,66 +22,25 @@ const {
   assertString,
   getErrorMessage,
 } = require('./validation');
+const {
+  DEFAULT_WORKFLOW_TEMPLATE,
+  DEFAULT_WORKFLOW_VERSION,
+  createSceneExcerpt,
+  normalizeIllustrationMetadata,
+} = require('../shared/illustrator-helpers');
 
 const fsp = fs.promises;
 const DEFAULT_TIMEOUT_MS = 10000;
 const TEXT_TIMEOUT_MS = 60000;
 const MAX_JSON_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-const ILLUSTRATION_METADATA_VERSION = 1;
-const DEFAULT_WORKFLOW_TEMPLATE = 'comfyui-default-txt2img';
-const DEFAULT_WORKFLOW_VERSION = 1;
-const MAX_METADATA_STRING_LENGTH = 512;
-const MAX_METADATA_TEXT_LENGTH = 5000;
-const MAX_SCENE_EXCERPT_LENGTH = 2000;
 
 const isPlainObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 
-const pickMetadataValue = (...values) => values.find(value => value !== undefined && value !== null);
-
-const normalizeOptionalString = (value, maxLength = MAX_METADATA_STRING_LENGTH) => {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return trimmed.slice(0, maxLength);
-};
-
-const normalizeOptionalNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const normalizeOptionalInteger = (value) => {
-  const parsed = normalizeOptionalNumber(value);
-  return parsed === null ? null : Math.round(parsed);
-};
-
-const normalizeIsoTimestamp = (value) => {
-  const timestamp = normalizeOptionalString(value, 64);
-  if (!timestamp) return null;
-  const parsed = Date.parse(timestamp);
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
-};
-
-const normalizeEndpointOrigin = (value) => {
-  const endpoint = normalizeOptionalString(value);
-  if (!endpoint) return null;
-
-  try {
-    return new URL(endpoint).origin;
-  } catch (err) {
-    return null;
-  }
-};
-
 const hashSceneText = (sceneText) => {
-  const text = normalizeOptionalString(sceneText, MAX_SCENE_TEXT_LENGTH);
+  const text = typeof sceneText === 'string' ? sceneText.trim().slice(0, MAX_SCENE_TEXT_LENGTH) : '';
   if (!text) return null;
   return crypto.createHash('sha256').update(text).digest('hex');
-};
-
-const createSceneExcerpt = (sceneText) => {
-  return normalizeOptionalString(sceneText, MAX_SCENE_EXCERPT_LENGTH);
 };
 
 const getTransport = (url) => url.protocol === 'https:' ? https : http;
@@ -186,63 +145,6 @@ const httpGetImage = async (url, timeoutMs = DEFAULT_TIMEOUT_MS) => {
   };
 };
 
-const normalizeIllustrationMetadata = (raw = {}) => {
-  const source = isPlainObject(raw) ? raw : {};
-  const game = isPlainObject(source.game) ? source.game : {};
-  const passage = isPlainObject(source.passage) ? source.passage : {};
-  const scene = isPlainObject(source.scene) ? source.scene : {};
-  const prompt = isPlainObject(source.prompt) ? source.prompt : {};
-  const comfyUI = isPlainObject(source.comfyUI) ? source.comfyUI : {};
-  const output = isPlainObject(source.output) ? source.output : {};
-  const workflow = isPlainObject(source.workflow) ? source.workflow : {};
-
-  return {
-    twinePlayerIllustrationVersion: ILLUSTRATION_METADATA_VERSION,
-    game: {
-      basename: normalizeOptionalString(pickMetadataValue(game.basename, source.gameBasename, source.gameName), 255),
-    },
-    passage: {
-      identity: normalizeOptionalString(pickMetadataValue(passage.identity, source.passageIdentity)),
-      title: normalizeOptionalString(pickMetadataValue(passage.title, source.passageTitle)),
-    },
-    scene: {
-      documentTitle: normalizeOptionalString(pickMetadataValue(scene.documentTitle, source.documentTitle)),
-      textExcerpt: normalizeOptionalString(pickMetadataValue(scene.textExcerpt, source.sceneTextExcerpt), MAX_SCENE_EXCERPT_LENGTH),
-      textHash: normalizeOptionalString(pickMetadataValue(scene.textHash, source.sceneTextHash), 128),
-    },
-    prompt: {
-      final: normalizeOptionalString(pickMetadataValue(prompt.final, source.imagePrompt), MAX_METADATA_TEXT_LENGTH),
-      negative: normalizeOptionalString(pickMetadataValue(prompt.negative, source.negativePrompt), MAX_METADATA_TEXT_LENGTH),
-      textBackend: normalizeOptionalString(pickMetadataValue(prompt.textBackend, source.textBackend), 64),
-      textModel: normalizeOptionalString(pickMetadataValue(prompt.textModel, source.textModel), MAX_MODEL_NAME_LENGTH),
-      generatedAt: normalizeIsoTimestamp(pickMetadataValue(prompt.generatedAt, source.promptGeneratedAt)),
-    },
-    comfyUI: {
-      endpointOrigin: normalizeEndpointOrigin(pickMetadataValue(comfyUI.endpointOrigin, source.comfyEndpointOrigin)),
-      checkpoint: normalizeOptionalString(pickMetadataValue(comfyUI.checkpoint, source.checkpoint), MAX_MODEL_NAME_LENGTH),
-      width: normalizeOptionalInteger(pickMetadataValue(comfyUI.width, source.imageWidth)),
-      height: normalizeOptionalInteger(pickMetadataValue(comfyUI.height, source.imageHeight)),
-      sampler: normalizeOptionalString(pickMetadataValue(comfyUI.sampler, source.sampler), 64),
-      scheduler: normalizeOptionalString(pickMetadataValue(comfyUI.scheduler, source.scheduler), 64),
-      steps: normalizeOptionalInteger(pickMetadataValue(comfyUI.steps, source.steps)),
-      cfg: normalizeOptionalNumber(pickMetadataValue(comfyUI.cfg, source.cfg)),
-      seed: normalizeOptionalInteger(pickMetadataValue(comfyUI.seed, source.seed)),
-      promptId: normalizeOptionalString(pickMetadataValue(comfyUI.promptId, source.promptId), 128),
-      sourceOutputFilename: normalizeOptionalString(pickMetadataValue(comfyUI.sourceOutputFilename, source.sourceOutputFilename, source.filename), 255),
-    },
-    output: {
-      localFilename: normalizeOptionalString(pickMetadataValue(output.localFilename, source.localFilename, source.filename), 255),
-      contentType: normalizeOptionalString(pickMetadataValue(output.contentType, source.contentType), 128),
-      byteSize: normalizeOptionalInteger(pickMetadataValue(output.byteSize, source.byteSize)),
-      generatedAt: normalizeIsoTimestamp(pickMetadataValue(output.generatedAt, source.generatedAt)) || new Date().toISOString(),
-    },
-    workflow: {
-      template: normalizeOptionalString(pickMetadataValue(workflow.template, source.workflowTemplate), 128) || DEFAULT_WORKFLOW_TEMPLATE,
-      version: normalizeOptionalInteger(pickMetadataValue(workflow.version, source.workflowVersion)) || DEFAULT_WORKFLOW_VERSION,
-    },
-  };
-};
-
 const createIllustrationMetadata = ({
   promptId,
   gamePath,
@@ -265,8 +167,12 @@ const createIllustrationMetadata = ({
 }) => {
   const safeConfig = normalizeIllustratorConfig(config || {});
   const safePromptId = assertPromptId(promptId);
-  const safeSceneText = normalizeOptionalString(sourceSceneText, MAX_SCENE_TEXT_LENGTH);
-  const safeCheckpoint = normalizeOptionalString(checkpoint, MAX_MODEL_NAME_LENGTH) || safeConfig.checkpoint;
+  const safeSceneText = typeof sourceSceneText === 'string'
+    ? sourceSceneText.trim().slice(0, MAX_SCENE_TEXT_LENGTH)
+    : '';
+  const safeCheckpoint = typeof checkpoint === 'string' && checkpoint.trim()
+    ? checkpoint.trim().slice(0, MAX_MODEL_NAME_LENGTH)
+    : safeConfig.checkpoint;
 
   return normalizeIllustrationMetadata({
     game: {

@@ -3,21 +3,14 @@
            ================================================================ */
 
         const ILLUSTRATOR_CONFIG_KEY = 'twine_player_illustrator_config';
-        const DEFAULT_ILLUSTRATOR_CONFIG = {
-            textBackend: 'ollama',
-            textEndpoint: 'http://localhost:11434',
-            textModel: 'llama3.2',
-            comfyEndpoint: 'http://localhost:8188',
-            checkpoint: 'waiIllustriousSDXL_v160.safetensors',
-            imageWidth: 832,
-            imageHeight: 1216,
-            sampler: 'euler',
-            scheduler: 'normal',
-            steps: 20,
-            cfg: 7,
-            negativePrompt: 'blurry, low quality, watermark, text, ugly',
-            maxPollingMs: 120000,
-        };
+        const {
+            DEFAULT_RENDERER_ILLUSTRATOR_CONFIG,
+            createOutputFilename,
+            createSceneExcerpt,
+            getIllustrationDisplayState,
+            hashSceneText,
+            normalizeRendererIllustratorConfig,
+        } = window.TwinePlayerIllustratorHelpers;
 
         const illusOverlay = document.getElementById('illustrator-modal-overlay');
         const illusStatus = document.getElementById('illus-status');
@@ -46,7 +39,7 @@
         let illusOutputDir = null;
         let illusLastFilename = null;
         let previouslyFocusedIllustratorElement = null;
-        let illustratorDefaults = { ...DEFAULT_ILLUSTRATOR_CONFIG };
+        let illustratorDefaults = { ...DEFAULT_RENDERER_ILLUSTRATOR_CONFIG };
         let activePollTimer = null;
         let activePollStartedAt = 0;
         let lastPromptGeneratedAt = null;
@@ -57,9 +50,15 @@
             illusStatus.className = `illus-status ${type}`;
         };
 
-        const setIllusLoading = (on) => {
-            illusSpinner.style.display = on ? 'block' : 'none';
-            illusPlaceholder.style.display = on ? 'none' : (illusResultImg.style.display === 'none' ? 'flex' : 'none');
+        const hasIllustrationImage = () => Boolean(illusResultImg.getAttribute('src'));
+
+        const setIllustrationDisplay = (status) => {
+            const state = getIllustrationDisplayState(status, hasIllustrationImage());
+            illusSpinner.classList.toggle('is-hidden', !state.showSpinner);
+            illusPlaceholder.classList.toggle('is-hidden', !state.showPlaceholder);
+            illusResultImg.classList.toggle('is-hidden', !state.showImage);
+            illusDownloadBtn.classList.toggle('is-hidden', !state.showDownload);
+            cancelImageBtn.classList.toggle('is-hidden', !state.showCancel);
         };
 
         const readStoredConfig = () => {
@@ -67,26 +66,20 @@
             return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
         };
 
-        const numberFromInput = (input, fallback) => {
-            const value = Number(input.value);
-            return Number.isFinite(value) ? value : fallback;
-        };
-
-        const getIllustratorConfig = () => ({
-            ...illustratorDefaults,
+        const getIllustratorConfig = () => normalizeRendererIllustratorConfig({
             textBackend: textBackendSelect.value || illustratorDefaults.textBackend,
             textEndpoint: textEndpointInput.value.trim() || illustratorDefaults.textEndpoint,
             textModel: ollamaModelSelect.value || illustratorDefaults.textModel,
             comfyEndpoint: comfyEndpointInput.value.trim() || illustratorDefaults.comfyEndpoint,
             checkpoint: checkpointSelect.value || illustratorDefaults.checkpoint,
-            imageWidth: numberFromInput(widthInput, illustratorDefaults.imageWidth),
-            imageHeight: numberFromInput(heightInput, illustratorDefaults.imageHeight),
+            imageWidth: widthInput.value,
+            imageHeight: heightInput.value,
             sampler: samplerInput.value.trim() || illustratorDefaults.sampler,
             scheduler: schedulerInput.value.trim() || illustratorDefaults.scheduler,
-            steps: numberFromInput(stepsInput, illustratorDefaults.steps),
-            cfg: numberFromInput(cfgInput, illustratorDefaults.cfg),
+            steps: stepsInput.value,
+            cfg: cfgInput.value,
             negativePrompt: negativePromptText.value.trim() || illustratorDefaults.negativePrompt,
-        });
+        }, illustratorDefaults);
 
         const persistIllustratorConfig = () => {
             window.TwinePlayerStorage.writeJson(localStorage, ILLUSTRATOR_CONFIG_KEY, getIllustratorConfig());
@@ -122,10 +115,10 @@
             if (window.illustratorAPI.getDefaultConfig) {
                 const res = await window.illustratorAPI.getDefaultConfig();
                 if (res.success && res.config) {
-                    illustratorDefaults = { ...DEFAULT_ILLUSTRATOR_CONFIG, ...res.config };
+                    illustratorDefaults = normalizeRendererIllustratorConfig(res.config, DEFAULT_RENDERER_ILLUSTRATOR_CONFIG);
                 }
             }
-            applyIllustratorConfig({ ...illustratorDefaults, ...readStoredConfig() });
+            applyIllustratorConfig(normalizeRendererIllustratorConfig(readStoredConfig(), illustratorDefaults));
         };
 
         const getFocusableElements = (container) => {
@@ -240,7 +233,7 @@
                     doc.body;
                 const sceneText = passageEl ? passageEl.innerText : '';
                 if (sceneText.trim()) {
-                    document.getElementById('illus-scene-text').value = sceneText.trim().slice(0, 2000);
+                    document.getElementById('illus-scene-text').value = createSceneExcerpt(sceneText, 2000);
                 }
             } catch (e) {
                 lastSceneDocumentTitle = null;
@@ -323,20 +316,20 @@
             persistIllustratorConfig();
             const config = getIllustratorConfig();
             const checkpoint = config.checkpoint;
+            const sourceSceneText = document.getElementById('illus-scene-text').value.trim();
+            const sceneIdentity = hashSceneText(sourceSceneText);
 
             if (!illusOutputDir && gameUrl) {
                 const dirRes = await window.illustratorAPI.ensureOutputDir(gameUrl);
                 if (dirRes.success) illusOutputDir = dirRes.path;
             }
 
-            const outputFilename = `twineplayer_${Date.now()}`;
+            const outputFilename = createOutputFilename(Date.now(), sceneIdentity);
 
             generateImageBtn.disabled = true;
-            cancelImageBtn.style.display = 'inline-flex';
             setIllusStatus(`Queuing job with ${checkpoint}...`, 'working');
-            setIllusLoading(true);
-            illusResultImg.style.display = 'none';
-            illusDownloadBtn.style.display = 'none';
+            illusResultImg.removeAttribute('src');
+            setIllustrationDisplay('working');
 
             const queueRes = await window.illustratorAPI.queueComfyUI({
                 imagePrompt: prompt,
@@ -347,10 +340,8 @@
 
             if (!queueRes.success) {
                 setIllusStatus(`ComfyUI error: ${queueRes.error}`, 'error');
-                setIllusLoading(false);
-                illusPlaceholder.style.display = 'flex';
+                setIllustrationDisplay('error');
                 generateImageBtn.disabled = false;
-                cancelImageBtn.style.display = 'none';
                 return;
             }
 
@@ -363,10 +354,8 @@
                 if (Date.now() - activePollStartedAt > config.maxPollingMs) {
                     clearInterval(activePollTimer);
                     activePollTimer = null;
-                    setIllusLoading(false);
-                    illusPlaceholder.style.display = 'flex';
+                    setIllustrationDisplay('error');
                     generateImageBtn.disabled = false;
-                    cancelImageBtn.style.display = 'none';
                     setIllusStatus('Generation timed out. The ComfyUI job may still finish in its queue.', 'error');
                     return;
                 }
@@ -376,10 +365,11 @@
                     gamePath: gameUrl,
                     config,
                     metadata: {
-                        sourceSceneText: document.getElementById('illus-scene-text').value.trim(),
+                        sourceSceneText,
                         imagePrompt: prompt,
                         promptGeneratedAt: lastPromptGeneratedAt,
                         documentTitle: lastSceneDocumentTitle,
+                        passageIdentity: sceneIdentity,
                         checkpoint,
                         seed,
                         workflowTemplate: queueRes.workflowTemplate,
@@ -391,19 +381,15 @@
 
                 clearInterval(activePollTimer);
                 activePollTimer = null;
-                setIllusLoading(false);
                 generateImageBtn.disabled = false;
-                cancelImageBtn.style.display = 'none';
 
                 if (pollRes.success) {
                     illusResultImg.src = pollRes.dataUrl;
-                    illusResultImg.style.display = 'block';
-                    illusPlaceholder.style.display = 'none';
                     illusLastFilename = pollRes.filename;
-                    illusDownloadBtn.style.display = 'block';
+                    setIllustrationDisplay('done');
                     setIllusStatus('Done! Image generated successfully.', 'done');
                 } else {
-                    illusPlaceholder.style.display = 'flex';
+                    setIllustrationDisplay('error');
                     setIllusStatus(`Generation failed: ${pollRes.error}`, 'error');
                 }
             }, 2000);
@@ -414,10 +400,8 @@
                 clearInterval(activePollTimer);
                 activePollTimer = null;
             }
-            setIllusLoading(false);
-            illusPlaceholder.style.display = illusResultImg.style.display === 'none' ? 'flex' : 'none';
+            setIllustrationDisplay('canceled');
             generateImageBtn.disabled = false;
-            cancelImageBtn.style.display = 'none';
             setIllusStatus('Generation canceled. The ComfyUI job may still finish in its queue.', 'idle');
         });
 

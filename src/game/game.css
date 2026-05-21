@@ -1204,7 +1204,6 @@
             border-top-color: #a78bfa;
             border-radius: 50%;
             animation: illus-spin 0.9s linear infinite;
-            display: none;
         }
 
         @keyframes illus-spin {
@@ -1212,7 +1211,7 @@
         }
 
         .illus-download-btn {
-            display: none;
+            display: block;
             background: rgba(74, 222, 128, 0.15);
             color: #4ade80;
             border: 1px solid rgba(74, 222, 128, 0.3);
