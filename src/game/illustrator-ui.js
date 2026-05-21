@@ -12,7 +12,9 @@
             getIllustrationDisplayState,
             hashSceneText,
             normalizeRendererIllustratorConfig,
+            normalizeSceneContext,
             normalizeServiceProfiles,
+            updateSceneContextHistory,
         } = window.TwinePlayerIllustratorHelpers;
         const ILLUSTRATOR_PROFILES_KEY = 'twine_player_illustrator_profiles';
 
@@ -23,6 +25,9 @@
         const illusResultImg = document.getElementById('illus-result-img');
         const illusDownloadBtn = document.getElementById('illus-download-btn');
         const illusHealthSummary = document.getElementById('illus-health-summary');
+        const illusSceneText = document.getElementById('illus-scene-text');
+        const illusSceneContextSummary = document.getElementById('illus-scene-context-summary');
+        const recaptureSceneBtn = document.getElementById('illus-recapture-scene-btn');
 
         const profileSelect = document.getElementById('illus-profile-select');
         const saveProfileBtn = document.getElementById('illus-save-profile-btn');
@@ -51,6 +56,11 @@
         let previouslyFocusedIllustratorElement = null;
         let illustratorDefaults = { ...DEFAULT_RENDERER_ILLUSTRATOR_CONFIG };
         let illustratorProfiles = [];
+        let currentSceneContext = null;
+        let sceneContextHistory = [];
+        let sceneTextDirty = false;
+        let sceneObserver = null;
+        let sceneObserverTimer = null;
         let activePollTimer = null;
         let activePollStartedAt = 0;
         let lastPromptGeneratedAt = null;
@@ -75,6 +85,141 @@
         const updateEndpointClassifications = () => {
             updateEndpointBadge(textEndpointClass, textEndpointInput.value || illustratorDefaults.textEndpoint);
             updateEndpointBadge(comfyEndpointClass, comfyEndpointInput.value || illustratorDefaults.comfyEndpoint);
+        };
+
+        const setSceneContextSummary = (message, changed = false) => {
+            illusSceneContextSummary.textContent = message;
+            illusSceneContextSummary.classList.toggle('changed', changed);
+        };
+
+        const getLikelyPassageElement = (doc) => {
+            return doc.querySelector('#passage') ||
+                doc.querySelector('#passages .passage') ||
+                doc.querySelector('#passages') ||
+                doc.querySelector('tw-passage') ||
+                doc.querySelector('main') ||
+                doc.body;
+        };
+
+        const readSugarCubePassageName = (win) => {
+            const sugarCube = win.SugarCube || (win.window && win.window.SugarCube);
+            if (sugarCube && sugarCube.State && typeof sugarCube.State.passage === 'string') {
+                return sugarCube.State.passage;
+            }
+            if (win.State && typeof win.State.passage === 'string') {
+                return win.State.passage;
+            }
+            return null;
+        };
+
+        const readPassageNameFromElement = (element) => {
+            if (!element) return null;
+            return element.getAttribute('data-passage') ||
+                element.getAttribute('data-passage-name') ||
+                element.getAttribute('name') ||
+                null;
+        };
+
+        const readTwinePassageNameFromStoryData = (doc, text) => {
+            const passages = Array.from(doc.querySelectorAll('tw-storydata tw-passagedata[name]'));
+            if (passages.length === 1) return passages[0].getAttribute('name');
+            const normalizedText = createSceneExcerpt(text, 2000);
+            const matching = passages.find(passage => createSceneExcerpt(passage.textContent || '', 2000) === normalizedText);
+            return matching ? matching.getAttribute('name') : null;
+        };
+
+        const captureSceneContext = () => {
+            const cw = iframe.contentWindow;
+            const doc = cw.document;
+            const passageEl = getLikelyPassageElement(doc);
+            const text = passageEl ? (passageEl.innerText || passageEl.textContent || '') : '';
+            const sugarCubePassage = readSugarCubePassageName(cw);
+            const passageName = sugarCubePassage ||
+                readPassageNameFromElement(passageEl) ||
+                readTwinePassageNameFromStoryData(doc, text);
+
+            return normalizeSceneContext({
+                text,
+                documentTitle: doc.title,
+                passageName,
+                passageIdentity: passageName || null,
+                engine: sugarCubePassage ? 'SugarCube' : null,
+            });
+        };
+
+        const applyCapturedSceneContext = (context, { force = false, fromObserver = false } = {}) => {
+            if (!context || !context.text) return false;
+
+            sceneContextHistory = updateSceneContextHistory(sceneContextHistory, context);
+            const currentText = illusSceneText.value.trim();
+            const capturedText = currentSceneContext ? currentSceneContext.text.trim() : '';
+            const hasManualEdit = sceneTextDirty && currentText && currentText !== capturedText;
+
+            if (hasManualEdit && !force) {
+                setSceneContextSummary('Scene changed in the game. Press Recapture to replace your edited scene text.', true);
+                return false;
+            }
+
+            currentSceneContext = context;
+            lastSceneDocumentTitle = context.documentTitle || null;
+            illusSceneText.value = createSceneExcerpt(context.text, 2000);
+            sceneTextDirty = false;
+            const label = context.passageName || context.documentTitle || 'current scene';
+            const detail = fromObserver ? 'Auto-captured' : 'Captured';
+            setSceneContextSummary(`${detail}: ${label} (${context.textExcerpt.length} chars shown).`);
+            return true;
+        };
+
+        const recaptureScene = ({ force = false, fromObserver = false } = {}) => {
+            try {
+                const context = captureSceneContext();
+                return applyCapturedSceneContext(context, { force, fromObserver });
+            } catch (e) {
+                if (!fromObserver) {
+                    setSceneContextSummary('Could not access the current game scene.');
+                }
+                return false;
+            }
+        };
+
+        const disconnectSceneObserver = () => {
+            if (sceneObserver) {
+                sceneObserver.disconnect();
+                sceneObserver = null;
+            }
+            if (sceneObserverTimer) {
+                clearTimeout(sceneObserverTimer);
+                sceneObserverTimer = null;
+            }
+        };
+
+        const scheduleObservedSceneCapture = () => {
+            if (sceneObserverTimer) clearTimeout(sceneObserverTimer);
+            sceneObserverTimer = setTimeout(() => {
+                sceneObserverTimer = null;
+                recaptureScene({ force: false, fromObserver: true });
+            }, 300);
+        };
+
+        const setupSceneObserver = () => {
+            disconnectSceneObserver();
+            try {
+                const cw = iframe.contentWindow;
+                const doc = cw.document;
+                const target = getLikelyPassageElement(doc);
+                const Observer = cw.MutationObserver || window.MutationObserver;
+                if (!target || !Observer) return;
+
+                sceneObserver = new Observer(scheduleObservedSceneCapture);
+                sceneObserver.observe(target, {
+                    childList: true,
+                    subtree: true,
+                    characterData: true,
+                });
+                scheduleObservedSceneCapture();
+            } catch (e) {
+                disconnectSceneObserver();
+            }
         };
 
         const hasIllustrationImage = () => Boolean(illusResultImg.getAttribute('src'));
@@ -327,6 +472,15 @@
         testConnectionsBtn.addEventListener('click', testConnections);
         reloadOllamaBtn.addEventListener('click', loadOllamaModels);
         reloadComfyBtn.addEventListener('click', loadComfyUIModels);
+        recaptureSceneBtn.addEventListener('click', () => {
+            if (recaptureScene({ force: true })) {
+                lastSceneDocumentTitle = currentSceneContext ? currentSceneContext.documentTitle : null;
+            }
+        });
+        illusSceneText.addEventListener('input', () => {
+            sceneTextDirty = true;
+        });
+        iframe.addEventListener('load', setupSceneObserver);
 
         [
             textBackendSelect,
@@ -351,22 +505,8 @@
             illusOverlay.classList.add('active');
             await loadIllustratorConfig();
 
-            try {
-                const cw = iframe.contentWindow;
-                const doc = cw.document;
-                lastSceneDocumentTitle = doc.title || null;
-                const passageEl =
-                    doc.querySelector('#passage') ||
-                    doc.querySelector('#passages .passage') ||
-                    doc.querySelector('#passages') ||
-                    doc.body;
-                const sceneText = passageEl ? passageEl.innerText : '';
-                if (sceneText.trim()) {
-                    document.getElementById('illus-scene-text').value = createSceneExcerpt(sceneText, 2000);
-                }
-            } catch (e) {
-                lastSceneDocumentTitle = null;
-                // Cross-origin games leave the textarea as-is.
+            if (recaptureScene({ force: false })) {
+                lastSceneDocumentTitle = currentSceneContext ? currentSceneContext.documentTitle : null;
             }
 
             if (gameUrl && !illusOutputDir) {
@@ -409,7 +549,7 @@
         });
 
         document.getElementById('illus-generate-prompt-btn').addEventListener('click', async () => {
-            const sceneText = document.getElementById('illus-scene-text').value.trim();
+            const sceneText = illusSceneText.value.trim();
             if (!sceneText) {
                 setIllusStatus('Paste or capture some scene text first.', 'error');
                 return;
@@ -445,8 +585,16 @@
             persistIllustratorConfig();
             const config = getIllustratorConfig();
             const checkpoint = config.checkpoint;
-            const sourceSceneText = document.getElementById('illus-scene-text').value.trim();
-            const sceneIdentity = hashSceneText(sourceSceneText);
+            const sourceSceneText = illusSceneText.value.trim();
+            const sceneIdentity = currentSceneContext && !sceneTextDirty
+                ? currentSceneContext.passageIdentity
+                : hashSceneText(sourceSceneText);
+            const passageTitle = currentSceneContext && !sceneTextDirty
+                ? currentSceneContext.passageName
+                : null;
+            const documentTitle = currentSceneContext && !sceneTextDirty
+                ? currentSceneContext.documentTitle
+                : lastSceneDocumentTitle;
 
             if (!illusOutputDir && gameUrl) {
                 const dirRes = await window.illustratorAPI.ensureOutputDir(gameUrl);
@@ -497,8 +645,9 @@
                         sourceSceneText,
                         imagePrompt: prompt,
                         promptGeneratedAt: lastPromptGeneratedAt,
-                        documentTitle: lastSceneDocumentTitle,
+                        documentTitle,
                         passageIdentity: sceneIdentity,
+                        passageTitle,
                         checkpoint,
                         seed,
                         workflowTemplate: queueRes.workflowTemplate,

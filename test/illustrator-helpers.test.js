@@ -10,7 +10,9 @@ const {
   hashSceneText,
   normalizeIllustrationMetadata,
   normalizeRendererIllustratorConfig,
+  normalizeSceneContext,
   normalizeServiceProfiles,
+  updateSceneContextHistory,
 } = require('../src/shared/illustrator-helpers');
 const {
   normalizeIllustratorConfig,
@@ -143,4 +145,39 @@ test('normalizeServiceProfiles keeps defaults and repairs stored custom profiles
 test('createServiceProfileId creates stable plain identifiers', () => {
   assert.equal(createServiceProfileId('My Lab Profile', '123'), 'my-lab-profile-123');
   assert.equal(createServiceProfileId('../', ''), 'scene');
+});
+
+test('normalizeSceneContext derives bounded scene identity fields', () => {
+  const context = normalizeSceneContext({
+    text: `  ${'scene '.repeat(3000)}  `,
+    documentTitle: ' Fixture Story ',
+    passageName: ' Start ',
+    engine: ' SugarCube ',
+    capturedAt: '2026-05-01T12:00:00.000Z',
+  });
+
+  assert.equal(context.text.length, 10000);
+  assert.equal(context.textExcerpt.length, 2000);
+  assert.equal(context.documentTitle, 'Fixture Story');
+  assert.equal(context.passageName, 'Start');
+  assert.equal(context.passageIdentity, 'Start');
+  assert.equal(context.engine, 'SugarCube');
+  assert.equal(context.capturedAt, '2026-05-01T12:00:00.000Z');
+  assert.equal(context.sceneHash, hashSceneText(context.text));
+});
+
+test('updateSceneContextHistory dedupes and bounds recent contexts', () => {
+  const first = normalizeSceneContext({ text: 'first', passageName: 'Start' });
+  const second = normalizeSceneContext({ text: 'second', passageName: 'Next' });
+  const duplicateFirst = normalizeSceneContext({ text: 'first', passageName: 'Start' });
+
+  assert.deepEqual(
+    updateSceneContextHistory([first, second], duplicateFirst, 2).map(item => item.text),
+    ['first', 'second']
+  );
+  assert.deepEqual(
+    updateSceneContextHistory([first, second], { text: 'third', passageName: 'End' }, 2).map(item => item.text),
+    ['third', 'first']
+  );
+  assert.deepEqual(updateSceneContextHistory([first], { text: '   ' }), [first]);
 });

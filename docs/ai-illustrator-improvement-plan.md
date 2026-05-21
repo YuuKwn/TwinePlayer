@@ -266,7 +266,7 @@ Relevant files:
 
 ## Slice 5: Scene Capture and Passage Context
 
-**Status:** Planned.
+**Status:** Completed.
 
 ### Problem
 
@@ -307,6 +307,14 @@ Relevant files:
 
 - The Illustrator can reliably target the current scene.
 - Captured context remains bounded and safe for prompt generation limits.
+
+### Progress Notes
+
+- Added scene-context helpers for bounded text, excerpts, scene hashes, passage identity, and recent in-memory context history.
+- Added a Recapture action and scene context summary to the Illustrator modal.
+- Scene capture now records document title, best-effort SugarCube passage name, Twine passage data matches, current scene hash, and passage identity without modifying the game file.
+- Added throttled MutationObserver auto-capture for likely passage containers; background capture does not overwrite manually edited scene text.
+- Generation metadata now receives the captured passage identity/title when the scene text has not been manually edited.
 
 ## Slice 6: Prompt Templates, Style Bible, and Character Memory
 

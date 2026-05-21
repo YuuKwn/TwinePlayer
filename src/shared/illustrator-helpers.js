@@ -28,6 +28,8 @@
   const MAX_METADATA_STRING_LENGTH = 512;
   const MAX_METADATA_TEXT_LENGTH = 5000;
   const MAX_SCENE_EXCERPT_LENGTH = 2000;
+  const MAX_SCENE_CONTEXT_TEXT_LENGTH = 10000;
+  const DEFAULT_SCENE_HISTORY_LIMIT = 6;
   const DEFAULT_WORKFLOW_TEMPLATE = 'comfyui-default-txt2img';
   const DEFAULT_WORKFLOW_VERSION = 1;
   const DEFAULT_SERVICE_PROFILES = Object.freeze([
@@ -105,6 +107,43 @@
       hash = Math.imul(hash, 0x01000193);
     }
     return (hash >>> 0).toString(16).padStart(8, '0');
+  };
+
+  const normalizeSceneContext = (raw = {}) => {
+    const source = isPlainObject(raw) ? raw : {};
+    const text = typeof source.text === 'string'
+      ? source.text.trim().slice(0, MAX_SCENE_CONTEXT_TEXT_LENGTH)
+      : '';
+    const sceneHash = hashSceneText(text);
+    const passageName = normalizeOptionalString(source.passageName, 256);
+    const passageIdentity = normalizeOptionalString(source.passageIdentity, 256) || passageName || sceneHash;
+
+    return {
+      text,
+      textExcerpt: createSceneExcerpt(text, MAX_SCENE_EXCERPT_LENGTH),
+      sceneHash,
+      documentTitle: normalizeOptionalString(source.documentTitle, 256),
+      passageName,
+      passageIdentity,
+      engine: normalizeOptionalString(source.engine, 64),
+      capturedAt: normalizeIsoTimestamp(source.capturedAt) || new Date().toISOString(),
+    };
+  };
+
+  const updateSceneContextHistory = (history = [], context, limit = DEFAULT_SCENE_HISTORY_LIMIT) => {
+    const normalized = normalizeSceneContext(context);
+    if (!normalized.text) {
+      return Array.isArray(history) ? history.slice(0, limit) : [];
+    }
+
+    const existing = Array.isArray(history) ? history : [];
+    const withoutDuplicate = existing.filter(item => {
+      const previous = normalizeSceneContext(item);
+      return previous.sceneHash !== normalized.sceneHash ||
+        previous.passageIdentity !== normalized.passageIdentity;
+    });
+
+    return [normalized].concat(withoutDuplicate).slice(0, Math.max(1, limit));
   };
 
   const sanitizeFilenamePart = (value) => {
@@ -330,6 +369,8 @@
     hashSceneText,
     normalizeIllustrationMetadata,
     normalizeRendererIllustratorConfig,
+    normalizeSceneContext,
     normalizeServiceProfiles,
+    updateSceneContextHistory,
   };
 });

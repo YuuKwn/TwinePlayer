@@ -202,8 +202,12 @@
                 <!-- Left: controls -->
                 <div class="illus-controls">
                     <div>
-                        <div class="illus-label">Scene Text <span class="illus-label-hint">(auto-captured or paste manually)</span></div>
+                        <div class="illus-label-row">
+                            <div class="illus-label">Scene Text <span class="illus-label-hint">(auto-captured or paste manually)</span></div>
+                            <button id="illus-recapture-scene-btn" class="illus-reload-btn" type="button" title="Recapture current scene">Recapture</button>
+                        </div>
                         <textarea id="illus-scene-text" class="illus-textarea" placeholder="Scene text will appear here. You can also paste or type your own."></textarea>
+                        <div id="illus-scene-context-summary" class="illus-scene-context-summary">No scene captured yet.</div>
                     </div>
 
                     <div class="illus-settings-grid">

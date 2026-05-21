@@ -958,6 +958,18 @@
             margin-bottom: 4px;
         }
 
+        .illus-label-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .illus-label-row .illus-label {
+            margin-bottom: 0;
+        }
+
         .illus-label-hint {
             color: #475569;
             font-size: 10px;
@@ -1024,6 +1036,17 @@
         #illus-scene-text {
             min-height: 100px;
             max-height: 160px;
+        }
+
+        .illus-scene-context-summary {
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.35;
+            margin-top: 5px;
+        }
+
+        .illus-scene-context-summary.changed {
+            color: #fde68a;
         }
 
         #illus-prompt-text {
