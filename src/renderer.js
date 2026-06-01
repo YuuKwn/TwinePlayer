@@ -2,6 +2,7 @@
 const HISTORY_KEY = 'twine_player_history';
 const { readJson, writeJson } = window.TwinePlayerStorage;
 const { getTitleFromPath, normalizeLibraryHistory } = window.TwinePlayerLibraryHistory;
+const { getLiquidDomState } = window.TwinePlayerLiquidDomSupport;
 
 const normalizeHistoryFromStorage = () => {
     const normalized = normalizeLibraryHistory(readJson(localStorage, HISTORY_KEY, []));
@@ -18,9 +19,17 @@ const loadGameBtn = document.getElementById('load-game-btn');
 const historyGrid = document.getElementById('history-grid');
 const librarySearch = document.getElementById('library-search');
 const librarySort = document.getElementById('library-sort');
+const librarySummary = document.getElementById('library-summary');
+const summaryTotal = document.getElementById('summary-total');
+const summaryMissing = document.getElementById('summary-missing');
+const liquidDomStatus = document.getElementById('liquid-dom-status');
 
 let searchQuery = '';
 let sortMode = 'lastPlayed';
+let liquidDomState = getLiquidDomState({
+    runtime: window,
+    flags: window.twinePlayerFlags,
+});
 
 // Formatting dates
 const formatDate = (isoString) => {
@@ -105,7 +114,30 @@ const getFilteredHistory = () => {
     return filtered;
 };
 
+const formatCount = (count, singular, plural) => {
+    return `${count} ${count === 1 ? singular : plural}`;
+};
+
+const renderLibrarySummary = () => {
+    summaryTotal.textContent = formatCount(history.length, 'game', 'games');
+    summaryMissing.textContent = formatCount(missingGamePaths.size, 'file', 'files');
+
+    librarySummary.classList.toggle('liquid-dom-enhanced', liquidDomState.canUseLiquidDom);
+    librarySummary.classList.toggle('liquid-dom-fallback', !liquidDomState.canUseLiquidDom);
+    librarySummary.dataset.liquidDom = liquidDomState.canUseLiquidDom ? 'enhanced' : 'fallback';
+
+    if (liquidDomState.canUseLiquidDom) {
+        liquidDomStatus.textContent = 'Enhanced';
+    } else if (!liquidDomState.enabled) {
+        liquidDomStatus.textContent = 'Disabled';
+    } else {
+        liquidDomStatus.textContent = 'On';
+    }
+};
+
 const renderHistory = () => {
+    renderLibrarySummary();
+
     if (history.length === 0) {
         renderEmptyState('No games in your library yet. Load a Twine HTML file to start playing!');
         return;
@@ -235,6 +267,8 @@ const refreshMissingGameStates = async () => {
 
     if (changed) {
         renderHistory();
+    } else {
+        renderLibrarySummary();
     }
 };
 

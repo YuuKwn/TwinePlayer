@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
 });
 
+contextBridge.exposeInMainWorld('twinePlayerFlags', {
+    enableLiquidDom: process.env.TWINEPLAYER_ENABLE_LIQUID_DOM !== '0',
+});
+
 // --- Illustrator Feature ---
 // Kept as a separate contextBridge entry so it can be removed independently
 // without touching electronAPI or breaking any existing functionality.

@@ -5,6 +5,12 @@ const path = require('node:path');
 const { registerIpcHandlers } = require('./src/main/ipc-handlers');
 
 const isE2E = process.env.TWINEPLAYER_E2E === '1' || process.env.TWINEPLAYER_E2E_SMOKE === '1';
+const liquidDomBlinkFeatures = [
+  'CanvasDrawElement',
+  'CanvasDrawElementInSubtree',
+];
+
+app.commandLine.appendSwitch('enable-blink-features', liquidDomBlinkFeatures.join(','));
 
 if (isE2E) {
   app.disableHardwareAcceleration();

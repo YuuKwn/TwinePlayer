@@ -7,6 +7,10 @@ const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'),
 );
 
+const readRootFile = (filename) => {
+  return fs.readFileSync(path.resolve(__dirname, '..', filename), 'utf8');
+};
+
 test('Electron Builder packaging uses an explicit runtime allowlist', () => {
   const files = packageJson.build && packageJson.build.files;
 
@@ -47,4 +51,12 @@ test('Electron Builder packaging has stable release metadata', () => {
   assert.equal(packageJson.author, 'TwinePlayer contributors');
   assert.equal(packageJson.scripts['package:smoke'], 'npm run build:win:portable');
   assert.match(packageJson.scripts['build:win:portable'], /--publish never/);
+});
+
+test('Electron startup enables Chromium HTML-in-Canvas flags for Liquid DOM experiments', () => {
+  const mainSource = readRootFile('main.js');
+
+  assert.match(mainSource, /app\.commandLine\.appendSwitch\('enable-blink-features'/);
+  assert.match(mainSource, /'CanvasDrawElement'/);
+  assert.match(mainSource, /'CanvasDrawElementInSubtree'/);
 });

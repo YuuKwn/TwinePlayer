@@ -28,6 +28,21 @@
         </button>
       </section>
 
+      <section id="library-summary" class="library-summary glass-panel liquid-dom-fallback" aria-label="Library summary">
+        <div>
+          <span class="summary-label">Library</span>
+          <strong id="summary-total">0 games</strong>
+        </div>
+        <div>
+          <span class="summary-label">Unavailable</span>
+          <strong id="summary-missing">0 files</strong>
+        </div>
+        <div>
+          <span class="summary-label">Glass UI</span>
+          <strong id="liquid-dom-status">Fallback</strong>
+        </div>
+      </section>
+
       <section class="history-section">
         <div class="history-header">
           <h2>
@@ -54,6 +69,7 @@
   </div>
     <script src="src/storage-utils.js"></script>
     <script src="src/shared/library-history.js"></script>
+    <script src="src/shared/liquid-dom-support.js"></script>
     <script src="src/renderer.js"></script>
 </body>
 

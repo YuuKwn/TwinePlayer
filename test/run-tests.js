@@ -8,6 +8,7 @@ require('./illustrator-helpers.test');
 require('./illustrator-service.test');
 require('./ipc-handlers.test');
 require('./library-history.test');
+require('./liquid-dom-support.test');
 require('./package-config.test');
 require('./save-service.test');
 require('./save-filename.test');

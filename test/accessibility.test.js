@@ -81,3 +81,16 @@ test('styles include reduced-motion safeguards without disabling hidden-panel tr
   assert.doesNotMatch(reducedMotionBlock[0], /\.overlay-bar\s*,/);
   assert.doesNotMatch(reducedMotionBlock[0], /#dev-console\s*,/);
 });
+
+test('app shell styles expose the liquid glass treatment tokens', () => {
+  const indexCss = readRootFile('src/index.css');
+  const gameCss = readRootFile('src/game/game.css');
+
+  assert.match(indexCss, /--glass-surface:/);
+  assert.match(indexCss, /backdrop-filter: blur\(22px\) saturate\(1\.45\)/);
+  assert.match(indexCss, /\.library-summary\.liquid-dom-enhanced/);
+  assert.match(gameCss, /\/\* Liquid glass shell \*\//);
+  assert.match(gameCss, /--glass-surface:/);
+  assert.match(gameCss, /backdrop-filter: blur\(24px\) saturate\(1\.45\)/);
+  assert.match(gameCss, /\.overlay-bar,\s*[\s\S]*?#dev-console,\s*[\s\S]*?\.saves-modal,\s*[\s\S]*?#illustrator-modal/);
+});

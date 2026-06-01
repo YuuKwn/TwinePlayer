@@ -12,7 +12,18 @@
         }
 
         :root {
-            --focus-ring: rgba(147, 197, 253, 0.95);
+            --focus-ring: rgba(125, 241, 218, 0.95);
+            --glass-surface: rgba(255, 255, 255, 0.105);
+            --glass-surface-strong: rgba(255, 255, 255, 0.145);
+            --glass-surface-deep: rgba(8, 16, 22, 0.72);
+            --glass-border: rgba(255, 255, 255, 0.22);
+            --glass-border-soft: rgba(255, 255, 255, 0.13);
+            --glass-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+            --glass-inner-light: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            --glass-cyan: #69e6d2;
+            --glass-cyan-soft: rgba(105, 230, 210, 0.18);
+            --glass-rose: #f0a7bd;
+            --glass-rose-soft: rgba(240, 167, 189, 0.16);
         }
 
         button:focus-visible,
@@ -1619,6 +1630,191 @@
             outline-offset: 2px;
         }
         /* --- End Illustrator Feature Styles --- */
+
+        /* Liquid glass shell */
+        body {
+            background:
+                linear-gradient(120deg, rgba(24, 95, 116, 0.42), transparent 35%),
+                linear-gradient(250deg, rgba(141, 62, 91, 0.24), transparent 40%),
+                linear-gradient(180deg, #081016 0%, #101821 52%, #080d12 100%);
+            color: #f8fafc;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+            background-size: 96px 96px;
+            mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.68), transparent 78%);
+        }
+
+        #layout-container,
+        #game-frame {
+            position: relative;
+            z-index: 1;
+        }
+
+        .overlay-bar,
+        #dev-console,
+        .autocomplete-dropdown,
+        .saves-modal,
+        .confirm-dialog,
+        #illustrator-modal,
+        .illustration-dock {
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05)),
+                var(--glass-surface-deep);
+            border-color: var(--glass-border);
+            box-shadow: var(--glass-shadow), var(--glass-inner-light);
+            backdrop-filter: blur(24px) saturate(1.45);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .overlay-bar {
+            height: 54px;
+            border-bottom-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .overlay-bar::before,
+        #dev-console::before,
+        .saves-modal::before,
+        #illustrator-modal::before,
+        .illustration-dock::before {
+            content: '';
+            position: absolute;
+            inset: 1px;
+            border-radius: inherit;
+            pointer-events: none;
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 34%),
+                linear-gradient(315deg, rgba(105, 230, 210, 0.11), transparent 42%);
+            opacity: 0.82;
+        }
+
+        .overlay-bar::before {
+            border-radius: 0;
+        }
+
+        .back-btn,
+        .saveload-btn,
+        .toggle-console-btn,
+        #toggle-illustrator,
+        #toggle-illustration-dock,
+        .pin-bar-btn,
+        .console-btn,
+        .layout-toggle-btn,
+        .close-console,
+        .page-btn,
+        .confirm-btn,
+        .new-save-confirm,
+        .new-save-cancel,
+        .illus-btn,
+        .illus-reload-btn,
+        .illustration-dock-actions button,
+        .illus-gallery-actions button {
+            background: rgba(255, 255, 255, 0.09);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: #eefdf9;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .back-btn:hover,
+        .saveload-btn:hover,
+        .toggle-console-btn:hover,
+        #toggle-illustrator:hover,
+        #toggle-illustration-dock:hover,
+        #toggle-illustration-dock[aria-pressed="true"],
+        .pin-bar-btn:hover,
+        .console-btn:hover,
+        .layout-toggle-btn:hover,
+        .close-console:hover,
+        .page-btn:hover,
+        .illus-btn:hover:not(:disabled),
+        .illus-reload-btn:hover,
+        .illustration-dock-actions button:hover,
+        .illus-gallery-actions button:hover {
+            background: rgba(105, 230, 210, 0.18);
+            border-color: rgba(125, 241, 218, 0.42);
+            color: #ffffff;
+        }
+
+        .game-title {
+            color: #f8fafc;
+            text-shadow: 0 1px 20px rgba(105, 230, 210, 0.28);
+        }
+
+        .indicator {
+            width: 76px;
+            height: 5px;
+            background: linear-gradient(90deg, rgba(105, 230, 210, 0.54), rgba(240, 167, 189, 0.5));
+            box-shadow: 0 8px 28px rgba(105, 230, 210, 0.28);
+        }
+
+        .console-output,
+        .saved-commands,
+        .console-input-area,
+        .modal-loader,
+        .save-slot,
+        .illus-section,
+        .illus-image-box,
+        .illus-gallery-panel,
+        .illus-gallery-card,
+        .illustration-dock-preview,
+        .illustration-dock-thumbs {
+            background: rgba(3, 8, 12, 0.34);
+            border-color: rgba(255, 255, 255, 0.14);
+        }
+
+        #console-input,
+        .new-save-input,
+        .illus-textarea,
+        .illus-input,
+        .illus-select {
+            background-color: rgba(3, 8, 12, 0.38);
+            border-color: rgba(255, 255, 255, 0.16);
+            color: #eefdf9;
+            backdrop-filter: blur(14px) saturate(1.25);
+        }
+
+        #console-input:focus,
+        .new-save-input:focus,
+        .illus-textarea:focus,
+        .illus-input:focus,
+        .illus-select:focus {
+            border-color: rgba(125, 241, 218, 0.58);
+            box-shadow: 0 0 0 3px rgba(105, 230, 210, 0.13);
+        }
+
+        .save-slot:hover,
+        .save-slot:focus-visible,
+        .illus-gallery-card:hover,
+        .illustration-dock-thumb:hover {
+            background: rgba(105, 230, 210, 0.12);
+            border-color: rgba(125, 241, 218, 0.34);
+            box-shadow: 0 18px 44px -26px rgba(105, 230, 210, 0.5), var(--glass-inner-light);
+        }
+
+        .illus-btn-primary,
+        .new-save-confirm,
+        .confirm-accept {
+            background: linear-gradient(135deg, rgba(105, 230, 210, 0.78), rgba(240, 167, 189, 0.62));
+            border-color: rgba(255, 255, 255, 0.32);
+            color: #061016;
+        }
+
+        .modal-overlay,
+        #illustrator-modal-overlay {
+            background:
+                linear-gradient(120deg, rgba(8, 16, 22, 0.82), rgba(8, 16, 22, 0.66)),
+                rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(18px) saturate(1.35);
+        }
 
         @media (max-width: 1040px) {
             #illustrator-modal {

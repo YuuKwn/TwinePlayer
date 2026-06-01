@@ -245,6 +245,9 @@ const tests = [
   ['launches with an empty library state', async ({ page }) => {
     await expect(page.locator('h1')).toHaveText('Twine Player');
     await expect(page.locator('#history-grid')).toContainText('No games in your library yet');
+    await expect(page.locator('#library-summary')).toHaveAttribute('data-liquid-dom', 'fallback');
+    await expect(page.locator('#summary-total')).toHaveText('0 games');
+    await expect(page.locator('#liquid-dom-status')).toHaveText('On');
     await expect(page.getByPlaceholder('Search library')).toBeVisible();
     await expect(page.locator('#library-sort')).toBeVisible();
   }],
