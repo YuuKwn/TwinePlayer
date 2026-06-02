@@ -47,4 +47,12 @@ void main() {
     expect(script, contains('loadInput.dispatchEvent'));
     expect(script, contains('__twinePlayerCloseNativeSaveDialog'));
   });
+
+  test('bridge leaves regular game inputs and non-image clicks alone', () {
+    final script = twineBridgeScript();
+
+    expect(script, contains("if (this.type === 'file')"));
+    expect(script, contains('originalInputClick.call(this)'));
+    expect(script, contains('if (!img || isInteractiveImage(img)) return;'));
+  });
 }

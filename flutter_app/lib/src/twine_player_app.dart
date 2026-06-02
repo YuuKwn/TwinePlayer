@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:forui/forui.dart';
 import 'package:path/path.dart' as p;
 import 'package:webview_windows/webview_windows.dart';
 
@@ -45,52 +46,19 @@ class TwinePlayerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = FThemes.zinc.dark.desktop;
+
     return MaterialApp(
       title: 'Twine Player',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff0078d4),
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: const Color(0xff202020),
-        fontFamily: 'Segoe UI',
+      locale: const Locale('en', 'US'),
+      localizationsDelegates: FLocalizations.localizationsDelegates,
+      supportedLocales: FLocalizations.supportedLocales,
+      theme: theme.toApproximateMaterialTheme().copyWith(
         visualDensity: VisualDensity.compact,
-        cardTheme: CardThemeData(
-          color: const Color(0xff2b2b2b),
-          elevation: 0,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: Color(0xff3a3a3a)),
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xff2b2b2b),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xff474747)),
-          ),
-          isDense: true,
-        ),
-        dividerTheme: const DividerThemeData(
-          color: Color(0xff3a3a3a),
-          thickness: 1,
-          space: 1,
-        ),
-        useMaterial3: true,
       ),
+      builder: (context, child) =>
+          FTheme(data: theme, platform: FPlatformVariant.macOS, child: child!),
       home: LibraryScreen(dependencies: dependencies),
     );
   }
@@ -110,6 +78,7 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
+  final _toastAnchorKey = GlobalKey();
   final _searchController = TextEditingController();
   var _entries = <LibraryEntry>[];
   final _missingPaths = <String>{};
@@ -280,9 +249,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _copyPath(String value) async {
     await Clipboard.setData(ClipboardData(text: value));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Path copied')));
+    showFToast(
+      context: _toastAnchorKey.currentContext ?? context,
+      title: const Text('Path copied'),
+      icon: const Icon(FLucideIcons.copyCheck),
+    );
   }
 
   Future<void> _revealInExplorer(String filePath) async {
@@ -311,20 +282,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
         if (!_missingPaths.contains(entry.path))
           const PopupMenuItem(
             value: _LibraryAction.open,
-            child: _ContextMenuLabel(icon: Icons.play_arrow, label: 'Play'),
+            child: _ContextMenuLabel(icon: FLucideIcons.play, label: 'Play'),
           ),
         const PopupMenuItem(
           value: _LibraryAction.relink,
-          child: _ContextMenuLabel(icon: Icons.link, label: 'Relink'),
+          child: _ContextMenuLabel(icon: FLucideIcons.link, label: 'Relink'),
         ),
         const PopupMenuItem(
           value: _LibraryAction.copyPath,
-          child: _ContextMenuLabel(icon: Icons.copy, label: 'Copy path'),
+          child: _ContextMenuLabel(icon: FLucideIcons.copy, label: 'Copy path'),
         ),
         const PopupMenuItem(
           value: _LibraryAction.reveal,
           child: _ContextMenuLabel(
-            icon: Icons.folder_open,
+            icon: FLucideIcons.folderOpen,
             label: 'Reveal in Explorer',
           ),
         ),
@@ -332,7 +303,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const PopupMenuItem(
           value: _LibraryAction.remove,
           child: _ContextMenuLabel(
-            icon: Icons.delete_outline,
+            icon: FLucideIcons.trash,
             label: 'Remove from library',
           ),
         ),
@@ -382,122 +353,211 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final visibleEntries = _visibleEntries;
-    return Scaffold(
-      body: SafeArea(
-        child: Row(
-          children: [
-            _LibraryRail(
-              total: _entries.length,
-              missing: _missingPaths.length,
-              onLoadGame: _pickGame,
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+    return FToaster(
+      child: Builder(
+        key: _toastAnchorKey,
+        builder: (context) => FScaffold(
+          childPad: false,
+          child: SafeArea(
+            child: Row(
+              children: [
+                _LibraryRail(
+                  total: _entries.length,
+                  missing: _missingPaths.length,
+                  onLoadGame: _pickGame,
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Your Library',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w600,
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Your Library',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 360,
-                          child: TextField(
-                            controller: _searchController,
-                            onChanged: (_) => setState(() {}),
-                            decoration: const InputDecoration(
-                              hintText: 'Search library',
-                              prefixIcon: Icon(Icons.search),
+                            SizedBox(
+                              width: 360,
+                              child: FTextField(
+                                control: FTextFieldControl.managed(
+                                  controller: _searchController,
+                                  onChange: (_) => setState(() {}),
+                                ),
+                                hint: 'Search library',
+                                prefixBuilder: (context, style, variants) =>
+                                    FTextField.prefixIconBuilder(
+                                      context,
+                                      style,
+                                      variants,
+                                      const Icon(FLucideIcons.search),
+                                    ),
+                                clearable: (value) => value.text.isNotEmpty,
+                                size: FTextFieldSizeVariant.sm,
+                              ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        SegmentedButton<LibrarySortMode>(
-                          showSelectedIcon: false,
-                          style: SegmentedButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          segments: const [
-                            ButtonSegment(
-                              value: LibrarySortMode.lastPlayed,
-                              icon: Icon(Icons.history),
-                              label: Text('Recent'),
-                            ),
-                            ButtonSegment(
-                              value: LibrarySortMode.title,
-                              icon: Icon(Icons.sort_by_alpha),
-                              label: Text('Title'),
-                            ),
-                            ButtonSegment(
-                              value: LibrarySortMode.path,
-                              icon: Icon(Icons.folder),
-                              label: Text('Path'),
+                            const SizedBox(width: 10),
+                            _SortModeSelector(
+                              value: _sortMode,
+                              onChange: (value) =>
+                                  setState(() => _sortMode = value),
                             ),
                           ],
-                          selected: {_sortMode},
-                          onSelectionChanged: (value) =>
-                              setState(() => _sortMode = value.first),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 10),
+                          _InlineError(
+                            message: _error!,
+                            onDismiss: () => setState(() => _error = null),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: _isLoading
+                              ? const _LoadingState(label: 'Loading library...')
+                              : visibleEntries.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    _entries.isEmpty
+                                        ? 'No games in your library yet.'
+                                        : 'No games match your search.',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                )
+                              : GridView.builder(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithMaxCrossAxisExtent(
+                                        maxCrossAxisExtent: 300,
+                                        mainAxisExtent: 132,
+                                        mainAxisSpacing: 8,
+                                        crossAxisSpacing: 8,
+                                      ),
+                                  itemCount: visibleEntries.length,
+                                  itemBuilder: (context, index) {
+                                    final entry = visibleEntries[index];
+                                    return _LibraryCard(
+                                      entry: entry,
+                                      isMissing: _missingPaths.contains(
+                                        entry.path,
+                                      ),
+                                      onOpen: () => _openPlayer(entry),
+                                      onRemove: () => _removeGame(entry),
+                                      onRelink: () => _relinkGame(entry),
+                                      onCopyPath: () => _copyPath(entry.path),
+                                      onReveal: () =>
+                                          _revealInExplorer(entry.path),
+                                      onSecondaryTapDown: (details) =>
+                                          _showLibraryContextMenu(
+                                            entry,
+                                            details,
+                                          ),
+                                    );
+                                  },
+                                ),
                         ),
                       ],
                     ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 10),
-                      _InlineError(
-                        message: _error!,
-                        onDismiss: () => setState(() => _error = null),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : visibleEntries.isEmpty
-                          ? Center(
-                              child: Text(
-                                _entries.isEmpty
-                                    ? 'No games in your library yet.'
-                                    : 'No games match your search.',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            )
-                          : GridView.builder(
-                              gridDelegate:
-                                  const SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: 300,
-                                    mainAxisExtent: 132,
-                                    mainAxisSpacing: 8,
-                                    crossAxisSpacing: 8,
-                                  ),
-                              itemCount: visibleEntries.length,
-                              itemBuilder: (context, index) {
-                                final entry = visibleEntries[index];
-                                return _LibraryCard(
-                                  entry: entry,
-                                  isMissing: _missingPaths.contains(entry.path),
-                                  onOpen: () => _openPlayer(entry),
-                                  onRemove: () => _removeGame(entry),
-                                  onRelink: () => _relinkGame(entry),
-                                  onCopyPath: () => _copyPath(entry.path),
-                                  onReveal: () => _revealInExplorer(entry.path),
-                                  onSecondaryTapDown: (details) =>
-                                      _showLibraryContextMenu(entry, details),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SortModeSelector extends StatelessWidget {
+  const _SortModeSelector({required this.value, required this.onChange});
+
+  final LibrarySortMode value;
+  final ValueChanged<LibrarySortMode> onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: context.theme.colors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SortButton(
+            label: 'Recent',
+            icon: FLucideIcons.history,
+            selected: value == LibrarySortMode.lastPlayed,
+            onPress: () => onChange(LibrarySortMode.lastPlayed),
+          ),
+          _SortButton(
+            label: 'Title',
+            icon: FLucideIcons.arrowDownAZ,
+            selected: value == LibrarySortMode.title,
+            onPress: () => onChange(LibrarySortMode.title),
+          ),
+          _SortButton(
+            label: 'Path',
+            icon: FLucideIcons.folder,
+            selected: value == LibrarySortMode.path,
+            onPress: () => onChange(LibrarySortMode.path),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortButton extends StatelessWidget {
+  const _SortButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onPress,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback? onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return FButton(
+      variant: selected ? FButtonVariant.secondary : FButtonVariant.ghost,
+      size: FButtonSizeVariant.sm,
+      onPress: onPress,
+      prefix: Icon(icon),
+      child: Text(label),
+    );
+  }
+}
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 220,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const FProgress(),
+            const SizedBox(height: 12),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),
@@ -523,6 +583,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   final _controller = WebviewController();
   final _subscriptions = <StreamSubscription<dynamic>>[];
   final _consoleInput = TextEditingController();
+  final _webViewFocusNode = FocusNode(
+    debugLabel: 'Twine game WebView focus sentinel',
+  );
   var _logs = <_ConsoleLog>[];
   var _savedCommands = <String, List<String>>{};
   var _suggestions = <String>[];
@@ -546,6 +609,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       unawaited(subscription.cancel());
     }
     _consoleInput.dispose();
+    _webViewFocusNode.dispose();
     unawaited(_controller.dispose());
     super.dispose();
   }
@@ -959,12 +1023,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
     if (!_isWebViewReady) {
-      return const Center(child: CircularProgressIndicator());
+      return const _LoadingState(label: 'Preparing story view...');
     }
     return Stack(
       children: [
-        Webview(_controller),
-        if (_isLoading) const LinearProgressIndicator(minHeight: 3),
+        Focus(
+          focusNode: _webViewFocusNode,
+          child: Listener(
+            onPointerDown: (_) {
+              _webViewFocusNode.requestFocus();
+              unawaited(_controller.focus());
+            },
+            child: Webview(_controller),
+          ),
+        ),
+        if (_isLoading)
+          const Positioned(left: 0, right: 0, top: 0, child: FProgress()),
       ],
     );
   }
@@ -1067,12 +1141,14 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
         title: const Text('Delete Save'),
         content: Text('Delete "${save.filename}"?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+          FButton(
+            variant: FButtonVariant.ghost,
+            onPress: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+          FButton(
+            variant: FButtonVariant.destructive,
+            onPress: () => Navigator.of(context).pop(true),
             child: const Text('Delete'),
           ),
         ],
@@ -1109,14 +1185,14 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
         PopupMenuItem(
           value: _SaveAction.activate,
           child: _ContextMenuLabel(
-            icon: isSaveMode ? Icons.save : Icons.upload_file,
+            icon: isSaveMode ? FLucideIcons.save : FLucideIcons.upload,
             label: isSaveMode ? 'Overwrite save' : 'Load save',
           ),
         ),
         const PopupMenuItem(
           value: _SaveAction.delete,
           child: _ContextMenuLabel(
-            icon: Icons.delete_outline,
+            icon: FLucideIcons.trash,
             label: 'Delete save',
           ),
         ),
@@ -1139,7 +1215,7 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(isSaveMode ? Icons.save_alt : Icons.file_upload_outlined),
+          Icon(isSaveMode ? FLucideIcons.download : FLucideIcons.upload),
           const SizedBox(width: 8),
           Text(isSaveMode ? 'Save Game' : 'Load Game'),
         ],
@@ -1158,22 +1234,22 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _filenameController,
-                      decoration: const InputDecoration(
-                        labelText: 'New save filename',
-                        border: OutlineInputBorder(),
+                    child: FTextField(
+                      control: FTextFieldControl.managed(
+                        controller: _filenameController,
                       ),
-                      onSubmitted: _write,
+                      label: const Text('New save filename'),
+                      onSubmit: _write,
+                      size: FTextFieldSizeVariant.sm,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: _isBusy
+                  FButton(
+                    onPress: _isBusy
                         ? null
                         : () => _write(_filenameController.text),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Save New'),
+                    prefix: const Icon(FLucideIcons.filePlus),
+                    child: const Text('Save New'),
                   ),
                 ],
               ),
@@ -1181,7 +1257,7 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
             ],
             Expanded(
               child: _isBusy
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const _LoadingState(label: 'Reading saves...')
                   : _saves.isEmpty
                   ? Center(
                       child: Text(
@@ -1204,28 +1280,56 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
                         return GestureDetector(
                           onSecondaryTapDown: (details) =>
                               _showSaveContextMenu(save, isSaveMode, details),
-                          child: Card(
-                            child: ListTile(
-                              dense: true,
-                              title: Text(
-                                save.filename.replaceFirst(
-                                  RegExp(r'\.save$', caseSensitive: false),
-                                  '',
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                          onTap: () => _activateSave(save, isSaveMode),
+                          child: FCard.raw(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isSaveMode
+                                        ? FLucideIcons.save
+                                        : FLucideIcons.upload,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          save.filename.replaceFirst(
+                                            RegExp(
+                                              r'\.save$',
+                                              caseSensitive: false,
+                                            ),
+                                            '',
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${formatBytes(save.size)}  ${MaterialLocalizations.of(context).formatShortDate(save.modified)}',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  _ToolbarIconButton(
+                                    tooltip: 'Delete save',
+                                    icon: FLucideIcons.trash,
+                                    onPress: () => _delete(save),
+                                  ),
+                                ],
                               ),
-                              subtitle: Text(
-                                '${formatBytes(save.size)}  ${MaterialLocalizations.of(context).formatShortDate(save.modified)}',
-                              ),
-                              leading: Icon(
-                                isSaveMode ? Icons.save : Icons.upload_file,
-                              ),
-                              trailing: IconButton(
-                                tooltip: 'Delete save',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _delete(save),
-                              ),
-                              onTap: () => _activateSave(save, isSaveMode),
                             ),
                           ),
                         );
@@ -1238,20 +1342,20 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
                 Text('${_saves.length} saves total'),
                 Row(
                   children: [
-                    IconButton(
+                    _ToolbarIconButton(
                       tooltip: 'Previous page',
-                      onPressed: _page == 0
+                      onPress: _page == 0
                           ? null
                           : () => setState(() => _page--),
-                      icon: const Icon(Icons.chevron_left),
+                      icon: FLucideIcons.chevronLeft,
                     ),
                     Text('Page ${_page + 1} / ${_lastPage + 1}'),
-                    IconButton(
+                    _ToolbarIconButton(
                       tooltip: 'Next page',
-                      onPressed: _page >= _lastPage
+                      onPress: _page >= _lastPage
                           ? null
                           : () => setState(() => _page++),
-                      icon: const Icon(Icons.chevron_right),
+                      icon: FLucideIcons.chevronRight,
                     ),
                   ],
                 ),
@@ -1261,8 +1365,9 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+        FButton(
+          variant: FButtonVariant.ghost,
+          onPress: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),
       ],
@@ -1298,53 +1403,172 @@ class _PlayerToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xff191d24),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            TextButton.icon(
-              onPressed: onBackToLibrary,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Library'),
-            ),
-            IconButton(
-              onPressed: onUndo,
-              icon: const Icon(Icons.undo),
-              tooltip: 'Undo / Back one turn',
-            ),
-            Expanded(
-              child: Text(
-                title,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+    final colors = context.theme.colors;
+
+    return FocusScope(
+      canRequestFocus: false,
+      descendantsAreFocusable: false,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.background,
+          border: Border(bottom: BorderSide(color: colors.border)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              _PlayerToolbarButton(
+                onPress: onBackToLibrary,
+                icon: FLucideIcons.arrowLeft,
+                label: 'Library',
               ),
-            ),
-            TextButton.icon(
-              onPressed: onSave,
-              icon: const Icon(Icons.save_alt),
-              label: const Text('Save'),
-            ),
-            TextButton.icon(
-              onPressed: onLoad,
-              icon: const Icon(Icons.file_upload_outlined),
-              label: const Text('Load'),
-            ),
-            TextButton.icon(
-              onPressed: onConsole,
-              icon: const Icon(Icons.terminal),
-              label: const Text('Console'),
-            ),
-            IconButton(
-              onPressed: onDevTools,
-              icon: const Icon(Icons.developer_mode),
-              tooltip: 'Open WebView DevTools',
-            ),
-          ],
+              const SizedBox(width: 6),
+              _PlayerToolbarIconButton(
+                tooltip: 'Undo / Back one turn',
+                icon: FLucideIcons.undo2,
+                onPress: onUndo,
+              ),
+              Expanded(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              _PlayerToolbarButton(
+                onPress: onSave,
+                icon: FLucideIcons.download,
+                label: 'Save',
+                filled: true,
+              ),
+              const SizedBox(width: 6),
+              _PlayerToolbarButton(
+                onPress: onLoad,
+                icon: FLucideIcons.upload,
+                label: 'Load',
+                filled: true,
+              ),
+              const SizedBox(width: 6),
+              _PlayerToolbarButton(
+                onPress: onConsole,
+                icon: FLucideIcons.squareTerminal,
+                label: 'Console',
+                filled: true,
+              ),
+              const SizedBox(width: 6),
+              _PlayerToolbarIconButton(
+                tooltip: 'Open WebView DevTools',
+                icon: FLucideIcons.bug,
+                onPress: onDevTools,
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _PlayerToolbarButton extends StatelessWidget {
+  const _PlayerToolbarButton({
+    required this.icon,
+    required this.label,
+    required this.onPress,
+    this.filled = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPress;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.theme.colors;
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPress,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: filled ? colors.secondary : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16),
+                const SizedBox(width: 7),
+                Text(label),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerToolbarIconButton extends StatelessWidget {
+  const _PlayerToolbarIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPress,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPress,
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: Center(child: Icon(icon, size: 17)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolbarIconButton extends StatelessWidget {
+  const _ToolbarIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPress,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = FButton.icon(
+      size: FButtonSizeVariant.sm,
+      variant: FButtonVariant.ghost,
+      onPress: onPress,
+      child: Icon(icon),
+    );
+
+    return Tooltip(
+      message: tooltip,
+      child: onPress == null ? Opacity(opacity: 0.42, child: button) : button,
     );
   }
 }
@@ -1390,6 +1614,7 @@ class _ConsolePanelState extends State<_ConsolePanel> {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(14);
+    final colors = context.theme.colors;
     return Material(
       elevation: 18,
       color: Colors.transparent,
@@ -1397,9 +1622,9 @@ class _ConsolePanelState extends State<_ConsolePanel> {
       clipBehavior: Clip.antiAlias,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: const Color(0xff151922),
+          color: colors.background,
           borderRadius: radius,
-          border: Border.all(color: const Color(0xff303747)),
+          border: Border.all(color: colors.border),
           boxShadow: const [
             BoxShadow(
               color: Color(0x66000000),
@@ -1416,21 +1641,19 @@ class _ConsolePanelState extends State<_ConsolePanel> {
               trailing: Wrap(
                 spacing: 4,
                 children: [
-                  IconButton(
+                  _ToolbarIconButton(
                     tooltip: widget.isSideBySide
                         ? 'Use overlay layout'
                         : 'Use side-by-side layout',
-                    onPressed: widget.onToggleLayout,
-                    icon: Icon(
-                      widget.isSideBySide
-                          ? Icons.vertical_split
-                          : Icons.view_sidebar,
-                    ),
+                    onPress: widget.onToggleLayout,
+                    icon: widget.isSideBySide
+                        ? FLucideIcons.panelBottom
+                        : FLucideIcons.panelRight,
                   ),
-                  IconButton(
+                  _ToolbarIconButton(
                     tooltip: 'Close console',
-                    onPressed: widget.onClose,
-                    icon: const Icon(Icons.close),
+                    onPress: widget.onClose,
+                    icon: FLucideIcons.x,
                   ),
                 ],
               ),
@@ -1473,9 +1696,10 @@ class _ConsolePanelState extends State<_ConsolePanel> {
                         scrollDirection: Axis.horizontal,
                         itemCount: widget.suggestions.length,
                         separatorBuilder: (_, _) => const SizedBox(width: 6),
-                        itemBuilder: (context, index) => ActionChip(
-                          label: Text(widget.suggestions[index]),
-                          onPressed: () {
+                        itemBuilder: (context, index) => FButton(
+                          size: FButtonSizeVariant.xs,
+                          variant: FButtonVariant.secondary,
+                          onPress: () {
                             widget.inputController.text =
                                 widget.suggestions[index];
                             widget.inputController.selection =
@@ -1483,6 +1707,7 @@ class _ConsolePanelState extends State<_ConsolePanel> {
                                   offset: widget.suggestions[index].length,
                                 );
                           },
+                          child: Text(widget.suggestions[index]),
                         ),
                       ),
                     ),
@@ -1491,26 +1716,26 @@ class _ConsolePanelState extends State<_ConsolePanel> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: TextField(
-                            controller: widget.inputController,
-                            onChanged: widget.onChanged,
-                            onSubmitted: widget.onRun,
-                            decoration: const InputDecoration(
-                              hintText: 'Enter JavaScript...',
-                              border: OutlineInputBorder(),
-                              isDense: true,
+                          child: FTextField(
+                            control: FTextFieldControl.managed(
+                              controller: widget.inputController,
+                              onChange: (value) => widget.onChanged(value.text),
                             ),
+                            hint: 'Enter JavaScript...',
+                            onSubmit: widget.onRun,
+                            size: FTextFieldSizeVariant.sm,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        IconButton(
+                        _ToolbarIconButton(
                           tooltip: 'Save command',
-                          onPressed: widget.onSave,
-                          icon: const Icon(Icons.check),
+                          onPress: widget.onSave,
+                          icon: FLucideIcons.check,
                         ),
-                        FilledButton(
-                          onPressed: () =>
+                        FButton(
+                          onPress: () =>
                               widget.onRun(widget.inputController.text),
+                          prefix: const Icon(FLucideIcons.play),
                           child: const Text('Run'),
                         ),
                       ],
@@ -1578,17 +1803,15 @@ class _ConsoleLogRowState extends State<_ConsoleLogRow> {
                 ),
               ),
               if (isCommand && (_hovering || widget.log.type == 'input')) ...[
-                IconButton(
-                  visualDensity: VisualDensity.compact,
+                _ToolbarIconButton(
                   tooltip: 'Run again',
-                  onPressed: widget.onRun,
-                  icon: const Icon(Icons.play_arrow, size: 17),
+                  onPress: widget.onRun,
+                  icon: FLucideIcons.play,
                 ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
+                _ToolbarIconButton(
                   tooltip: 'Save command',
-                  onPressed: widget.onSave,
-                  icon: const Icon(Icons.check, size: 17),
+                  onPress: widget.onSave,
+                  icon: FLucideIcons.check,
                 ),
               ],
             ],
@@ -1619,8 +1842,8 @@ class _SavedCommandsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xff303747))),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: context.theme.colors.border)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1632,7 +1855,9 @@ class _SavedCommandsBar extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    expanded ? Icons.expand_more : Icons.chevron_right,
+                    expanded
+                        ? FLucideIcons.chevronDown
+                        : FLucideIcons.chevronRight,
                     size: 18,
                   ),
                   const SizedBox(width: 6),
@@ -1704,41 +1929,39 @@ class _SavedCommandChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: const Color(0xff202631),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xff384354)),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+    return FCard.raw(
+      clipBehavior: Clip.antiAlias,
+      child: GestureDetector(
         onTap: onUse,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  command,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontFamily: 'Consolas', fontSize: 12),
+        child: SizedBox(
+          width: 260,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    command,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Consolas',
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Run saved command',
-                onPressed: onRun,
-                icon: const Icon(Icons.play_arrow, size: 18),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Delete saved command',
-                onPressed: onDelete,
-                icon: const Icon(Icons.close, size: 18),
-              ),
-            ],
+                _ToolbarIconButton(
+                  tooltip: 'Run saved command',
+                  onPress: onRun,
+                  icon: FLucideIcons.play,
+                ),
+                _ToolbarIconButton(
+                  tooltip: 'Delete saved command',
+                  onPress: onDelete,
+                  icon: FLucideIcons.x,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1759,9 +1982,11 @@ class _LibraryRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.theme.colors;
+
     return Container(
       width: 248,
-      color: const Color(0xff1f1f1f),
+      color: colors.background,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: Column(
@@ -1773,10 +1998,13 @@ class _LibraryRail extends StatelessWidget {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: const Color(0xff0078d4),
-                    borderRadius: BorderRadius.circular(10),
+                    color: colors.primary,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.auto_stories, color: Colors.white),
+                  child: Icon(
+                    FLucideIcons.bookOpen,
+                    color: colors.primaryForeground,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 const Expanded(
@@ -1788,10 +2016,10 @@ class _LibraryRail extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: onLoadGame,
-              icon: const Icon(Icons.add),
-              label: const Text('Load Game'),
+            FButton(
+              onPress: onLoadGame,
+              prefix: const Icon(FLucideIcons.filePlus),
+              child: const Text('Load Game'),
             ),
             const SizedBox(height: 18),
             _SummaryTile(
@@ -1825,12 +2053,7 @@ class _SummaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xff2b2b2b),
-        border: Border.all(color: const Color(0xff3a3a3a)),
-        borderRadius: BorderRadius.circular(10),
-      ),
+    return FCard.raw(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -1888,16 +2111,15 @@ class _ImagePreviewDialog extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
-                  IconButton(
+                  _ToolbarIconButton(
                     tooltip: 'Copy image source',
-                    onPressed: () =>
-                        Clipboard.setData(ClipboardData(text: src)),
-                    icon: const Icon(Icons.copy),
+                    onPress: () => Clipboard.setData(ClipboardData(text: src)),
+                    icon: FLucideIcons.copy,
                   ),
-                  IconButton(
+                  _ToolbarIconButton(
                     tooltip: 'Close preview',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
+                    onPress: () => Navigator.of(context).pop(),
+                    icon: FLucideIcons.x,
                   ),
                 ],
               ),
@@ -1990,12 +2212,13 @@ class _LibraryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onSecondaryTapDown: onSecondaryTapDown,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: isMissing ? null : onOpen,
+    return Opacity(
+      opacity: isMissing ? 0.72 : 1,
+      child: GestureDetector(
+        onTap: isMissing ? null : onOpen,
+        onSecondaryTapDown: onSecondaryTapDown,
+        child: FCard.raw(
+          clipBehavior: Clip.antiAlias,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -2011,11 +2234,10 @@ class _LibraryCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                    IconButton(
+                    _ToolbarIconButton(
                       tooltip: 'Remove from library',
-                      onPressed: onRemove,
-                      icon: const Icon(Icons.close),
-                      visualDensity: VisualDensity.compact,
+                      icon: FLucideIcons.x,
+                      onPress: onRemove,
                     ),
                   ],
                 ),
@@ -2031,8 +2253,11 @@ class _LibraryCard extends StatelessWidget {
                   Row(
                     children: [
                       const Expanded(child: Text('Missing file')),
-                      TextButton(
-                        onPressed: onRelink,
+                      FButton(
+                        size: FButtonSizeVariant.sm,
+                        variant: FButtonVariant.secondary,
+                        onPress: onRelink,
+                        prefix: const Icon(FLucideIcons.link),
                         child: const Text('Relink'),
                       ),
                     ],
@@ -2046,17 +2271,15 @@ class _LibraryCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      IconButton(
+                      _ToolbarIconButton(
                         tooltip: 'Copy path',
-                        onPressed: onCopyPath,
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.copy, size: 18),
+                        icon: FLucideIcons.copy,
+                        onPress: onCopyPath,
                       ),
-                      IconButton(
+                      _ToolbarIconButton(
                         tooltip: 'Reveal in Explorer',
-                        onPressed: onReveal,
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.folder_open, size: 18),
+                        icon: FLucideIcons.folderOpen,
+                        onPress: onReveal,
                       ),
                     ],
                   ),
@@ -2077,20 +2300,23 @@ class _InlineError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xff4a1f24),
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Color(0xffffb4b4)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-            IconButton(onPressed: onDismiss, icon: const Icon(Icons.close)),
-          ],
+    return Stack(
+      alignment: Alignment.centerRight,
+      children: [
+        FAlert(
+          variant: FAlertVariant.destructive,
+          icon: const Icon(FLucideIcons.circleAlert),
+          title: Text(message),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: _ToolbarIconButton(
+            tooltip: 'Dismiss',
+            icon: FLucideIcons.x,
+            onPress: onDismiss,
+          ),
+        ),
+      ],
     );
   }
 }
