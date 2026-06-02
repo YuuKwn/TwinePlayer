@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
@@ -11,9 +12,11 @@ import 'package:webview_windows/webview_windows.dart';
 
 import 'models.dart';
 import 'services/console_command_store.dart';
+import 'services/console_completion_input.dart';
 import 'services/game_metadata_service.dart';
 import 'services/history_store.dart';
 import 'services/save_service.dart';
+import 'services/webview_image_source.dart';
 import 'services/webview_scripts.dart';
 
 class TwinePlayerDependencies {
@@ -67,6 +70,10 @@ class TwinePlayerApp extends StatelessWidget {
 enum _LibraryAction { open, relink, copyPath, reveal, remove }
 
 enum _SaveAction { activate, delete }
+
+enum _GameContextAction { save, load, console, devTools }
+
+enum _ImageContextAction { preview, copySource }
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key, required this.dependencies});
@@ -586,6 +593,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   final _webViewFocusNode = FocusNode(
     debugLabel: 'Twine game WebView focus sentinel',
   );
+  Timer? _completionDebounce;
   var _logs = <_ConsoleLog>[];
   var _savedCommands = <String, List<String>>{};
   var _suggestions = <String>[];
@@ -594,6 +602,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   var _isConsoleSideBySide = false;
   var _isLoading = true;
   var _currentIfid = '';
+  var _contextMenuRequestId = 0;
+  var _completionRequestId = 0;
+  Offset? _lastWebViewContextPosition;
+  String? _suppressedCompletionInput;
   String? _webViewError;
 
   @override
@@ -608,6 +620,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }
+    _completionDebounce?.cancel();
     _consoleInput.dispose();
     _webViewFocusNode.dispose();
     unawaited(_controller.dispose());
@@ -701,13 +714,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
         case 'load-request':
           unawaited(_openSaveManager(SaveManagerMode.load));
         case 'image-preview':
-        case 'image-context':
           final src = decoded['src'];
           if (src is String && src.trim().isNotEmpty) {
             unawaited(
               _showImagePreview(
                 src: src,
                 alt: decoded['alt'] is String ? decoded['alt'] as String : '',
+              ),
+            );
+          }
+        case 'image-context':
+          _contextMenuRequestId++;
+          final src = decoded['src'];
+          if (src is String && src.trim().isNotEmpty) {
+            unawaited(
+              _showImageContextMenu(
+                src: src,
+                alt: decoded['alt'] is String ? decoded['alt'] as String : '',
+                position: _lastWebViewContextPosition,
               ),
             );
           }
@@ -888,7 +912,124 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }) async {
     await showDialog<void>(
       context: context,
-      builder: (_) => _ImagePreviewDialog(src: src, alt: alt),
+      builder: (_) => _ImagePreviewDialog(
+        src: resolveWebViewImageSource(src: src, gamePath: widget.entry.path),
+        alt: alt,
+      ),
+    );
+  }
+
+  Future<void> _showImageContextMenu({
+    required String src,
+    required String alt,
+    required Offset? position,
+  }) async {
+    final menuPosition = position ?? _defaultContextMenuPosition();
+    final selected = await showMenu<_ImageContextAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        menuPosition.dx,
+        menuPosition.dy,
+        menuPosition.dx,
+        menuPosition.dy,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: _ImageContextAction.preview,
+          child: _ContextMenuLabel(icon: FLucideIcons.image, label: 'Preview'),
+        ),
+        PopupMenuItem(
+          value: _ImageContextAction.copySource,
+          child: _ContextMenuLabel(
+            icon: FLucideIcons.copy,
+            label: 'Copy image source',
+          ),
+        ),
+      ],
+    );
+
+    switch (selected) {
+      case _ImageContextAction.preview:
+        await _showImagePreview(src: src, alt: alt);
+      case _ImageContextAction.copySource:
+        await Clipboard.setData(ClipboardData(text: src));
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _showGameContextMenu(Offset position) async {
+    final selected = await showMenu<_GameContextAction>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: _GameContextAction.save,
+          child: _ContextMenuLabel(icon: FLucideIcons.save, label: 'Save'),
+        ),
+        PopupMenuItem(
+          value: _GameContextAction.load,
+          child: _ContextMenuLabel(
+            icon: FLucideIcons.folderOpen,
+            label: 'Load',
+          ),
+        ),
+        PopupMenuItem(
+          value: _GameContextAction.console,
+          child: _ContextMenuLabel(
+            icon: FLucideIcons.terminal,
+            label: 'Console',
+          ),
+        ),
+        PopupMenuItem(
+          value: _GameContextAction.devTools,
+          child: _ContextMenuLabel(
+            icon: FLucideIcons.bug,
+            label: 'Open DevTools',
+          ),
+        ),
+      ],
+    );
+
+    switch (selected) {
+      case _GameContextAction.save:
+        await _captureAndSave();
+      case _GameContextAction.load:
+        await _openLoadManager();
+      case _GameContextAction.console:
+        setState(() => _isConsoleOpen = true);
+      case _GameContextAction.devTools:
+        await _controller.openDevTools();
+      case null:
+        break;
+    }
+  }
+
+  Offset _defaultContextMenuPosition() {
+    final box = context.findRenderObject();
+    if (box is RenderBox) {
+      return box.localToGlobal(box.size.center(Offset.zero));
+    }
+    return Offset.zero;
+  }
+
+  void _handleWebViewPointerDown(PointerDownEvent event) {
+    _webViewFocusNode.requestFocus();
+    unawaited(_controller.focus());
+    if ((event.buttons & kSecondaryMouseButton) == 0) return;
+
+    final requestId = ++_contextMenuRequestId;
+    _lastWebViewContextPosition = event.position;
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 180), () {
+        if (!mounted || _contextMenuRequestId != requestId) return;
+        unawaited(_showGameContextMenu(event.position));
+      }),
     );
   }
 
@@ -928,16 +1069,40 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _log('Command saved.', 'normal');
   }
 
-  Future<void> _updateCompletions(String input) async {
+  void _updateCompletions(String input) {
+    if (_suppressedCompletionInput == input) {
+      _suppressedCompletionInput = null;
+      return;
+    }
+
+    _completionDebounce?.cancel();
+    final requestId = ++_completionRequestId;
+    if (!_isWebViewReady || !inputLooksCompletable(input)) {
+      setState(() => _suggestions = <String>[]);
+      return;
+    }
+
+    _completionDebounce = Timer(const Duration(milliseconds: 160), () {
+      unawaited(_loadCompletions(input, requestId));
+    });
+  }
+
+  Future<void> _loadCompletions(String input, int requestId) async {
     final result = await _executeJsonScript(
       'JSON.stringify(window.__twinePlayerCompletions(${jsonEncode(input)}));',
     );
-    if (!mounted) return;
+    if (!mounted || requestId != _completionRequestId) return;
     setState(
       () => _suggestions = result is List
           ? result.whereType<String>().toList()
           : <String>[],
     );
+  }
+
+  void _markSuggestionApplied(String suggestion) {
+    _completionDebounce?.cancel();
+    _completionRequestId++;
+    _suppressedCompletionInput = suggestion;
   }
 
   @override
@@ -948,6 +1113,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       savedCommands: _savedCommands[_currentIfid] ?? const <String>[],
       suggestions: _suggestions,
       onChanged: _updateCompletions,
+      onSuggestionApplied: _markSuggestionApplied,
       onRun: _runConsoleCommand,
       onSave: _saveConsoleCommand,
       onSaveCommand: _saveConsoleCommandValue,
@@ -1030,10 +1196,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         Focus(
           focusNode: _webViewFocusNode,
           child: Listener(
-            onPointerDown: (_) {
-              _webViewFocusNode.requestFocus();
-              unawaited(_controller.focus());
-            },
+            onPointerDown: _handleWebViewPointerDown,
             child: Webview(_controller),
           ),
         ),
@@ -1580,6 +1743,7 @@ class _ConsolePanel extends StatefulWidget {
     required this.savedCommands,
     required this.suggestions,
     required this.onChanged,
+    required this.onSuggestionApplied,
     required this.onRun,
     required this.onSave,
     required this.onSaveCommand,
@@ -1595,6 +1759,7 @@ class _ConsolePanel extends StatefulWidget {
   final List<String> savedCommands;
   final List<String> suggestions;
   final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSuggestionApplied;
   final ValueChanged<String> onRun;
   final VoidCallback onSave;
   final ValueChanged<String> onSaveCommand;
@@ -1609,12 +1774,144 @@ class _ConsolePanel extends StatefulWidget {
 }
 
 class _ConsolePanelState extends State<_ConsolePanel> {
+  final _inputFocusNode = FocusNode(debugLabel: 'Console command input');
+  final _suggestionsController = ScrollController();
   var _savedExpanded = false;
+  var _selectedSuggestionIndex = -1;
+  var _applyingSuggestion = false;
+  List<String>? _frozenSuggestions;
+
+  @override
+  void didUpdateWidget(covariant _ConsolePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_frozenSuggestions == null &&
+        widget.suggestions != oldWidget.suggestions) {
+      _selectedSuggestionIndex = -1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _inputFocusNode.dispose();
+    _suggestionsController.dispose();
+    super.dispose();
+  }
+
+  void _useSuggestion(String suggestion) {
+    widget.onSuggestionApplied(suggestion);
+    _applyingSuggestion = true;
+    try {
+      widget.inputController.text = suggestion;
+      widget.inputController.selection = TextSelection.collapsed(
+        offset: suggestion.length,
+      );
+    } finally {
+      _applyingSuggestion = false;
+    }
+  }
+
+  void _cycleSuggestion(bool reverse) {
+    final suggestions = _frozenSuggestions ?? widget.suggestions;
+    if (suggestions.isEmpty) return;
+    final length = suggestions.length;
+    setState(() {
+      _frozenSuggestions ??= List<String>.of(widget.suggestions);
+      if (_selectedSuggestionIndex < 0) {
+        _selectedSuggestionIndex = reverse ? length - 1 : 0;
+      } else {
+        final delta = reverse ? -1 : 1;
+        _selectedSuggestionIndex = (_selectedSuggestionIndex + delta) % length;
+        if (_selectedSuggestionIndex < 0) _selectedSuggestionIndex += length;
+      }
+      _useSuggestion(suggestions[_selectedSuggestionIndex]);
+    });
+    _scrollSelectedSuggestionIntoView();
+  }
+
+  void _releaseFrozenSuggestions({bool refresh = false}) {
+    if (_frozenSuggestions == null && _selectedSuggestionIndex < 0) {
+      if (refresh) widget.onChanged(widget.inputController.text);
+      return;
+    }
+    setState(() {
+      _frozenSuggestions = null;
+      _selectedSuggestionIndex = -1;
+    });
+    if (refresh) widget.onChanged(widget.inputController.text);
+  }
+
+  void _handleInputChanged(String value) {
+    if (_applyingSuggestion) return;
+    _releaseFrozenSuggestions();
+    widget.onChanged(value);
+  }
+
+  void _scrollSelectedSuggestionIntoView() {
+    if (!_suggestionsController.hasClients || _selectedSuggestionIndex < 0) {
+      return;
+    }
+    const rowExtent = 34.0;
+    final target = _selectedSuggestionIndex * rowExtent;
+    final viewport = _suggestionsController.position.viewportDimension;
+    final current = _suggestionsController.offset;
+    final max = _suggestionsController.position.maxScrollExtent;
+    var next = current;
+    if (target < current) {
+      next = target;
+    } else if (target + rowExtent > current + viewport) {
+      next = target + rowExtent - viewport;
+    }
+    _suggestionsController.animateTo(
+      next.clamp(0.0, max),
+      duration: const Duration(milliseconds: 80),
+      curve: Curves.easeOut,
+    );
+  }
+
+  KeyEventResult _handleCommandInputKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.space &&
+        HardwareKeyboard.instance.isControlPressed) {
+      _releaseFrozenSuggestions(refresh: true);
+      return KeyEventResult.handled;
+    }
+
+    final suggestions = _frozenSuggestions ?? widget.suggestions;
+    if (event.logicalKey != LogicalKeyboardKey.tab || suggestions.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    _cycleSuggestion(HardwareKeyboard.instance.isShiftPressed);
+    return KeyEventResult.handled;
+  }
+
+  Widget _buildCommandInput() {
+    final field = FTextField(
+      control: FTextFieldControl.managed(
+        controller: widget.inputController,
+        onChange: (value) => _handleInputChanged(value.text),
+      ),
+      focusNode: _inputFocusNode,
+      hint: 'Enter JavaScript...',
+      onTap: () => _releaseFrozenSuggestions(refresh: true),
+      onSubmit: widget.onRun,
+      size: FTextFieldSizeVariant.sm,
+    );
+
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: _handleCommandInputKey,
+      child: field,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(14);
     final colors = context.theme.colors;
+    final suggestions = _frozenSuggestions ?? widget.suggestions;
     return Material(
       elevation: 18,
       color: Colors.transparent,
@@ -1688,26 +1985,62 @@ class _ConsolePanelState extends State<_ConsolePanel> {
                     onRun: widget.onRun,
                     onDelete: widget.onDeleteSaved,
                   ),
-                  if (widget.suggestions.isNotEmpty)
-                    SizedBox(
-                      height: 42,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: widget.suggestions.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 6),
-                        itemBuilder: (context, index) => FButton(
-                          size: FButtonSizeVariant.xs,
-                          variant: FButtonVariant.secondary,
-                          onPress: () {
-                            widget.inputController.text =
-                                widget.suggestions[index];
-                            widget.inputController.selection =
-                                TextSelection.collapsed(
-                                  offset: widget.suggestions[index].length,
-                                );
-                          },
-                          child: Text(widget.suggestions[index]),
+                  if (suggestions.isNotEmpty)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 148),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: context.theme.colors.border),
+                            bottom: BorderSide(
+                              color: context.theme.colors.border,
+                            ),
+                          ),
+                          color: const Color(0xff111418),
+                        ),
+                        child: Scrollbar(
+                          controller: _suggestionsController,
+                          thumbVisibility: true,
+                          child: ListView.builder(
+                            controller: _suggestionsController,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            itemExtent: 34,
+                            itemCount: suggestions.length,
+                            itemBuilder: (context, index) {
+                              final suggestion = suggestions[index];
+                              final selected =
+                                  index == _selectedSuggestionIndex;
+                              return InkWell(
+                                onTap: () {
+                                  setState(
+                                    () => _selectedSuggestionIndex = index,
+                                  );
+                                  _useSuggestion(suggestion);
+                                  _inputFocusNode.requestFocus();
+                                },
+                                child: ColoredBox(
+                                  color: selected
+                                      ? const Color(0xff263342)
+                                      : Colors.transparent,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 7,
+                                    ),
+                                    child: Text(
+                                      suggestion,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontFamily: 'Consolas',
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -1715,17 +2048,7 @@ class _ConsolePanelState extends State<_ConsolePanel> {
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: FTextField(
-                            control: FTextFieldControl.managed(
-                              controller: widget.inputController,
-                              onChange: (value) => widget.onChanged(value.text),
-                            ),
-                            hint: 'Enter JavaScript...',
-                            onSubmit: widget.onRun,
-                            size: FTextFieldSizeVariant.sm,
-                          ),
-                        ),
+                        Expanded(child: _buildCommandInput()),
                         const SizedBox(width: 8),
                         _ToolbarIconButton(
                           tooltip: 'Save command',
