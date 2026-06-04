@@ -50,7 +50,7 @@ class WebviewWindowsPlugin : public flutter::Plugin {
   static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
 
   WebviewWindowsPlugin(flutter::TextureRegistrar* textures,
-                       flutter::BinaryMessenger* messenger);
+                       flutter::BinaryMessenger* messenger, HWND parent_window);
 
   virtual ~WebviewWindowsPlugin();
 
@@ -62,6 +62,7 @@ class WebviewWindowsPlugin : public flutter::Plugin {
   WNDCLASS window_class_ = {};
   flutter::TextureRegistrar* textures_;
   flutter::BinaryMessenger* messenger_;
+  HWND parent_window_;
 
   bool InitPlatform();
 
@@ -81,8 +82,13 @@ void WebviewWindowsPlugin::RegisterWithRegistrar(
           registrar->messenger(), "io.jns.webview.win",
           &flutter::StandardMethodCodec::GetInstance());
 
+  HWND parent_window = nullptr;
+  if (auto view = registrar->GetView()) {
+    parent_window = view->GetNativeWindow();
+  }
+
   auto plugin = std::make_unique<WebviewWindowsPlugin>(
-      registrar->texture_registrar(), registrar->messenger());
+      registrar->texture_registrar(), registrar->messenger(), parent_window);
 
   channel->SetMethodCallHandler(
       [plugin_pointer = plugin.get()](const auto& call, auto result) {
@@ -93,8 +99,11 @@ void WebviewWindowsPlugin::RegisterWithRegistrar(
 }
 
 WebviewWindowsPlugin::WebviewWindowsPlugin(flutter::TextureRegistrar* textures,
-                                           flutter::BinaryMessenger* messenger)
-    : textures_(textures), messenger_(messenger) {
+                                           flutter::BinaryMessenger* messenger,
+                                           HWND parent_window)
+    : textures_(textures),
+      messenger_(messenger),
+      parent_window_(parent_window) {
   window_class_.lpszClassName = L"FlutterWebviewMessage";
   window_class_.lpfnWndProc = &DefWindowProc;
   RegisterClass(&window_class_);
@@ -192,9 +201,14 @@ void WebviewWindowsPlugin::CreateWebviewInstance(
     }
   }
 
-  auto hwnd = CreateWindowEx(0, window_class_.lpszClassName, L"", 0, CW_DEFAULT,
-                             CW_DEFAULT, 0, 0, HWND_MESSAGE, nullptr,
+  auto hwnd = CreateWindowEx(0, window_class_.lpszClassName, L"",
+                             WS_CHILD, 0, 0, 1, 1, parent_window_, nullptr,
                              window_class_.hInstance, nullptr);
+  if (!hwnd) {
+    hwnd = CreateWindowEx(0, window_class_.lpszClassName, L"", 0, CW_DEFAULT,
+                          CW_DEFAULT, 0, 0, HWND_MESSAGE, nullptr,
+                          window_class_.hInstance, nullptr);
+  }
 
   std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>
       shared_result = std::move(result);
