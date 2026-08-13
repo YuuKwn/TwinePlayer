@@ -1764,7 +1764,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Offset _defaultContextMenuPosition() {
     final box = context.findRenderObject();
-    if (box is RenderBox) return box.localToGlobal(box.size.center(Offset.zero));
+    if (box is RenderBox) {
+      return box.localToGlobal(box.size.center(Offset.zero));
+    }
     return Offset.zero;
   }
 
@@ -2919,7 +2921,6 @@ class ConsolePanel extends StatefulWidget {
     required this.savedCommands,
     required this.suggestions,
     required this.onChanged,
-    required this.onSuggestionApplied,
     required this.onRun,
     required this.onSave,
     required this.onSaveCommand,
@@ -2928,6 +2929,7 @@ class ConsolePanel extends StatefulWidget {
     required this.isSideBySide,
     required this.onUseSaved,
     required this.onDeleteSaved,
+    this.onSuggestionApplied,
     this.initialSavedCommandsExpanded = false,
   });
 
@@ -2937,7 +2939,7 @@ class ConsolePanel extends StatefulWidget {
   final List<String> savedCommands;
   final List<String> suggestions;
   final ValueChanged<String> onChanged;
-  final ValueChanged<String> onSuggestionApplied;
+  final ValueChanged<String>? onSuggestionApplied;
   final ValueChanged<String> onRun;
   final VoidCallback onSave;
   final ValueChanged<String> onSaveCommand;
@@ -2954,7 +2956,6 @@ class ConsolePanel extends StatefulWidget {
 
 class _ConsolePanelState extends State<ConsolePanel> {
   final _inputFocusNode = FocusNode(debugLabel: 'Console command input');
-  final _suggestionsController = ScrollController();
   late var _savedExpanded = widget.initialSavedCommandsExpanded;
   var _selectedSuggestionIndex = -1;
   var _applyingSuggestion = false;
@@ -2972,12 +2973,11 @@ class _ConsolePanelState extends State<ConsolePanel> {
   @override
   void dispose() {
     _inputFocusNode.dispose();
-    _suggestionsController.dispose();
     super.dispose();
   }
 
   void _useSuggestion(String suggestion) {
-    widget.onSuggestionApplied(suggestion);
+    widget.onSuggestionApplied?.call(suggestion);
     _applyingSuggestion = true;
     try {
       widget.inputController.text = suggestion;
@@ -3004,7 +3004,6 @@ class _ConsolePanelState extends State<ConsolePanel> {
       }
       _useSuggestion(suggestions[_selectedSuggestionIndex]);
     });
-    _scrollSelectedSuggestionIntoView();
   }
 
   void _releaseFrozenSuggestions({bool refresh = false}) {
@@ -3023,28 +3022,6 @@ class _ConsolePanelState extends State<ConsolePanel> {
     if (_applyingSuggestion) return;
     _releaseFrozenSuggestions();
     widget.onChanged(value);
-  }
-
-  void _scrollSelectedSuggestionIntoView() {
-    if (!_suggestionsController.hasClients || _selectedSuggestionIndex < 0) {
-      return;
-    }
-    const rowExtent = 34.0;
-    final target = _selectedSuggestionIndex * rowExtent;
-    final viewport = _suggestionsController.position.viewportDimension;
-    final current = _suggestionsController.offset;
-    final max = _suggestionsController.position.maxScrollExtent;
-    var next = current;
-    if (target < current) {
-      next = target;
-    } else if (target + rowExtent > current + viewport) {
-      next = target + rowExtent - viewport;
-    }
-    _suggestionsController.animateTo(
-      next.clamp(0.0, max),
-      duration: const Duration(milliseconds: 80),
-      curve: Curves.easeOut,
-    );
   }
 
   KeyEventResult _handleCommandInputKey(FocusNode node, KeyEvent event) {
@@ -3175,59 +3152,31 @@ class _ConsolePanelState extends State<ConsolePanel> {
                         onDelete: widget.onDeleteSaved,
                       ),
                       if (suggestions.isNotEmpty)
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 148),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                top: BorderSide(color: colors.border),
-                                bottom: BorderSide(color: colors.border),
-                              ),
-                              color: const Color(0xff111418),
+                        SizedBox(
+                          height: 42,
+                          child: _HorizontalWheelStrip(
+                            scrollableKey: const ValueKey<String>(
+                              'console-suggestions-scrollable',
                             ),
-                            child: Scrollbar(
-                              controller: _suggestionsController,
-                              thumbVisibility: true,
-                              child: ListView.builder(
-                                controller: _suggestionsController,
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                itemExtent: 34,
-                                itemCount: suggestions.length,
-                                itemBuilder: (context, index) {
-                                  final suggestion = suggestions[index];
-                                  final selected =
-                                      index == _selectedSuggestionIndex;
-                                  return InkWell(
-                                    onTap: () {
-                                      setState(
-                                        () => _selectedSuggestionIndex = index,
-                                      );
-                                      _useSuggestion(suggestion);
-                                      _inputFocusNode.requestFocus();
-                                    },
-                                    child: ColoredBox(
-                                      color: selected
-                                          ? const Color(0xff263342)
-                                          : Colors.transparent,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 7,
-                                        ),
-                                        child: Text(
-                                          suggestion,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontFamily: 'Consolas',
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            itemCount: suggestions.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 6),
+                            itemBuilder: (context, index) => FButton(
+                              size: widget.comfortable
+                                  ? FButtonSizeVariant.md
+                                  : FButtonSizeVariant.xs,
+                              variant: index == _selectedSuggestionIndex
+                                  ? FButtonVariant.primary
+                                  : FButtonVariant.secondary,
+                              onPress: () {
+                                setState(
+                                  () => _selectedSuggestionIndex = index,
+                                );
+                                _useSuggestion(suggestions[index]);
+                                _inputFocusNode.requestFocus();
+                              },
+                              child: Text(suggestions[index]),
                             ),
                           ),
                         ),
