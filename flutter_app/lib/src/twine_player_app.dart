@@ -2355,13 +2355,19 @@ class _SaveManagerDialogState extends State<SaveManagerDialog> {
                   Row(
                     children: [
                       Expanded(
-                        child: FTextField(
-                          control: FTextFieldControl.managed(
-                            controller: _filenameController,
+                        child: TextField(
+                          key: const ValueKey<String>('save-filename-field'),
+                          controller: _filenameController,
+                          onSubmitted: _write,
+                          decoration: const InputDecoration(
+                            labelText: 'New save filename',
+                            isDense: true,
+                            constraints: BoxConstraints(minHeight: 40),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                           ),
-                          label: const Text('New save filename'),
-                          onSubmit: _write,
-                          size: FTextFieldSizeVariant.sm,
                         ),
                       ),
                       const SizedBox(width: 8),

@@ -38,7 +38,8 @@ The upgrade itself is complete. Most of Flutter 3.47's Windows rendering and
 text improvements arrive automatically, so TwinePlayer should validate them,
 not reproduce them in application code. The best app-owned opportunities are:
 
-1. restore a trustworthy all-green Flutter 3.47 semantics baseline;
+1. close Gate 0 with a trustworthy all-green Flutter 3.47 semantics baseline
+   (completed below);
 2. certify the inherited Windows renderer, text, input, and windowing behavior;
 3. align the vendored WebView's D3D11 device with Flutter's actual DXGI adapter;
 4. put the running build identity into privacy-safe diagnostics;
@@ -52,8 +53,8 @@ Recommended order:
 
 | Order | Work item | Why now |
 | --- | --- | --- |
-| 0 | Gate 0: Flutter 3.47/Forui semantics compatibility | Future work needs a trustworthy regression baseline. |
-| 1 | 3.47 inherited-behavior certification | The app already ships the new engine behavior; risk is currently unmeasured. |
+| 0 | Gate 0: Flutter 3.47/Forui semantics compatibility | Completed 2026-08-13; the baseline is now trustworthy. |
+| 1 | P0: 3.47 inherited-behavior certification | Next phase: the app already ships the new engine behavior, but runtime risk remains unmeasured. |
 | 2 | WebView/Flutter graphics-adapter alignment | It directly addresses the highest-risk custom GPU boundary. |
 | 3 | Build identity in diagnostics | Small change; makes every later certification report attributable. |
 | 4 | Debug focus boxes and stronger semantics contracts | Improves diagnosis and prevents focus/accessibility regressions. |
@@ -86,19 +87,22 @@ smoke success must remain separate from native renderer and hardware evidence.
 
 **Priority:** prerequisite
 
-**Readiness:** ready for a focused diagnosis/fix thread
+**Status:** completed **2026-08-13**
+
+**Readiness:** closed; P0 inherited-behavior certification is the next phase
 
 ### Why TwinePlayer benefits
 
 The recorded 3.47 upgrade run had 66 passing Flutter tests and one failure:
-`save overwrite asks for confirmation before writing`. The failure came from
-Flutter 3.47 merged-semantics consistency assertions around the Forui-backed
-`SaveManagerDialog`. A `pumpAndSettle()` experiment did not solve it and was
-reverted.
+`save overwrite asks for confirmation before writing`. Gate 0 reproduced that
+failure, resolved the compatibility seam, and then passed the focused test, all
+6 tests in `library_save_widget_test.dart`, all 67 Flutter tests, and analysis
+under the pinned Flutter 3.47 SDK. A `pumpAndSettle()` experiment did not solve
+the original failure and was not retained.
 
-Until this is resolved, a later change cannot cleanly distinguish its own
-regression from the known baseline failure. Fixing the compatibility seam is
-therefore more important than adopting any optional new API.
+Before this was resolved, a later change could not cleanly distinguish its own
+regression from the known baseline failure. With Gate 0 closed, the next task
+can proceed to inherited-behavior certification without reopening this seam.
 
 ### Likely source and test seams
 
@@ -112,22 +116,41 @@ Flutter 3.47 added role checks to `isSemantics`/`matchesSemantics` in
 made child mismatches stricter in
 [flutter/flutter#188827](https://github.com/flutter/flutter/pull/188827).
 
-### Proposed scope
+### Verified diagnosis and narrow workaround
 
-1. Reproduce the exact single test under the pinned SDK and dependency lock.
-2. Inspect the live semantics tree before and after the overwrite confirmation
-   opens, including focus ownership and any merged Forui nodes.
-3. Determine whether the defect is app composition, a Forui compatibility bug,
-   or a Flutter regression.
-4. Make the smallest justified production or test-harness correction.
-5. If no correct local fix exists, preserve the exact failure and produce a
-   minimal upstream reproduction instead of hiding it.
+Forui 0.22.3 always applies a `MergeSemantics` boundary to `FTextField`. In the
+save filename field, that boundary owns an unmerged label sibling alongside a
+merged `EditableText` child. Flutter 3.47's sibling-merge update ordering exposes
+the inconsistent tree during the initial semantics flush, producing the
+`semantics.dart:3862` assertion; the later failures at `5053` and `4990` are
+cascades. The failure occurs before the overwrite dialog is reached, so it is a
+compatibility seam rather than a save/overwrite callback defect.
+
+The app-owned workaround replaces only this save filename `FTextField` with an
+equivalent Material `TextField`. It retains the existing controller, accessible
+label, editable text role/value/actions, `_write` submission callback, keyboard
+focus, and the Forui small-field touch sizing and padding. The test now enables
+semantics, verifies the field label/role/value/actions, verifies both confirmation
+button semantics after the dialog route becomes visible, preserves pointer
+activation and `writeCount`, and proves the outer `SaveManagerDialog` remains
+usable after cancel. No SDK, dependency, other Forui field, or Electron change
+was made.
+
+### Completed scope and evidence
+
+1. Reproduced the exact failure under the pinned Flutter 3.47.0 SDK and Forui
+   0.22.3 lock.
+2. Inspected the live semantics tree before and after the overwrite route opens,
+   including the merged Forui nodes and the route's initial zero-opacity frame.
+3. Applied the narrow Material-field fallback and deterministic semantics
+   assertions described above.
+4. Re-ran the focused test first, then the save-widget file and full Flutter
+   suite, with `flutter analyze` completing without issues.
 
 ### Acceptance criteria
 
 - The focused overwrite test passes for the right semantic and behavioral
-  reason, or a minimal upstream reproduction documents why a local fix is
-  unsafe.
+  reason.
 - Save, overwrite confirmation, cancel, load, delete, focus restoration, and
   accessible dialog naming remain intact.
 - No sleeps, skips, blanket semantics exclusions, or reduced assertions.
@@ -148,7 +171,14 @@ If the Flutter wrapper hangs on this machine, use the direct Dart
 `flutter_tools.dart --no-version-check` entrypoint already documented in
 `flutter_app/README.md`.
 
-### Manual gates
+Gate 0 evidence captured on **2026-08-13** with that direct entrypoint:
+
+- focused overwrite test: `+1`, passed;
+- `test/library_save_widget_test.dart`: `+6`, passed;
+- full `flutter test`: `+67`, passed;
+- `flutter analyze`: `No issues found!`.
+
+### Remaining manual gates (not covered by automated evidence)
 
 - Keyboard and screen-reader traversal through the overwrite dialog.
 - Save overwrite/cancel against a disposable real SugarCube fixture.
@@ -157,23 +187,22 @@ If the Flutter wrapper hangs on this machine, use the direct Dart
 ### Future-thread brief
 
 ```text
-Work only in F:\GitHub\TwinePlayer\flutter_app. Reproduce and correctly resolve
-the Flutter 3.47 failure `save overwrite asks for confirmation before writing`
-in library_save_widget_test.dart. Inspect the actual semantics tree and the
-Forui SaveManagerDialog composition before editing. Preserve save/load,
-overwrite confirmation, focus, and accessibility behavior. Do not skip or
-weaken semantics, add arbitrary sleeps, or retain speculative changes that do
-not fix the blocker. Run the focused test, the save-widget file, the full
-Flutter suite, and flutter analyze. If the blocker is upstream, leave source
-behavior unchanged and deliver a minimal reproduction plus exact failure.
-Do not touch the legacy Electron app, push, or open a PR unless requested.
+Start with P0 — Certify the behavior inherited from Flutter 3.47. Gate 0 is
+complete: do not reopen the resolved save-dialog semantics blocker unless a new
+regression reproduces it. Work only in F:\GitHub\TwinePlayer\flutter_app and
+the explicitly named P0 evidence paths. Establish an attributable Windows
+artifact, capture renderer/WebView2/GPU/DPI and build identity evidence, and
+exercise the manual keyboard, screen-reader, touch, visual, and disposable real
+SugarCube gates. Keep automated, physical, accessibility, and GPU evidence
+separate. Do not touch the legacy Electron app, push, or open a PR unless
+requested.
 ```
 
 ## P0 — Certify the behavior inherited from Flutter 3.47
 
-**Priority:** highest after Gate 0
+**Priority:** next after completed Gate 0
 
-**Readiness:** ready for a validation/artifact thread
+**Readiness:** next phase; ready for a validation/artifact thread
 
 ### Why TwinePlayer benefits
 
@@ -871,8 +900,8 @@ The exact local SDK audit range is:
 
 # How to start a future implementation thread
 
-1. Choose exactly one future-thread brief from this document. Gate 0 should be
-   completed before work that depends on an all-green Flutter baseline.
+1. Start with the P0 — Certify the behavior inherited from Flutter 3.47 brief;
+   Gate 0 is completed and its automated baseline is green.
 2. Re-check the live `YuuKwn/TwinePlayer` remote, `main`, `origin/main`, HEAD,
    and working-tree status before editing. Do not assume this 2026-08-13
    snapshot is still current.

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -176,14 +177,81 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.enterText(find.byType(EditableText), 'slot.save');
+    final filenameField = find.byKey(
+      const ValueKey<String>('save-filename-field'),
+    );
+    final filenameEditable = find.descendant(
+      of: filenameField,
+      matching: find.byType(EditableText),
+    );
+    expect(filenameField, findsOneWidget);
+    expect(filenameEditable, findsOneWidget);
+    expect(
+      tester.getSemantics(filenameEditable),
+      isSemantics(
+        label: 'New save filename',
+        inputType: ui.SemanticsInputType.text,
+        isTextField: true,
+        isFocusable: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasFocusAction: true,
+        hasTapAction: true,
+      ),
+    );
+    await tester.enterText(filenameEditable, 'slot.save');
+    await tester.pump();
+    expect(
+      tester.getSemantics(filenameEditable),
+      isSemantics(
+        label: 'New save filename',
+        value: 'slot.save',
+        inputType: ui.SemanticsInputType.text,
+        isTextField: true,
+        isFocusable: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasFocusAction: true,
+        hasTapAction: true,
+        hasSetTextAction: true,
+        hasSetSelectionAction: true,
+      ),
+    );
     await tester.tap(find.text('Save New'));
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    await tester.pump(kThemeAnimationDuration);
 
     expect(find.text('Overwrite save?'), findsOneWidget);
     expect(service.writeCount, 0);
+    for (final label in ['Cancel', 'Overwrite']) {
+      final button = find.semantics.byLabel(label);
+      expect(button, findsOneWidget);
+      expect(
+        button.evaluate().single,
+        isSemantics(
+          label: label,
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+    }
     await tester.tap(find.text('Cancel'));
-    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    await tester.pump(kThemeAnimationDuration);
+    expect(service.writeCount, 0);
+    expect(find.byType(SaveManagerDialog), findsOneWidget);
+    expect(filenameField, findsOneWidget);
+
+    await tester.tap(find.text('Save New'));
+    await tester.pump();
+    await tester.pump(kThemeAnimationDuration);
+    expect(find.text('Overwrite save?'), findsOneWidget);
+    expect(service.writeCount, 0);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    await tester.pump(kThemeAnimationDuration);
     expect(service.writeCount, 0);
   });
 
