@@ -19,6 +19,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   flutter::DartProject project(L"data");
 
+  // Flutter 3.47 exposes a project-level Windows Impeller switch through the
+  // DartProject wrapper. Keep the renderer choice explicit for release and
+  // runtime parity instead of relying on a platform default.
+  project.set_impeller_switch(flutter::ImpellerSwitch::Enabled);
+
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 

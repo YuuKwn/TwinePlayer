@@ -10,6 +10,12 @@ The previous Electron application still exists in this repository for legacy mai
 
 The Flutter app lives in [`flutter_app`](flutter_app/).
 
+The active Windows app targets Flutter 3.47.0 and Dart 3.13.0 at framework
+revision `4cf24164269a5ebf0c16a028a00727d0e77bbb05`. Its custom Windows runner
+keeps the WebView2, focus, accessibility, fullscreen, icon, and packaging
+behavior; `windows/runner/main.cpp` explicitly enables Windows Impeller using
+the Flutter 3.47 `DartProject` API.
+
 ```powershell
 cd flutter_app
 flutter pub get

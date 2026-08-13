@@ -18,6 +18,14 @@ The Electron AI Illustrator feature is intentionally not ported on this branch.
 
 ## Development
 
+The active Windows app targets Flutter 3.47.0 and Dart 3.13.0 from framework
+revision `4cf24164269a5ebf0c16a028a00727d0e77bbb05`. The Windows host files
+were compared with the Flutter 3.47 Windows template; the existing custom
+fullscreen method channel, WebView2 integration, icon, and packaging remain in
+place. The runner explicitly enables Windows Impeller through
+`flutter::DartProject::set_impeller_switch(ImpellerSwitch::Enabled)`, which is
+available in the target SDK's Windows `dart_project.h` API.
+
 Use Flutter's Windows target:
 
 ```powershell
