@@ -7,6 +7,51 @@
 <body>
   <tw-storydata name="Minimal Fixture Story" ifid="fixture-ifid">
     <tw-passagedata pid="1" name="Start">Hello from the fixture.</tw-passagedata>
+    <tw-passagedata pid="2" name="choice">Choice passage with a return link.</tw-passagedata>
   </tw-storydata>
+  <!--
+    Keep the tw-storydata/tw-passagedata metadata above for Twine parsers, and
+    expose the controls in a rendered local harness for browser/manual input
+    testing. The harness is outside the metadata element so every interactive
+    control has one live DOM instance in text/html.
+  -->
+  <style>
+    tw-storydata { display: none; }
+    #fixture-rendered-story { max-width: 48rem; margin: 0 auto; padding: 1rem; }
+    #fixture-rendered-story section { min-height: 1400px; }
+  </style>
+  <main id="fixture-rendered-story" aria-label="Rendered touch fixture">
+    <h1>Touch fixture</h1>
+    <p>Hello from the rendered fixture. This local surface exercises scrolling,
+      selection, links, choices, forms, images, and dynamic content.</p>
+    <p><a href="#fixture-choice" id="fixture-link">A normal link</a>
+      <button type="button" id="fixture-button">button choice</button></p>
+    <form id="fixture-form">
+      <label>Name <input name="name" placeholder="Player name"></label>
+      <select name="mood"><option>Calm</option><option>Curious</option></select>
+      <button type="submit">Submit</button>
+    </form>
+    <img alt="Inline fixture image" width="96" height="64"
+      src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='64'%3E%3Crect width='96' height='64' fill='%23334155'/%3E%3Ccircle cx='48' cy='32' r='20' fill='%23a7f3d0'/%3E%3C/svg%3E">
+    <p id="fixture-dynamic">Dynamic content starts empty.</p>
+    <p id="fixture-choice" hidden>Choice passage rendered locally.</p>
+    <section aria-label="Long offline rendered content">
+      <p>Offline scroll sentinel. This block intentionally extends beyond a
+        compact streaming viewport so wheel, touch, and controller scrolling can
+        be exercised.</p>
+    </section>
+  </main>
+  <script>
+    document.getElementById('fixture-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      document.getElementById('fixture-dynamic').textContent = 'Form submitted locally.';
+    });
+    document.getElementById('fixture-link').addEventListener('click', function () {
+      document.getElementById('fixture-choice').hidden = false;
+    });
+    setTimeout(function () {
+      document.getElementById('fixture-dynamic').textContent = 'Dynamic content loaded locally.';
+    }, 10);
+  </script>
 </body>
 </html>

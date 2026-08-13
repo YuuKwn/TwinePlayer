@@ -4,6 +4,7 @@ node_modules/
 # Compiled output and build artifacts
 dist/
 build/
+artifacts/
 .roo/rules/rules.md
 
 # Logs and diagnostics

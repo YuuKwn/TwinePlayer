@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 
 import 'enums.dart';
 import 'cursor.dart';
+import 'pointer_contact_state.dart';
 
 class HistoryChanged {
   final bool canGoBack;
@@ -605,9 +606,7 @@ class Webview extends StatefulWidget {
 
 class _WebviewState extends State<Webview> {
   final GlobalKey _key = GlobalKey();
-  final _downButtons = <int, PointerButton>{};
-
-  PointerDeviceKind _pointerKind = PointerDeviceKind.unknown;
+  final _pointerState = PointerContactState();
 
   MouseCursor _cursor = SystemMouseCursors.basic;
 
@@ -654,9 +653,7 @@ class _WebviewState extends State<Webview> {
             child: _controller.value.isInitialized
                 ? Listener(
                     onPointerHover: (ev) {
-                      // ev.kind is for whatever reason not set to touch
-                      // even on touch input
-                      if (_pointerKind == PointerDeviceKind.touch) {
+                      if (!_pointerState.shouldForwardHover(ev)) {
                         // Ignoring hover events on touch for now
                         return;
                       }
@@ -664,7 +661,13 @@ class _WebviewState extends State<Webview> {
                     },
                     onPointerDown: (ev) {
                       unawaited(_controller.focus());
-                      _pointerKind = ev.kind;
+                      final button = getButton(ev.buttons);
+                      _pointerState.registerDown(
+                        ev,
+                        position: ev.localPosition,
+                        button:
+                            ev.kind == PointerDeviceKind.touch ? null : button,
+                      );
                       if (ev.kind == PointerDeviceKind.touch) {
                         _controller._setPointerUpdate(
                             WebviewPointerEventKind.down,
@@ -674,36 +677,58 @@ class _WebviewState extends State<Webview> {
                             ev.pressure);
                         return;
                       }
-                      final button = getButton(ev.buttons);
-                      _downButtons[ev.pointer] = button;
                       _controller._setPointerButtonState(button, true);
                     },
                     onPointerUp: (ev) {
-                      _pointerKind = ev.kind;
-                      if (ev.kind == PointerDeviceKind.touch) {
+                      final isTouch = _pointerState.isTouchPointer(ev.pointer);
+                      _pointerState.update(ev, position: ev.localPosition);
+                      if (isTouch) {
                         _controller._setPointerUpdate(
                             WebviewPointerEventKind.up,
                             ev.pointer,
                             ev.localPosition,
                             ev.size,
                             ev.pressure);
+                        _pointerState.release(ev.pointer);
                         return;
                       }
-                      final button = _downButtons.remove(ev.pointer);
+                      final button = _pointerState.takeButton(ev.pointer);
                       if (button != null) {
                         _controller._setPointerButtonState(button, false);
                       }
+                      _pointerState.release(ev.pointer);
                     },
                     onPointerCancel: (ev) {
-                      _pointerKind = ev.kind;
-                      final button = _downButtons.remove(ev.pointer);
+                      final isTouch = _pointerState.isTouchPointer(ev.pointer);
+                      if (isTouch) {
+                        // WebView2 has no separate cancel kind; an up event is
+                        // the native release required to avoid a stuck contact.
+                        // Keep the last real contact position. Flutter may
+                        // synthesize a cancel coordinate that is outside the
+                        // WebView surface and should not move the contact.
+                        final position =
+                            _pointerState.positionFor(ev.pointer) ??
+                                ev.localPosition;
+                        _controller._setPointerUpdate(
+                            WebviewPointerEventKind.up,
+                            ev.pointer,
+                            position,
+                            ev.size,
+                            ev.pressure);
+                        _pointerState.release(ev.pointer);
+                        return;
+                      }
+                      _pointerState.update(ev, position: ev.localPosition);
+                      final button = _pointerState.takeButton(ev.pointer);
                       if (button != null) {
                         _controller._setPointerButtonState(button, false);
                       }
+                      _pointerState.release(ev.pointer);
                     },
                     onPointerMove: (ev) {
-                      _pointerKind = ev.kind;
-                      if (ev.kind == PointerDeviceKind.touch) {
+                      final isTouch = _pointerState.isTouchPointer(ev.pointer);
+                      _pointerState.update(ev, position: ev.localPosition);
+                      if (isTouch) {
                         _controller._setPointerUpdate(
                             WebviewPointerEventKind.update,
                             ev.pointer,
@@ -745,6 +770,7 @@ class _WebviewState extends State<Webview> {
 
   @override
   void dispose() {
+    _pointerState.clear();
     super.dispose();
     _cursorSubscription?.cancel();
   }

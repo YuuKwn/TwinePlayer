@@ -52,6 +52,19 @@ flutter_app\build\windows\x64\runner\Release\twine_player_flutter.exe
 - Developer console with command history, rerun/save actions, autocomplete, and collapsible saved commands.
 - Clickable expanded image previews for Twine game images.
 - Flutter Windows UI with compact Fluent-inspired layout.
+- Story Assistance v2 is opt-in and engine-verified for the four official
+  Twine formats; unknown or excluded surfaces remain untouched.
+- Comfortable command-bar preferences persist across games. Console is pinned
+  immediately before More, More is rightmost, and Page Up/Page Down are
+  optional story-scroll controls (no edge gestures or global shortcuts).
+
+## Phase 10 portable artifact
+
+The release candidate version is `1.0.0+10`. From `flutter_app`, run
+`tool\package_windows_release.ps1 -SmokeCycles 3` to build the portable
+`artifacts\TwinePlayer-touch-phases-0-10-windows-x64` folder, ZIP, and manifest.
+The existing Phase 0–7 artifact is preserved. Installer, signing, auto-update,
+telemetry, and publishing remain separate authorizations.
 
 ## Legacy Electron App
 

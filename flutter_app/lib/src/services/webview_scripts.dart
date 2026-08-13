@@ -7,6 +7,7 @@ String twineBridgeScript() {
   window.__twinePlayerPendingLoadInput = null;
   window.__twinePlayerPreparingLoadFromHost = false;
   window.__twinePlayerLoadRequestPosted = false;
+  window.__twinePlayerDiagnosticsEnabled = false;
   window.__twinePlayerLog = function (message, level) {
     try {
       window.chrome.webview.postMessage(JSON.stringify({
@@ -22,6 +23,352 @@ String twineBridgeScript() {
     } catch (err) {
       window.__twinePlayerLog('Bridge post failed: ' + err.message, 'error');
     }
+  };
+  window.__twinePlayerSetDiagnosticsEnabled = function (enabled) {
+    window.__twinePlayerDiagnosticsEnabled = !!enabled;
+  };
+  window.__twinePlayerEnhancedChoiceStyleId = 'twine-player-enhanced-choices-v1';
+  window.__twinePlayerEnhancedChoiceClass = 'twine-player-enhanced-choice';
+  window.__twinePlayerEnhancedChoiceMarker = 'data-twine-player-enhanced-choice';
+  window.__twinePlayerEnhancedChoiceObserver = null;
+  window.__twinePlayerEnhancedChoiceSelector = 'button, input:not([type="hidden"]), select, textarea, a, [role="button"], tw-link, .tw-link, .link-internal, .link-external, .macro-button';
+  window.__twinePlayerEnhancedChoiceIsExcluded = function (node) {
+    if (!node || node.nodeType !== 1) return true;
+    try {
+      var excluded = 'canvas, svg, [contenteditable], [draggable="true"], [data-draggable], [data-drag]';
+      return !!node.closest(excluded) || !!node.querySelector(excluded);
+    } catch (_) {
+      return true;
+    }
+  };
+  window.__twinePlayerEnhancedChoiceMark = function (root) {
+    if (!root || !root.querySelectorAll) return;
+    var selector = window.__twinePlayerEnhancedChoiceSelector;
+    var nodes = [];
+    try {
+      if (root.matches && root.matches(selector)) nodes.push(root);
+      nodes = nodes.concat(Array.prototype.slice.call(root.querySelectorAll(selector)));
+    } catch (_) {
+      return;
+    }
+    nodes.forEach(function (node) {
+      if (!window.__twinePlayerEnhancedChoiceIsExcluded(node) &&
+          !node.classList.contains(window.__twinePlayerEnhancedChoiceClass)) {
+        node.classList.add(window.__twinePlayerEnhancedChoiceClass);
+        node.setAttribute(window.__twinePlayerEnhancedChoiceMarker, '1');
+      }
+    });
+  };
+  window.__twinePlayerEnhancedChoiceCleanup = function (root) {
+    var className = window.__twinePlayerEnhancedChoiceClass;
+    var marker = window.__twinePlayerEnhancedChoiceMarker;
+    if (!root) return;
+    var nodes = [];
+    try {
+      if (root.nodeType === 1 && root.hasAttribute && root.hasAttribute(marker)) nodes.push(root);
+      if (root.querySelectorAll) {
+        nodes = nodes.concat(Array.prototype.slice.call(root.querySelectorAll('[' + marker + ']')));
+      }
+    } catch (_) {
+      return;
+    }
+    nodes.forEach(function (node) {
+      if (!node || !node.classList) return;
+      node.classList.remove(className);
+      node.removeAttribute(marker);
+    });
+  };
+  window.__twinePlayerSetEnhancedChoices = function (enabled) {
+    var styleId = window.__twinePlayerEnhancedChoiceStyleId;
+    var className = window.__twinePlayerEnhancedChoiceClass;
+    var existingStyle = document.getElementById(styleId);
+    if (existingStyle && existingStyle.parentNode) existingStyle.parentNode.removeChild(existingStyle);
+    if (window.__twinePlayerEnhancedChoiceObserver) {
+      window.__twinePlayerEnhancedChoiceObserver.disconnect();
+      window.__twinePlayerEnhancedChoiceObserver = null;
+    }
+    window.__twinePlayerEnhancedChoiceCleanup(document);
+    if (!enabled) return false;
+    var style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = '.' + className + '{box-sizing:border-box;min-height:44px;padding-top:8px;padding-bottom:8px;line-height:1.35;}a.' + className + ',tw-link.' + className + ',.tw-link.' + className + ',.link-internal.' + className + ',.link-external.' + className + ',span[role="button"].' + className + ',span.macro-button.' + className + '{display:inline-block;}';
+    (document.head || document.documentElement).appendChild(style);
+    var root = document.body || document.documentElement;
+    window.__twinePlayerEnhancedChoiceMark(root);
+    if (window.MutationObserver && root) {
+      window.__twinePlayerEnhancedChoiceObserver = new MutationObserver(function (records) {
+        records.forEach(function (record) {
+          Array.prototype.slice.call(record.removedNodes || []).forEach(function (node) {
+            window.__twinePlayerEnhancedChoiceCleanup(node);
+          });
+          Array.prototype.slice.call(record.addedNodes || []).forEach(function (node) {
+            window.__twinePlayerEnhancedChoiceMark(node);
+          });
+        });
+      });
+      window.__twinePlayerEnhancedChoiceObserver.observe(root, { childList: true, subtree: true });
+    }
+    return true;
+  };
+  window.__twinePlayerGetEnhancedChoices = function () {
+    return !!document.getElementById(window.__twinePlayerEnhancedChoiceStyleId);
+  };
+  window.__twinePlayerReadabilityStyleId = 'twine-player-story-assistance-v2';
+  window.__twinePlayerReadabilityTextClass = 'twine-player-readability-text-v2';
+  window.__twinePlayerReadabilityTargetClass = 'twine-player-readability-target-v2';
+  window.__twinePlayerReadabilityRootClass = 'twine-player-readability-root-v2';
+  window.__twinePlayerReadabilityMarker = 'data-twine-player-readability';
+  window.__twinePlayerReadabilityObserver = null;
+  window.__twinePlayerReadabilityOwnedNodes = [];
+  window.__twinePlayerReadabilityStatus = {
+    engine: 'unknown',
+    selector: null,
+    enabled: false,
+    verified: false,
+    stylePresent: false,
+    observerPresent: false,
+    markedCount: 0,
+    reason: 'not-applied'
+  };
+  window.__twinePlayerReadabilityNumber = function (value, minimum, maximum, step, fallback) {
+    var number = Number(value);
+    if (!isFinite(number)) number = fallback;
+    number = Math.max(minimum, Math.min(maximum, number));
+    return Math.max(minimum, Math.min(maximum, number));
+  };
+  window.__twinePlayerReadabilityExcluded = function (node) {
+    if (!node || node.nodeType !== 1) return true;
+    try {
+      return !!node.closest('canvas, svg, [contenteditable], [draggable="true"], [data-draggable], [data-drag]');
+    } catch (_) {
+      return true;
+    }
+  };
+  window.__twinePlayerDetectReadabilityEngine = function () {
+    var data = document.querySelector('tw-storydata');
+    var format = (data && String(data.getAttribute('format') || '').toLowerCase()) || '';
+    var engine = 'unknown';
+    var selector = null;
+    var reason = 'missing-story-format';
+    if (format.indexOf('sugarcube') === 0) {
+      engine = 'sugarcube';
+      selector = '#story > #passages > .passage';
+    } else if (format.indexOf('harlowe') === 0) {
+      engine = 'harlowe';
+      selector = 'tw-story > tw-passage';
+    } else if (format.indexOf('chapbook') === 0) {
+      engine = 'chapbook';
+      selector = '#page > article';
+    } else if (format.indexOf('snowman') === 0) {
+      engine = 'snowman';
+      selector = document.querySelector('#main .passage') ? '#main .passage' :
+        (document.querySelector('#passage') ? '#passage' : 'tw-story > tw-passage.passage');
+    } else if (window.SugarCube && document.querySelector('#story > #passages > .passage')) {
+      engine = 'sugarcube';
+      selector = '#story > #passages > .passage';
+      reason = 'runtime-fingerprint';
+    } else if (document.querySelector('#page > article') && window.Chapbook) {
+      engine = 'chapbook';
+      selector = '#page > article';
+      reason = 'runtime-fingerprint';
+    }
+    if (!selector) {
+      window.__twinePlayerReadabilityStatus = {
+        engine: 'unknown', selector: null, enabled: false, verified: false,
+        stylePresent: false, observerPresent: false, markedCount: 0, reason: reason
+      };
+      return window.__twinePlayerReadabilityStatus;
+    }
+    var roots = [];
+    try { roots = Array.prototype.slice.call(document.querySelectorAll(selector)); } catch (_) { roots = []; }
+    if (!roots.length) {
+      window.__twinePlayerReadabilityStatus = {
+        engine: 'unknown', selector: selector, enabled: false, verified: false,
+        stylePresent: false, observerPresent: false, markedCount: 0,
+        reason: 'verified-structure-not-rendered'
+      };
+      return window.__twinePlayerReadabilityStatus;
+    }
+    return { engine: engine, selector: selector, roots: roots, verified: true, reason: 'verified' };
+  };
+  window.__twinePlayerReadabilityTargetSelector = function (engine) {
+    if (engine === 'sugarcube') return 'p, li, blockquote, h1, h2, h3, h4, h5, h6, button, input:not([type="hidden"]), select, textarea, a, [role="button"], .link-internal, .link-external, .macro-button';
+    if (engine === 'harlowe') return 'p, li, blockquote, h1, h2, h3, h4, h5, h6, tw-link, a, button, input:not([type="hidden"]), select, textarea, [role="button"]';
+    if (engine === 'chapbook') return 'p, li, blockquote, h1, h2, h3, h4, h5, h6, a, button, input:not([type="hidden"]), select, textarea, [role="button"]';
+    if (engine === 'snowman') return 'p, li, blockquote, h1, h2, h3, h4, h5, h6, a, button, input:not([type="hidden"]), select, textarea, [role="button"], tw-link';
+    return '';
+  };
+  window.__twinePlayerReadabilityCleanup = function () {
+    var owned = window.__twinePlayerReadabilityOwnedNodes || [];
+    var marker = window.__twinePlayerReadabilityMarker;
+    owned.forEach(function (node) {
+      if (!node || !node.classList || !node.hasAttribute || !node.hasAttribute(marker)) return;
+      var value = node.getAttribute(marker);
+      if (value === 'root' || value === 'text' || value === 'target') {
+        node.classList.remove(window.__twinePlayerReadabilityTextClass);
+        node.classList.remove(window.__twinePlayerReadabilityTargetClass);
+        node.classList.remove(window.__twinePlayerReadabilityRootClass);
+        node.removeAttribute(marker);
+      }
+    });
+    window.__twinePlayerReadabilityOwnedNodes = [];
+  };
+  window.__twinePlayerReadabilityCleanupNode = function (root) {
+    if (!root) return;
+    var owned = window.__twinePlayerReadabilityOwnedNodes || [];
+    var marker = window.__twinePlayerReadabilityMarker;
+    var remaining = [];
+    owned.forEach(function (node) {
+      var inside = node === root || (root.contains && root.contains(node));
+      if (inside && node.classList && node.hasAttribute && node.hasAttribute(marker)) {
+        var value = node.getAttribute(marker);
+        if (value === 'root' || value === 'text' || value === 'target') {
+          node.classList.remove(window.__twinePlayerReadabilityTextClass);
+          node.classList.remove(window.__twinePlayerReadabilityTargetClass);
+          node.classList.remove(window.__twinePlayerReadabilityRootClass);
+          node.removeAttribute(marker);
+        }
+      } else {
+        remaining.push(node);
+      }
+    });
+    window.__twinePlayerReadabilityOwnedNodes = remaining;
+  };
+  window.__twinePlayerReadabilityMark = function (node, className, markerValue) {
+    if (window.__twinePlayerReadabilityExcluded(node) || !node.classList ||
+        node.classList.contains(className) || node.hasAttribute(window.__twinePlayerReadabilityMarker)) return false;
+    node.classList.add(className);
+    node.setAttribute(window.__twinePlayerReadabilityMarker, markerValue);
+    window.__twinePlayerReadabilityOwnedNodes.push(node);
+    return true;
+  };
+  window.__twinePlayerReadabilityMarkCurrent = function (detected, config) {
+    if (!detected || !detected.verified) return 0;
+    var count = 0;
+    var targetSelector = window.__twinePlayerReadabilityTargetSelector(detected.engine);
+    detected.roots.forEach(function (root) {
+      var widthSafe = true;
+      try {
+        widthSafe = !window.__twinePlayerReadabilityExcluded(root) &&
+          !root.querySelector('canvas, svg, [contenteditable], [draggable="true"], [data-draggable], [data-drag]');
+      } catch (_) { widthSafe = false; }
+      // A previously safe root can become unsafe when an interactive/canvas
+      // surface is inserted dynamically. Remove only the root style marker we
+      // own; classes and attributes belonging to the story remain untouched.
+      var marker = window.__twinePlayerReadabilityMarker;
+      if (!widthSafe && root.hasAttribute && root.getAttribute(marker) === 'root') {
+        root.classList.remove(window.__twinePlayerReadabilityRootClass);
+        root.removeAttribute(marker);
+        window.__twinePlayerReadabilityOwnedNodes =
+          (window.__twinePlayerReadabilityOwnedNodes || []).filter(function (node) {
+            return node !== root;
+          });
+      }
+      if (config.readableLineLengthEnabled && widthSafe) {
+        if (window.__twinePlayerReadabilityMark(root, window.__twinePlayerReadabilityRootClass, 'root')) count++;
+      }
+      var textNodes = [];
+      try { textNodes = Array.prototype.slice.call(root.querySelectorAll(targetSelector)); } catch (_) { textNodes = []; }
+      textNodes.forEach(function (node) {
+        var isTarget = node.matches('button, input:not([type="hidden"]), select, textarea, a, [role="button"], tw-link, .link-internal, .link-external, .macro-button');
+        if (window.__twinePlayerReadabilityMark(node, isTarget ? window.__twinePlayerReadabilityTargetClass : window.__twinePlayerReadabilityTextClass, isTarget ? 'target' : 'text')) count++;
+      });
+    });
+    return count;
+  };
+  window.__twinePlayerGetStoryAssistanceStatus = function () {
+    var status = window.__twinePlayerReadabilityStatus || {};
+    return {
+      engine: status.engine || 'unknown',
+      selector: status.selector || null,
+      enabled: !!status.enabled,
+      verified: !!status.verified,
+      stylePresent: !!document.getElementById(window.__twinePlayerReadabilityStyleId),
+      observerPresent: !!window.__twinePlayerReadabilityObserver,
+      markedCount: (window.__twinePlayerReadabilityOwnedNodes || []).length,
+      reason: status.reason || 'unknown'
+    };
+  };
+  window.__twinePlayerSetStoryAssistance = function (rawConfig) {
+    var config = rawConfig || {};
+    var enabled = !!config.enabled;
+    var textScale = window.__twinePlayerReadabilityNumber(config.textScale, 0.9, 1.3, 0.05, 1);
+    var lineHeight = window.__twinePlayerReadabilityNumber(config.lineHeight, 1.1, 2.0, 0.1, 1.4);
+    var paragraphSpacing = window.__twinePlayerReadabilityNumber(config.paragraphSpacing, 0.5, 2.0, 0.1, 1);
+    var targetSpacing = window.__twinePlayerReadabilityNumber(config.targetSpacing, 0.75, 1.75, 0.1, 1);
+    var lineLengthEnabled = !!config.readableLineLengthEnabled;
+    var lineLength = Math.round(window.__twinePlayerReadabilityNumber(config.readableLineLength, 45, 90, 5, 72));
+    if (window.__twinePlayerReadabilityObserver) {
+      window.__twinePlayerReadabilityObserver.disconnect();
+      window.__twinePlayerReadabilityObserver = null;
+    }
+    window.__twinePlayerReadabilityCleanup();
+    var oldStyle = document.getElementById(window.__twinePlayerReadabilityStyleId);
+    if (oldStyle && oldStyle.parentNode) oldStyle.parentNode.removeChild(oldStyle);
+    if (!enabled) {
+      window.__twinePlayerReadabilityStatus = {
+        engine: 'unknown', selector: null, enabled: false, verified: false,
+        stylePresent: false, observerPresent: false, markedCount: 0, reason: 'disabled'
+      };
+      return window.__twinePlayerGetStoryAssistanceStatus();
+    }
+    var detected = window.__twinePlayerDetectReadabilityEngine();
+    if (!detected.verified) {
+      window.__twinePlayerReadabilityStatus = detected;
+      return window.__twinePlayerGetStoryAssistanceStatus();
+    }
+    var style = document.createElement('style');
+    style.id = window.__twinePlayerReadabilityStyleId;
+    var textClass = window.__twinePlayerReadabilityTextClass;
+    var targetClass = window.__twinePlayerReadabilityTargetClass;
+    var rootClass = window.__twinePlayerReadabilityRootClass;
+    style.textContent = '.' + textClass + '{font-size:calc(1em * ' + textScale + ');line-height:' + lineHeight + ';margin-bottom:calc(' + paragraphSpacing + 'em);}' +
+      '.' + targetClass + '{min-height:calc(44px * ' + targetSpacing + ');padding-top:calc(8px * ' + targetSpacing + ');padding-bottom:calc(8px * ' + targetSpacing + ');}' +
+      (lineLengthEnabled ? '.' + rootClass + '{max-width:' + lineLength + 'ch;margin-left:auto;margin-right:auto;}' : '');
+    (document.head || document.documentElement).appendChild(style);
+    var markCount = window.__twinePlayerReadabilityMarkCurrent(detected, {
+      readableLineLengthEnabled: lineLengthEnabled
+    });
+    var observationRoot = document.body || document.documentElement;
+    if (window.MutationObserver && observationRoot) {
+      window.__twinePlayerReadabilityObserver = new MutationObserver(function (records) {
+        var next = window.__twinePlayerDetectReadabilityEngine();
+        if (!next.verified) return;
+        var hasElementChange = false;
+        records.forEach(function (record) {
+          Array.prototype.slice.call(record.removedNodes || []).forEach(function (node) {
+            window.__twinePlayerReadabilityCleanupNode(node);
+            if (node && node.nodeType === 1) hasElementChange = true;
+          });
+          Array.prototype.slice.call(record.addedNodes || []).forEach(function (node) {
+            if (node && node.nodeType === 1) hasElementChange = true;
+          });
+        });
+        if (hasElementChange) window.__twinePlayerReadabilityMarkCurrent(next, { readableLineLengthEnabled: lineLengthEnabled });
+      });
+      window.__twinePlayerReadabilityObserver.observe(observationRoot, { childList: true, subtree: true });
+    }
+    window.__twinePlayerReadabilityStatus = {
+      engine: detected.engine, selector: detected.selector, enabled: true,
+      verified: true, stylePresent: true, observerPresent: !!window.__twinePlayerReadabilityObserver,
+      markedCount: markCount, reason: 'applied'
+    };
+    return window.__twinePlayerGetStoryAssistanceStatus();
+  };
+  window.__twinePlayerResetStoryAssistance = function () {
+    return window.__twinePlayerSetStoryAssistance({ enabled: false });
+  };
+  window.__twinePlayerScrollStoryPage = function (direction) {
+    var sign = Number(direction) < 0 ? -1 : 1;
+    var amount = Math.max((window.innerHeight || 600) * 0.82, 240);
+    var scrollingElement = document.scrollingElement || document.documentElement || document.body;
+    if (!scrollingElement) return { ok: false, reason: 'missing-scroll-surface' };
+    try {
+      scrollingElement.scrollBy({ top: sign * amount, left: 0, behavior: 'smooth' });
+    } catch (_) {
+      scrollingElement.scrollTop += sign * amount;
+    }
+    return { ok: true, direction: sign, amount: amount };
   };
   window.__twinePlayerIdentify = function () {
     try {
@@ -102,27 +449,50 @@ String twineBridgeScript() {
     var api = window.__twinePlayerSaveApi;
     try {
       if (engine === 'sc2' && api) {
-        if (api.disk && typeof api.disk.save === 'function') {
-          api.disk.save('twineplayer-save');
-          return { ok: true, pending: true, format: 'sugarcube-disk', method: 'Save.disk.save' };
-        }
+        var captureErrors = [];
         if (api.base64 && typeof api.base64.save === 'function') {
-          var base64Save = api.base64.save();
-          if (base64Save) return { ok: true, format: 'sugarcube-base64', mime: 'text/plain;charset=UTF-8', data: String(base64Save) };
-        }
-        if (api.base64 && typeof api.base64.export === 'function') {
-          var base64Export = api.base64.export();
-          if (base64Export) return { ok: true, format: 'sugarcube-base64-bundle', mime: 'text/plain;charset=UTF-8', data: String(base64Export) };
+          try {
+            var base64Save = api.base64.save();
+            if (base64Save !== undefined && base64Save !== null && String(base64Save)) {
+              return { ok: true, format: 'sugarcube-base64', mime: 'text/plain;charset=UTF-8', data: String(base64Save) };
+            }
+            captureErrors.push('Save.base64.save returned no current-state data.');
+          } catch (base64Error) {
+            captureErrors.push(window.__twinePlayerDescribeError(base64Error, 'Save.base64.save'));
+          }
         }
         if (typeof api.serialize === 'function') {
-          var serialized = api.serialize();
-          if (serialized) return { ok: true, format: 'sugarcube-legacy-serialized', mime: 'text/plain;charset=UTF-8', data: String(serialized) };
+          try {
+            var serialized = api.serialize();
+            if (serialized !== undefined && serialized !== null && String(serialized)) {
+              return { ok: true, format: 'sugarcube-legacy-serialized', mime: 'text/plain;charset=UTF-8', data: String(serialized) };
+            }
+            captureErrors.push('Save.serialize returned no current-state data.');
+          } catch (serializeError) {
+            captureErrors.push(window.__twinePlayerDescribeError(serializeError, 'Save.serialize'));
+          }
+        }
+        if (api.disk && typeof api.disk.save === 'function') {
+          try {
+            api.disk.save('twineplayer-save');
+            return { ok: true, pending: true, format: 'sugarcube-disk', method: 'Save.disk.save' };
+          } catch (diskError) {
+            captureErrors.push(window.__twinePlayerDescribeError(diskError, 'Save.disk.save'));
+          }
         }
         if (typeof api.export === 'function') {
-          var htmlExport = api.export('twineplayer-save');
-          if (htmlExport) return { ok: true, format: 'sugarcube-legacy-disk', mime: 'text/html;charset=UTF-8', data: String(htmlExport) };
-          return { ok: false, error: 'SugarCube native export did not return save data. Try the game save menu once, then use TwinePlayer Save again.' };
+          try {
+            var htmlExport = api.export('twineplayer-save');
+            if (htmlExport) return { ok: true, format: 'sugarcube-legacy-disk', mime: 'text/html;charset=UTF-8', data: String(htmlExport) };
+            captureErrors.push('SugarCube native export returned no save data.');
+          } catch (exportError) {
+            captureErrors.push(window.__twinePlayerDescribeError(exportError, 'SugarCube native export'));
+          }
         }
+        if (captureErrors.length) {
+          return { ok: false, error: 'SugarCube save capture failed. ' + captureErrors.join(' ') };
+        }
+        return { ok: false, error: 'SugarCube save capture is unavailable: no compatible save method was found.' };
       }
       if (engine === 'sc1' && api) {
         var sc1Data = api.serialize();
@@ -422,6 +792,35 @@ String twineBridgeScript() {
       event.stopPropagation();
       window.__twinePlayerPost(resolveImagePayload(img, 'image-context'));
     }, true);
+    var reportInput = function (event, category) {
+      if (!window.__twinePlayerDiagnosticsEnabled) return;
+      var pointerType = event.pointerType || (category.indexOf('touch') === 0 ? 'touch' : 'mouse');
+      var contacts = 0;
+      try {
+        contacts = event.changedTouches ? event.changedTouches.length : (event.touches ? event.touches.length : 0);
+      } catch (_) {}
+      if (!contacts && pointerType === 'touch') contacts = 1;
+      var buttonMask = Number(event.buttons || event.button || 0);
+      var buttonCount = 0;
+      while (buttonMask > 0) {
+        buttonCount += buttonMask & 1;
+        buttonMask = Math.floor(buttonMask / 2);
+      }
+      window.__twinePlayerPost({
+        type: 'input-diagnostic',
+        kind: String(pointerType),
+        category: category,
+        buttons: buttonCount,
+        contacts: Number(contacts || 0),
+        origin: 'webview'
+      });
+    };
+    ['pointerdown', 'pointerup', 'pointercancel'].forEach(function (name) {
+      document.addEventListener(name, function (event) { reportInput(event, name); }, true);
+    });
+    ['touchstart', 'touchend', 'touchcancel', 'mousedown', 'mouseup', 'wheel', 'click', 'contextmenu'].forEach(function (name) {
+      document.addEventListener(name, function (event) { reportInput(event, name); }, true);
+    });
     window.__twinePlayerLog('Twine bridge installed.', 'normal');
   };
   if (document.readyState === 'loading') {

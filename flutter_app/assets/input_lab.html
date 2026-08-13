@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TwinePlayer Input Lab</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; padding: 24px; max-width: 900px; }
+    section { border: 1px solid #7778; border-radius: 8px; margin: 0 0 16px; padding: 16px; }
+    button, a, input, textarea, select { min-height: 44px; margin: 4px; padding: 8px 12px; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .status { padding: 8px; border-radius: 6px; background: #7773; }
+    .scroll { max-height: 180px; overflow: auto; border: 1px dashed #777; padding: 12px; }
+    [contenteditable] { min-height: 60px; border: 1px solid #777; padding: 8px; }
+    canvas, svg, [draggable="true"] { border: 1px solid #777; margin: 4px; }
+    .choice { display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>Input Lab</h1>
+  <p class="status" id="status">Diagnostics are controlled by the app toolbar.</p>
+  <section>
+    <h2>Manual checklist</h2>
+    <ol>
+      <li>Try both Compact and Comfortable profiles, then tap/click the app chrome and this story.</li>
+      <li>Test one and two-finger touch, cancellation (including leaving the surface), mouse primary/secondary click and wheel.</li>
+      <li>Activate links/choices, form controls, the image preview/context path, and the dynamic add/remove controls.</li>
+      <li>Scroll this page, edit the contenteditable region, drag the exclusion card, and interact with canvas/SVG.</li>
+      <li>Open app fullscreen and the diagnostics report; confirm focus returns to this story after closing overlays.</li>
+    </ol>
+  </section>
+  <section>
+    <h2>Choices and dynamic nodes</h2>
+    <div class="row">
+      <a href="#choice-one" class="choice">Choice one</a>
+      <button type="button" id="choice-two" class="choice">Choice two</button>
+      <button type="button" id="add-choice">Add choice</button>
+      <button type="button" id="remove-choice">Remove added choices</button>
+    </div>
+    <div id="dynamic-choices" aria-live="polite"></div>
+  </section>
+  <section>
+    <h2>Forms and focus</h2>
+    <form id="fixture-form" class="row" onsubmit="event.preventDefault(); document.getElementById('form-result').textContent='Form submitted';">
+      <label>Name <input id="name" name="name" autocomplete="off"></label>
+      <label>Mode <select id="mode" name="mode"><option>Touch</option><option>Mouse</option><option>Controller ray</option></select></label>
+      <label>Notes <textarea id="notes" name="notes" rows="2"></textarea></label>
+      <button type="submit">Submit form</button>
+    </form>
+    <p id="form-result" role="status">Form idle.</p>
+    <div id="editable" contenteditable="true" aria-label="Editable story surface">Contenteditable story surface (do not resize).</div>
+  </section>
+  <section>
+    <h2>Images and exclusion surfaces</h2>
+    <!-- Shared bridge emits image-preview and image-context messages for this image. -->
+    <p>Click the image for preview; right-click it for the context path.</p>
+    <img width="160" height="100" alt="Input Lab inline image" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzRmNDZlNSIvPjxjaXJjbGUgY3g9IjgwIiBjeT0iNTAiIHI9IjMwIiBmaWxsPSIjZmFjYzE1Ii8+PC9zdmc+">
+    <canvas id="canvas" width="220" height="80" aria-label="Canvas exclusion surface"></canvas>
+    <svg id="svg" width="220" height="80" role="img" aria-label="SVG exclusion surface"><rect x="4" y="4" width="212" height="72" fill="#16a34a"/><text x="12" y="48" fill="white">SVG surface</text></svg>
+    <div id="drag-card" draggable="true" aria-label="Draggable exclusion surface">Draggable exclusion surface</div>
+  </section>
+  <section>
+    <h2>Long scroll</h2>
+    <div class="scroll" tabindex="0">
+      <p>Scroll this nested region independently.</p>
+      <p>Line 1 · line 2 · line 3 · line 4 · line 5 · line 6 · line 7 · line 8.</p>
+      <p>Line 9 · line 10 · line 11 · line 12 · line 13 · line 14 · line 15.</p>
+      <p>Line 16 · line 17 · line 18 · line 19 · line 20 · line 21 · line 22.</p>
+      <p>Line 23 · line 24 · line 25 · line 26 · line 27 · line 28 · line 29.</p>
+      <p>Line 30 · line 31 · line 32 · line 33 · line 34 · line 35 · line 36.</p>
+      <p>Line 37 · line 38 · line 39 · line 40 · line 41 · line 42 · line 43.</p>
+    </div>
+  </section>
+  <script>
+    (function () {
+      var dynamic = document.getElementById('dynamic-choices');
+      var next = 1;
+      document.getElementById('add-choice').addEventListener('click', function () {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'choice dynamic-choice';
+        button.textContent = 'Dynamic choice ' + next++;
+        dynamic.appendChild(button);
+      });
+      document.getElementById('remove-choice').addEventListener('click', function () {
+        dynamic.replaceChildren();
+      });
+      var canvas = document.getElementById('canvas');
+      var context = canvas.getContext('2d');
+      context.fillStyle = '#ef4444';
+      context.fillRect(8, 8, 204, 64);
+      document.addEventListener('click', function (event) {
+        if (event.target && event.target.id === 'choice-two') {
+          document.getElementById('status').textContent = 'Choice two activated.';
+        }
+      });
+    }());
+  </script>
+</body>
+</html>

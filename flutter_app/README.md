@@ -9,6 +9,10 @@ This is the Flutter Windows port of Twine Player. It keeps the non-AI core app s
 - sidecar save folders named `<game>_saves`
 - save, load, overwrite, delete, and pagination
 - developer console with command execution, autocomplete, and per-game saved commands
+- opt-in Story Assistance v2 for SugarCube, Harlowe, Chapbook, and Snowman;
+  unknown formats remain untouched
+- persistent command-bar alignment/order/button-size/reach preferences with
+  optional Page Up/Page Down story controls
 
 The Electron AI Illustrator feature is intentionally not ported on this branch.
 
@@ -33,4 +37,43 @@ The release executable is written to:
 
 ```text
 build\windows\x64\runner\Release\twine_player_flutter.exe
+```
+
+Package the portable Phase 0–10 artifact (the script replaces only the exact
+generated artifact directory and leaves the Phase 0–7 artifact untouched):
+
+```powershell
+.\tool\package_windows_release.ps1 -FlutterExecutable flutter -SmokeCycles 3
+```
+
+This creates `artifacts\TwinePlayer-touch-phases-0-10-windows-x64`, its ZIP,
+and a SHA-256 manifest. Installer evaluation is intentionally separate; see
+[`docs/installer-evaluation.md`](../docs/installer-evaluation.md).
+
+## Input Lab and bridge runtime test
+
+From the Library screen choose Settings → Input Lab, review the disclosure,
+and press Launch Input Lab. The fixture is bundled offline, never enters
+library history, and keeps diagnostics off until explicitly enabled. An
+optional scenario label is sanitized, session-only, and included in copied
+reports only when non-empty.
+Clearing the event list preserves the scenario label for the rest of the
+session; edit the field and clear it explicitly when changing hardware mode.
+
+The Comfortable command bar keeps Console immediately before More. Console
+saved-command and autocomplete strips support both touch dragging and mouse
+wheel scrolling, including vertical-wheel-to-horizontal mapping.
+
+The real generated Flutter bridge can be exercised in a headless browser from
+the repository root with:
+
+```powershell
+npm run test:flutter-bridge-dom
+```
+
+Story Assistance engine fixtures and page-scroll lifecycle checks:
+
+```powershell
+npm run test:flutter-story-assistance
+npm run test:windows-resilience
 ```
