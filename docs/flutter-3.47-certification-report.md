@@ -200,6 +200,17 @@ The next implementation dependency is P0 DXGI adapter alignment for the
 vendored WebView D3D11 device. This PR intentionally does not modify that
 implementation.
 
+## GitHub delivery check
+
+PR #3 check run 32878086307 is **not green**: the legacy Electron smoke test
+selects a fixture game and supports library search and sort, and
+getByRole('button', { name: /Library/ }) resolves the Back to Library button
+outside the viewport before timing out at test/electron-integration.js:209.
+This exact test, locator, outside-viewport signature, and line number match
+merged Flutter PR #2 check run 31730990711. It is therefore verified
+pre-existing and unrelated to this three-doc-only PR. Electron remains out of
+scope and unfixed; no Flutter gate result is changed.
+
 ## No-defect and reproducibility notes
 
 No reproducible application defect appeared in the executed gates, so no source

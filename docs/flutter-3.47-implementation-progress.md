@@ -23,6 +23,17 @@
   changed. The initial Node filesystem EPERM and Node 21 engine warnings are
   preserved as environment notes in the report.
 
+## GitHub delivery check
+
+PR #3 check run 32878086307 is **not green** because the out-of-scope legacy
+Electron smoke test “selects a fixture game and supports library search and
+sort” times out when getByRole('button', { name: /Library/ }) resolves the
+Back to Library button outside the viewport at
+test/electron-integration.js:209. The exact signature matches merged Flutter
+PR #2 check run 31730990711, so this is verified pre-existing and unrelated to
+the three documentation files. Electron remains out of scope and unfixed; all
+Flutter P0 evidence remains passed.
+
 ## Next dependency
 
 **P0 — Align the vendored WebView D3D11 device with Flutter's DXGI adapter.**
