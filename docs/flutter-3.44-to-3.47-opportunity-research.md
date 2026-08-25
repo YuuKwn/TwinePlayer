@@ -200,9 +200,27 @@ requested.
 
 ## P0 — Certify the behavior inherited from Flutter 3.47
 
-**Priority:** next after completed Gate 0
+**Priority:** completed evidence pass after Gate 0
 
-**Readiness:** next phase; ready for a validation/artifact thread
+**Readiness:** automated evidence captured 2026-08-25; manual gates remain
+**NOT CERTIFIED**; next dependency is DXGI adapter alignment
+
+### Certification handoff — 2026-08-25
+
+The P0 evidence pass ran from clean YuuKwn origin/main at
+236194855836844cb9537263864fa80d0b858cc4. The detailed attributable results,
+package inventory, hashes, runtime telemetry, preserved environment notes, and
+manual boundary are in
+[flutter-3.47-certification-report.md](flutter-3.47-certification-report.md).
+The durable resume state is in
+[flutter-3.47-implementation-progress.md](flutter-3.47-implementation-progress.md).
+
+Automated Flutter, vendored WebView, root Node/DOM, Windows release, packaging,
+hash, and three smoke-cycle evidence passed. One packaged run emitted reliable
+Impeller OpenGLESSDF telemetry; this does not certify GPU, WebView content,
+visual, accessibility, input, DPI, or client-matrix behavior. Continue with
+the next section, P0 DXGI adapter alignment, without changing this evidence
+boundary.
 
 ### Why TwinePlayer benefits
 
