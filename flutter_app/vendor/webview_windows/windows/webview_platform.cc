@@ -6,9 +6,12 @@
 
 #include <filesystem>
 #include <iostream>
+#include <utility>
 
-WebviewPlatform::WebviewPlatform()
-    : rohelper_(std::make_unique<rx::RoHelper>(RO_INIT_SINGLETHREADED)) {
+WebviewPlatform::WebviewPlatform(
+    winrt::com_ptr<IDXGIAdapter> flutter_adapter)
+    : rohelper_(std::make_unique<rx::RoHelper>(RO_INIT_SINGLETHREADED)),
+      flutter_adapter_(std::move(flutter_adapter)) {
   if (rohelper_->WinRtAvailable()) {
     DispatcherQueueOptions options{sizeof(DispatcherQueueOptions),
                                    DQTYPE_THREAD_CURRENT, DQTAT_COM_STA};
@@ -26,7 +29,8 @@ WebviewPlatform::WebviewPlatform()
       return;
     }
 
-    graphics_context_ = std::make_unique<GraphicsContext>(rohelper_.get());
+    graphics_context_ = std::make_unique<GraphicsContext>(
+        rohelper_.get(), std::move(flutter_adapter_));
     valid_ = graphics_context_->IsValid();
   }
 }

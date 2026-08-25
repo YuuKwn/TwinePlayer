@@ -3,9 +3,13 @@
 #include "util/d3dutil.h"
 #include "util/direct3d11.interop.h"
 
-GraphicsContext::GraphicsContext(rx::RoHelper* rohelper) : rohelper_(rohelper) {
-  device_ = CreateD3DDevice();
-  if (!device_) {
+#include <utility>
+
+GraphicsContext::GraphicsContext(
+    rx::RoHelper* rohelper, winrt::com_ptr<IDXGIAdapter> flutter_adapter)
+    : rohelper_(rohelper), flutter_adapter_(std::move(flutter_adapter)) {
+  if (FAILED(CreateD3DDevice(flutter_adapter_.get(), device_.put())) ||
+      !device_) {
     return;
   }
 

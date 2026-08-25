@@ -3,11 +3,14 @@
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
+#include <dxgi.h>
 #include <windows.h>
+#include <winrt/base.h>
 
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "webview_bridge.h"
 #include "webview_host.h"
@@ -50,7 +53,8 @@ class WebviewWindowsPlugin : public flutter::Plugin {
   static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
 
   WebviewWindowsPlugin(flutter::TextureRegistrar* textures,
-                       flutter::BinaryMessenger* messenger, HWND parent_window);
+                       flutter::BinaryMessenger* messenger, HWND parent_window,
+                       winrt::com_ptr<IDXGIAdapter> flutter_adapter);
 
   virtual ~WebviewWindowsPlugin();
 
@@ -63,6 +67,7 @@ class WebviewWindowsPlugin : public flutter::Plugin {
   flutter::TextureRegistrar* textures_;
   flutter::BinaryMessenger* messenger_;
   HWND parent_window_;
+  winrt::com_ptr<IDXGIAdapter> flutter_adapter_;
 
   bool InitPlatform();
 
@@ -87,8 +92,16 @@ void WebviewWindowsPlugin::RegisterWithRegistrar(
     parent_window = view->GetNativeWindow();
   }
 
+  winrt::com_ptr<IDXGIAdapter> flutter_adapter;
+  const bool has_flutter_adapter =
+      registrar->GetGraphicsAdapter(flutter_adapter.put()) && flutter_adapter;
+  if (!has_flutter_adapter) {
+    flutter_adapter = nullptr;
+  }
+
   auto plugin = std::make_unique<WebviewWindowsPlugin>(
-      registrar->texture_registrar(), registrar->messenger(), parent_window);
+      registrar->texture_registrar(), registrar->messenger(), parent_window,
+      std::move(flutter_adapter));
 
   channel->SetMethodCallHandler(
       [plugin_pointer = plugin.get()](const auto& call, auto result) {
@@ -100,10 +113,13 @@ void WebviewWindowsPlugin::RegisterWithRegistrar(
 
 WebviewWindowsPlugin::WebviewWindowsPlugin(flutter::TextureRegistrar* textures,
                                            flutter::BinaryMessenger* messenger,
-                                           HWND parent_window)
+                                           HWND parent_window,
+                                           winrt::com_ptr<IDXGIAdapter>
+                                               flutter_adapter)
     : textures_(textures),
       messenger_(messenger),
-      parent_window_(parent_window) {
+      parent_window_(parent_window),
+      flutter_adapter_(std::move(flutter_adapter)) {
   window_class_.lpszClassName = L"FlutterWebviewMessage";
   window_class_.lpfnWndProc = &DefWindowProc;
   RegisterClass(&window_class_);
@@ -245,7 +261,7 @@ void WebviewWindowsPlugin::CreateWebviewInstance(
 
 bool WebviewWindowsPlugin::InitPlatform() {
   if (!platform_) {
-    platform_ = std::make_unique<WebviewPlatform>();
+    platform_ = std::make_unique<WebviewPlatform>(std::move(flutter_adapter_));
   }
   return platform_->IsSupported();
 }
