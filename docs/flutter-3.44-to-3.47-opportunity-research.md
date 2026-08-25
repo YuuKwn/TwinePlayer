@@ -421,6 +421,19 @@ Likely files:
   both passed. The vendored Dart suite passed 7/7; analyzer 0 issues; full
   Flutter tests 67/67; root DOM/resilience/Node gates passed; packaging
   verified 26 files and 3/3 smoke cycles.
+- Exact commands used for the isolated native harness (replace only
+  `<native-build-dir>` with a disposable output directory):
+  ```powershell
+  cmake -S flutter_app/vendor/webview_windows/windows/native_tests -B <native-build-dir> -G "Visual Studio 17 2022" -A x64
+  cmake --build <native-build-dir> --config Release --parallel 2
+  ctest --test-dir <native-build-dir> -C Release --output-on-failure
+  ```
+- Exact commands used for the separate PixelBuffer release configuration
+  (replace only `<pixelbuffer-build-dir>` with a disposable output directory):
+  ```powershell
+  cmake -S windows -B <pixelbuffer-build-dir> -G "Visual Studio 17 2022" -A x64 -DFLUTTER_WEBVIEW_WINDOWS_USE_TEXTURE_FALLBACK=ON
+  cmake --build <pixelbuffer-build-dir> --config Release --parallel 2 --target INSTALL
+  ```
 - This evidence is source, harness, compile, and bounded launch evidence only.
   Runtime adapter identity, GPU interop, WebView frames/content, visual/input/
   accessibility/DPI behavior, and Intel/AMD/NVIDIA/hybrid coverage remain
@@ -434,7 +447,7 @@ Likely files:
 - Confirm the adapter selected by Flutter and the plugin with bounded diagnostic
   output that contains no story data or paths.
 - Black/blank/stale frames, resize, fullscreen, monitor transfer, sleep/resume,
-  dispose/reopen, and GPU-to-CPU fallback.
+  dispose/reopen, and the separate compile-time PixelBuffer configuration/path.
 
 ### Parent review and manual follow-up brief
 
