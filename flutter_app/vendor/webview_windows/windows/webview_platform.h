@@ -11,7 +11,7 @@
 
 class WebviewPlatform {
  public:
-  WebviewPlatform();
+  explicit WebviewPlatform(winrt::com_ptr<IDXGIAdapter> flutter_adapter);
   bool IsSupported() { return valid_; }
   std::optional<std::wstring> GetDefaultDataDirectory();
   bool IsGraphicsCaptureSessionSupported();
@@ -25,6 +25,7 @@ class WebviewPlatform {
   std::unique_ptr<rx::RoHelper> rohelper_;
   winrt::com_ptr<ABI::Windows::System::IDispatcherQueueController>
       dispatcher_queue_controller_;
+  winrt::com_ptr<IDXGIAdapter> flutter_adapter_;
   std::unique_ptr<GraphicsContext> graphics_context_;
   bool valid_ = false;
 };

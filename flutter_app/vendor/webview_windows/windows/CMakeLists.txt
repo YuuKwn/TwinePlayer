@@ -93,3 +93,12 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 set(webview_windows_bundled_libraries
   PARENT_SCOPE
 )
+
+# The native harness is intentionally isolated from the WebView2/NuGet plugin
+# target. Configure it directly from windows/native_tests for deterministic
+# adapter-selection tests, or opt in when this directory is embedded.
+option(WEBVIEW_WINDOWS_BUILD_NATIVE_TESTS
+  "Build the isolated webview_windows native CTest harness" OFF)
+if(WEBVIEW_WINDOWS_BUILD_NATIVE_TESTS)
+  add_subdirectory(native_tests)
+endif()

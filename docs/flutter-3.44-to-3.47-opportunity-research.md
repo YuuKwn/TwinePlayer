@@ -333,7 +333,8 @@ CERTIFIED, and report automated evidence separately from manual evidence.
 
 **Priority:** high
 
-**Readiness:** ready for a focused C++/plugin design and implementation thread
+**Readiness:** implementation complete in a focused native-plugin lane; parent
+review and manual hardware/runtime gates remain open
 
 ### Why TwinePlayer benefits
 
@@ -359,9 +360,10 @@ unexpected fallback.
   `WebviewPlatform`, and/or `GraphicsContext` rather than hiding it in a global.
 - Create the D3D11 device with that adapter and the correct driver-type rules.
 - Release COM ownership deterministically.
-- Define a narrow fallback for adapter retrieval or device creation failure.
-  Do not silently mask the failure if it would create an unsafe cross-adapter
-  GPU path; prefer the already-defined CPU fallback when appropriate.
+- Fail closed when adapter retrieval, adapter-bound device creation, or WinRT
+  device conversion fails. Do not silently select another hardware adapter or
+  retry with WARP; the compile-time PixelBuffer path must use the same exact
+  Flutter adapter.
 - Add a testable adapter-selection/device-creation seam and native tests or an
   equivalent deterministic harness. Keep existing Dart plugin tests.
 
@@ -382,8 +384,8 @@ Likely files:
   device creation succeed.
 - Adapter failure has an explicit, tested behavior; it does not create a second
   unverified GPU device and pretend compatibility.
-- GPU and CPU texture paths retain lifecycle, resize, stop/resume, and disposal
-  behavior.
+- GPU and PixelBuffer texture paths retain lifecycle, resize, stop/resume, and
+  disposal behavior while consuming the same adapter-bound device.
 - WebView focus, pointer forwarding, SugarCube bridge, and packaging are
   unchanged.
 - No Flutter SDK source is patched.
@@ -397,28 +399,70 @@ Likely files:
 - DOM bridge, resilience, packaging, hash, and smoke gates from the P0
   certification item.
 
+### Implementation evidence (2026-08-25)
+
+- Registration calls `PluginRegistrarWindows::GetGraphicsAdapter` and takes
+  ownership of the returned reference in `winrt::com_ptr<IDXGIAdapter>`. That
+  ownership is moved explicitly through `WebviewWindowsPlugin`,
+  `WebviewPlatform`, and `GraphicsContext`; no raw adapter is retained.
+- `GraphicsContext` now calls `D3D11CreateDevice` with the exact non-null
+  Flutter adapter, `D3D_DRIVER_TYPE_UNKNOWN`, the existing BGRA and VIDEO
+  flags, no feature-level list, and `D3D11_SDK_VERSION`. Adapter absence,
+  device failure, and WinRT conversion failure stay fail-closed through the
+  existing `unsupported_platform` contract. There is no nullptr hardware
+  selection and no WARP retry. The GPU shared-handle and PixelBuffer
+  readback implementations use this same device context.
+- `windows/native_tests` is an isolated CMake/CTest target that does not link
+  WebView2. Its MSVC release executable passed 1/1 test, covering exact
+  adapter pointer forwarding, `UNKNOWN`, flags/feature-level arguments,
+  null-adapter short-circuit, null output, and HRESULT propagation. The
+  default GPU release build and a separate
+  `FLUTTER_WEBVIEW_WINDOWS_USE_TEXTURE_FALLBACK=ON` PixelBuffer release build
+  both passed. The vendored Dart suite passed 7/7; analyzer 0 issues; full
+  Flutter tests 67/67; root DOM/resilience/Node gates passed; packaging
+  verified 26 files and 3/3 smoke cycles.
+- Exact commands used for the isolated native harness (replace only
+  `<native-build-dir>` with a disposable output directory):
+  ```powershell
+  cmake -S flutter_app/vendor/webview_windows/windows/native_tests -B <native-build-dir> -G "Visual Studio 17 2022" -A x64
+  cmake --build <native-build-dir> --config Release --parallel 2
+  ctest --test-dir <native-build-dir> -C Release --output-on-failure
+  ```
+- Exact commands used for the separate PixelBuffer release configuration
+  (replace only `<pixelbuffer-build-dir>` with a disposable output directory):
+  ```powershell
+  cmake -S windows -B <pixelbuffer-build-dir> -G "Visual Studio 17 2022" -A x64 -DFLUTTER_WEBVIEW_WINDOWS_USE_TEXTURE_FALLBACK=ON
+  cmake --build <pixelbuffer-build-dir> --config Release --parallel 2 --target INSTALL
+  ```
+- This evidence is source, harness, compile, and bounded launch evidence only.
+  Runtime adapter identity, GPU interop, WebView frames/content, visual/input/
+  accessibility/DPI behavior, and Intel/AMD/NVIDIA/hybrid coverage remain
+  **NOT CERTIFIED**. The build emitted the existing CMake CMP0175 developer
+  warning for the plugin NuGet custom command; Node 21 also emitted the
+  repository's existing dependency engine/audit warnings.
+
 ### Manual gates
 
 - Intel-only, AMD-only, NVIDIA-only, and hybrid-GPU machines when available.
 - Confirm the adapter selected by Flutter and the plugin with bounded diagnostic
   output that contains no story data or paths.
 - Black/blank/stale frames, resize, fullscreen, monitor transfer, sleep/resume,
-  dispose/reopen, and GPU-to-CPU fallback.
+  dispose/reopen, and the separate compile-time PixelBuffer configuration/path.
 
-### Future-thread brief
+### Parent review and manual follow-up brief
 
 ```text
-Update only the supported TwinePlayer Flutter app and its vendored
-webview_windows plugin. Use Flutter 3.47's
-PluginRegistrarWindows::GetGraphicsAdapter to create the plugin D3D11 device on
-the same IDXGIAdapter used by Flutter/Impeller. Inspect the existing
-GraphicsContext and texture bridge ownership before editing. Design explicit
-COM ownership and a safe, tested failure/fallback policy; do not silently create
-an unrelated default-adapter GPU path. Add deterministic native seams/tests,
-retain the Dart plugin tests, and run analyzer, Flutter tests, release build,
-DOM/resilience checks, packaging, and smoke validation. Preserve WebView2,
-touch/mouse/focus, SugarCube save/load, fullscreen, and CPU fallback. Report the
-Intel/AMD/NVIDIA/hybrid-GPU manual matrix as an outstanding gate unless run.
+Review the focused vendored webview_windows change against the Flutter 3.47
+PluginRegistrarWindows::GetGraphicsAdapter contract. Confirm that the single
+winrt::com_ptr<IDXGIAdapter> remains the ownership path through registration,
+WebviewPlatform, and GraphicsContext, that D3D11 uses that adapter with
+D3D_DRIVER_TYPE_UNKNOWN, and that adapter/device/WinRT failures stay on the
+existing unsupported_platform path. Keep WebView2, touch/mouse/focus,
+SugarCube save/load, fullscreen, and both texture bridges unchanged beyond
+their shared device context. Runtime Intel/AMD/NVIDIA/hybrid adapter identity,
+frame correctness, visual/input/accessibility/DPI behavior, and real-game
+coverage remain manual NOT CERTIFIED gates. After review, resume with P1 build
+identity in settings and diagnostics.
 ```
 
 ## P1 — Add the running build identity to settings and diagnostics

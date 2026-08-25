@@ -1,6 +1,7 @@
 #pragma once
 
 #include <D3d11.h>
+#include <dxgi.h>
 #include <windows.graphics.capture.h>
 #include <windows.ui.composition.h>
 #include <winrt/Windows.Foundation.h>
@@ -9,7 +10,8 @@
 
 class GraphicsContext {
  public:
-  GraphicsContext(rx::RoHelper* rohelper);
+  GraphicsContext(rx::RoHelper* rohelper,
+                  winrt::com_ptr<IDXGIAdapter> flutter_adapter);
 
   inline bool IsValid() const { return valid_; }
 
@@ -42,6 +44,7 @@ class GraphicsContext {
  private:
   bool valid_ = false;
   rx::RoHelper* rohelper_;
+  winrt::com_ptr<IDXGIAdapter> flutter_adapter_;
   winrt::com_ptr<ABI::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>
       device_winrt_;
   winrt::com_ptr<ID3D11Device> device_{nullptr};
