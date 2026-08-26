@@ -561,7 +561,7 @@ auto-update, or network behavior.
 
 **Priority:** medium
 
-**Readiness:** ready for a bounded developer-tooling thread
+**Readiness:** implementation complete; ready for parent review
 
 ### Why TwinePlayer benefits
 
@@ -601,11 +601,59 @@ should be selected before `runApp`, not exposed as an arbitrary runtime switch.
 - Run focused focus/traversal widget tests, the full Flutter suite, and analyzer.
 - Build release and verify the focus visualization has no effect.
 
-### Manual gates
+### Implementation evidence (2026-08-26)
 
-- Visually inspect focus boxes in a debug Input Lab run.
-- Keyboard-only traversal and focus restoration.
-- WebView-to-chrome focus transitions and dialog close.
+- `flutter_app/lib/src/focus_debug.dart:4-24` owns the compile-time
+  `TWINEPLAYER_FOCUS_DEBUG` request, the pure `requested && debugMode` gate,
+  and the `kDebugMode`-guarded assignment to Flutter's
+  `debugPaintFocusBoxes`. `flutter_app/lib/main.dart:7-10` calls the
+  configuration immediately after binding initialization and before async
+  dependency creation or `runApp`.
+- `flutter_app/test/focus_debug_test.dart:6-68` covers all four gate inputs and
+  finds Flutter's actual `DecoratedBox` focus border, restoring the global
+  debug variable in both the test body and teardown. The existing Comfortable
+  traversal contract remains at
+  `flutter_app/test/player_chrome_widget_test.dart:236-284`; the matching
+  Compact source-order contract is at `:286-334`.
+- From `flutter_app`, the direct pinned-SDK commands used after the regular
+  `flutter test test/focus_debug_test.dart` wrapper produced no output were:
+
+  ```powershell
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' format lib\main.dart lib\src\focus_debug.dart test\focus_debug_test.dart test\player_chrome_widget_test.dart
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test test\focus_debug_test.dart
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test test\player_chrome_widget_test.dart --plain-name "compact toolbar Tab traversal follows source order"
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check analyze
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check build windows --debug --dart-define=TWINEPLAYER_FOCUS_DEBUG=true
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check build windows --release
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check build windows --release --dart-define=TWINEPLAYER_FOCUS_DEBUG=true
+  ```
+
+- The focus test passed 2/2, the Compact traversal test passed 1/1, analyzer
+  reported no issues, and the full Flutter suite passed 75/75. The debug
+  define build and both release builds passed. The builds retained the
+  existing `Nuget is not installed` message and CMake CMP0175 developer
+  warning at `flutter/ephemeral/.plugin_symlinks/webview_windows/windows/CMakeLists.txt:34`;
+  neither warning is from this item. The release result is source/build
+  evidence only: `configureTwinePlayerFocusDebug` returns before assignment
+  when `kDebugMode` is false, and no release visual runtime certification is
+  claimed.
+- The documented launch path is the requested debug command in
+  `flutter_app/README.md`. It visualizes Flutter `Focus` nodes only; it does
+  not visualize WebView DOM focus. No settings UI, copied-report field,
+  diagnostics telemetry, runtime persistence, or WebView DOM behavior was
+  added.
+
+### Manual gates (NOT CERTIFIED)
+
+- Visually inspect the debug Input Lab run and the Library, Settings, player
+  chrome, console, save dialog, image preview, fullscreen return, and both
+  Compact/Comfortable profiles.
+- Exercise keyboard-only traversal and focus restoration across those surfaces,
+  including dialog close and return to the story.
+- Exercise WebView-to-chrome transitions separately; Flutter focus boxes do not
+  visualize focus inside the WebView DOM, so WebView content and DOM-focus
+  behavior remain outside this automated visualization.
 
 ### Future-thread brief
 
