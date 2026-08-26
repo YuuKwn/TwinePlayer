@@ -1,9 +1,9 @@
 # Flutter 3.47 implementation progress
 
 **Updated:** 2026-08-26
-**Current source base:** 94a6716ac21b35125c77388529d0387dcfc0cd9d
-**Current lane:** P1 running build identity in Settings and diagnostics
-**Status:** implementation and automated evidence complete; PR review and manual gates remain open.
+**Current source base:** 228937926c2d8b9fec6405f303b4569ef5bb5619
+**Current lane:** P1/P2 stronger semantics regression contracts
+**Status:** P1 debug-only focus visualization is implemented and ready for parent review; the semantics-contract item is next and manual gates remain open.
 
 ## Completed
 
@@ -55,7 +55,7 @@
   `8B0D5B10716FEB83A2B7BF9D2AC881B9CE2FE4475ADF03B2DEB1E3A3076863CC`,
   ZIP
   `CA073BF1349D37DFCF3D392513533C69C48A8692E2D53DDB4684608867F6FFBE`.
-- **P1 running build identity:** implemented from Flutter 3.47's
+- **PR #5 / P1 build identity:** implemented from Flutter 3.47's
   `appBuildName`/`appBuildNumber` at `TwinePlayerDependencies.create()` with
   no `package_info_plus`. Immutable normalization trims valid ASCII
   version-like values and rejects absent, whitespace, control, path-like, and
@@ -84,6 +84,20 @@
   Root Node/DOM/resilience gates passed: 132/132 Node tests and all three
   named DOM/resilience suites. Packaged UI/report comparison and screen-reader
   order remain manual **NOT CERTIFIED**.
+- **P1 debug-only focus visualization:** implemented on the focused
+  `codex/flutter-347-focus-debug` branch from source base
+  `228937926c2d8b9fec6405f303b4569ef5bb5619`. The compile-time
+  `TWINEPLAYER_FOCUS_DEBUG` request and pure two-input gate live in
+  `flutter_app/lib/src/focus_debug.dart`; startup config runs before async
+  dependency creation or `runApp`; no runtime toggle, report field,
+  telemetry, persistence, or WebView DOM behavior was added. The four gate
+  combinations pass, the actual Flutter focus-border widget test passes 2/2,
+  Compact traversal passes 1/1, the full Flutter suite passes 75/75, and
+  `flutter analyze` reports no issues. Debug-with-define, release-without-
+  define, and release-with-define Windows builds all pass. The release result
+  is source/build proof of the `kDebugMode` guard only; runtime focus visuals,
+  keyboard restoration, WebView DOM focus, and state-preservation behavior
+  remain manual **NOT CERTIFIED**.
 
 ## GitHub delivery check
 
@@ -98,20 +112,21 @@ remains out of scope and unfixed; all Flutter P0/P1 evidence remains passed.
 
 ## Next dependency
 
-**P1 — Debug-only focus visualization.** The build-identity implementation is
-complete in this lane and its PR is ready for parent review. Resume with the
-focus-visualization brief below. Keep runtime GPU, packaged UI/report, and
-manual accessibility evidence separate from source/build evidence.
+**P1/P2 — Stronger semantics regression contracts.** PR #5's build-identity
+implementation and the focused debug-only focus-visualization implementation
+are complete for parent review. After the focus PR is reviewed and merged,
+resume with the semantics-contract brief below. Keep focus painting, runtime
+GPU, packaged UI/report, and manual accessibility evidence separate from
+source/build evidence.
 
 ## Remaining items in document order
 
-1. P1 — Debug-only focus visualization.
-2. P1/P2 — Stronger semantics regression contracts.
-3. P2 optional — Windows flavors for standard and lab artifacts.
-4. N1 — Complete stylus and pen support end to end.
-5. N2 — Detachable console/native auxiliary windows/multiple story windows:
+1. P1/P2 — Stronger semantics regression contracts.
+2. P2 optional — Windows flavors for standard and lab artifacts.
+3. N1 — Complete stylus and pen support end to end.
+4. N2 — Detachable console/native auxiliary windows/multiple story windows:
    **DO NOT SHIP** while Flutter 3.47 windowing remains experimental/internal.
-6. N3 — Separately identifiable certification release track.
+5. N3 — Separately identifiable certification release track.
 
 ## Exact resume instructions
 
@@ -130,9 +145,11 @@ Get-Content docs\flutter-3.47-implementation-progress.md
 
 Require origin to be https://github.com/YuuKwn/TwinePlayer.git, require HEAD
 to equal origin/main at the current reviewed base before new work, and verify
-gh auth status reports YuuKwn. Resume with the P1 debug-only focus
-visualization brief and reread its research section before editing. Keep
-legacy Electron source and generated artifacts out of scope.
+gh auth status reports YuuKwn. Keep
+`codex/flutter-347-focus-debug` only for review; after that PR is merged,
+resume with the P1/P2 stronger-semantics brief and reread its research section
+before editing. Keep the focus branch, legacy Electron source, and generated
+artifacts out of scope for the next item.
 
 ## Explicit manual-gate boundary
 
@@ -144,3 +161,6 @@ unperformed cell remains **NOT CERTIFIED** until attributable manual evidence
 names the device, driver, WebView2 runtime, build hash, and exercised scenario.
 For the build-identity item specifically, packaged UI/report comparison and
 screen-reader traversal order were not exercised and remain **NOT CERTIFIED**.
+For the focus-visualization item specifically, the debug visual pass,
+keyboard traversal and focus restoration, Flutter/WebView focus boundary, and
+state-preservation behavior were not exercised and remain **NOT CERTIFIED**.

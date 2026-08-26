@@ -41,6 +41,16 @@ If the Flutter wrapper hangs on this Windows machine, use the SDK's direct Dart 
 & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check analyze
 ```
 
+For the debug-only Flutter focus visualization, launch the Windows app with:
+
+```powershell
+flutter run -d windows --debug --dart-define=TWINEPLAYER_FOCUS_DEBUG=true
+```
+
+Flutter focus boxes show Flutter `Focus` nodes only; they do not visualize focus
+inside the WebView DOM. The setting is selected before startup and has no
+runtime toggle or release/profile effect.
+
 The release executable is written to:
 
 ```text

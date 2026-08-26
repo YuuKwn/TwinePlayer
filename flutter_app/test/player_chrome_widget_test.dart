@@ -283,6 +283,56 @@ void main() {
     expect(focusedTooltip(), 'More player actions');
   });
 
+  testWidgets('compact toolbar Tab traversal follows source order', (
+    tester,
+  ) async {
+    final rootFocus = FocusNode(debugLabel: 'compact-toolbar-tab-root');
+    addTearDown(rootFocus.dispose);
+    await tester.pumpWidget(
+      harness(
+        profile: InteractionProfile.compact,
+        child: SizedBox(
+          width: 640,
+          child: Focus(
+            focusNode: rootFocus,
+            child: CompactPlayerToolbar(
+              title: 'Fixture Story',
+              onBackToLibrary: () {},
+              onUndo: () {},
+              onSave: () {},
+              onLoad: () {},
+              onConsole: () {},
+              onDevTools: () {},
+              onMore: () {},
+              onFullscreen: () {},
+              isFullscreen: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    String? focusedTooltip() => FocusManager.instance.primaryFocus?.context
+        ?.findAncestorWidgetOfExactType<IconButton>()
+        ?.tooltip;
+
+    rootFocus.requestFocus();
+    await tester.pump();
+    const expectedTooltips = <String>[
+      'Back to Library',
+      'Undo / Back one turn',
+      'Save',
+      'Load',
+      'Enter fullscreen',
+      'More player actions',
+    ];
+    for (final expectedTooltip in expectedTooltips) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(focusedTooltip(), expectedTooltip);
+    }
+  });
+
   testWidgets(
     'save layout switches between one and two columns at viewport width',
     (tester) async {
