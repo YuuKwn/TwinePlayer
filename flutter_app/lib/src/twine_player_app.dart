@@ -12,6 +12,7 @@ import 'package:webview_windows/webview_windows.dart';
 
 import 'adaptive_controls.dart';
 import 'models.dart';
+import 'services/build_identity.dart';
 import 'services/console_command_store.dart';
 import 'services/command_bar_preferences_store.dart';
 import 'services/console_completion_input.dart';
@@ -68,7 +69,9 @@ class TwinePlayerDependencies {
         store: profileStore,
         initial: profile,
       ),
-      diagnostics: InputDiagnosticsRecorder(),
+      diagnostics: InputDiagnosticsRecorder(
+        buildIdentity: BuildIdentity.fromFlutter(),
+      ),
       storyAssistanceStore: await StoryAssistanceStore.create(),
       commandBarController: CommandBarPreferencesController(
         store: commandBarStore,
@@ -3801,6 +3804,18 @@ class _ChromeInputRegion extends StatelessWidget {
   }
 }
 
+class _BuildIdentityText extends StatelessWidget {
+  const _BuildIdentityText({required this.identity});
+
+  final BuildIdentity identity;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = 'Build identity: ${identity.display}';
+    return Text(label, semanticsLabel: label);
+  }
+}
+
 class _SettingsDialog extends StatelessWidget {
   const _SettingsDialog({
     required this.profileController,
@@ -3863,6 +3878,8 @@ class _SettingsDialog extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
+                        _BuildIdentityText(identity: diagnostics.buildIdentity),
+                        const SizedBox(height: 12),
                         const Text(
                           'Interaction profile',
                           style: TextStyle(fontWeight: FontWeight.w700),
@@ -4534,6 +4551,13 @@ class _DiagnosticsDialog extends StatelessWidget {
               height: (viewport.height - 180).clamp(220.0, 420.0),
               child: Column(
                 children: <Widget>[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _BuildIdentityText(
+                      identity: diagnostics.buildIdentity,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(

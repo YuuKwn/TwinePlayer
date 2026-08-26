@@ -469,7 +469,22 @@ identity in settings and diagnostics.
 
 **Priority:** medium-high
 
-**Readiness:** ready for a small Flutter implementation thread
+**Readiness:** implemented in the focused P1 build-identity thread; manual
+packaged-report and screen-reader gates remain **NOT CERTIFIED**
+
+**Status/evidence — 2026-08-26:** Implemented from YuuKwn `main` commit
+`94a6716ac21b35125c77388529d0387dcfc0cd9d`. `BuildIdentity` is immutable,
+test-injectable, and populated in production from Flutter 3.47
+`appBuildName`/`appBuildNumber`; normalization is bounded and privacy-safe,
+with no `package_info_plus`. Settings and Diagnostics expose one natural,
+ordered identity row. The shared recorder preserves the absent identity schema
+and adds only allowlisted top-level build fields when present. Focused tests
+passed 19/19, full Flutter tests 72/72, analyzer reported no issues, default
+and `9.8.7+42` override release builds passed, and normal packaging verified
+27 files plus 3/3 smoke cycles and exact artifact hashes. Root Node tests
+passed 132/132 and the three named DOM/resilience suites passed. Packaged
+report/UI comparison and screen-reader order were not exercised; they remain
+manual **NOT CERTIFIED** gates.
 
 ### Why TwinePlayer benefits
 

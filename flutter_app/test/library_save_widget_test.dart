@@ -8,6 +8,7 @@ import 'package:forui/forui.dart';
 import 'package:path/path.dart' as p;
 import 'package:twine_player_flutter/src/adaptive_controls.dart';
 import 'package:twine_player_flutter/src/models.dart';
+import 'package:twine_player_flutter/src/services/build_identity.dart';
 import 'package:twine_player_flutter/src/services/console_command_store.dart';
 import 'package:twine_player_flutter/src/services/game_metadata_service.dart';
 import 'package:twine_player_flutter/src/services/history_store.dart';
@@ -99,6 +100,55 @@ void main() {
       expect(find.text('Open Input Lab?'), findsNothing);
       expect(historyStore.entries, hasLength(1));
       expect(historyStore.entries.single.path, entry.path);
+    },
+    timeout: const Timeout(Duration(seconds: 10)),
+  );
+
+  testWidgets(
+    'Settings and diagnostics expose the injected build identity in order',
+    (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      final historyStore = _FakeHistoryStore(const <LibraryEntry>[]);
+      final dependencies = _dependencies(
+        historyStore,
+        commandsFile,
+        buildIdentity: BuildIdentity(name: '1.0.0', number: '10'),
+      );
+      await tester.pumpWidget(
+        _harness(
+          LibraryScreen(dependencies: dependencies),
+          wrapScaffold: false,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      final identityText = find.text('Build identity: 1.0.0+10');
+      expect(identityText, findsOneWidget);
+      expect(
+        find.semantics.byLabel('Build identity: 1.0.0+10'),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(identityText).dy,
+        lessThan(tester.getTopLeft(find.text('Interaction profile')).dy),
+      );
+
+      final viewReport = find.text('View report');
+      await tester.ensureVisible(viewReport);
+      await tester.tap(viewReport);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 200));
+      final identityTexts = find.text('Build identity: 1.0.0+10');
+      expect(identityTexts, findsNWidgets(2));
+      expect(
+        find.semantics.byLabel('Build identity: 1.0.0+10'),
+        findsOneWidget,
+      );
+      semanticsHandle.dispose();
     },
     timeout: const Timeout(Duration(seconds: 10)),
   );
@@ -350,6 +400,7 @@ TwinePlayerDependencies _dependencies(
   HistoryStore historyStore,
   File commandsFile, {
   InputLabService? inputLabService,
+  BuildIdentity? buildIdentity,
 }) {
   final profileController = InteractionProfileController(
     store: InteractionProfileStore(
@@ -363,7 +414,9 @@ TwinePlayerDependencies _dependencies(
     metadataService: GameMetadataService(),
     saveService: SaveService(),
     profileController: profileController,
-    diagnostics: InputDiagnosticsRecorder(),
+    diagnostics: InputDiagnosticsRecorder(
+      buildIdentity: buildIdentity ?? const BuildIdentity.empty(),
+    ),
     storyAssistanceStore: StoryAssistanceStore(
       File(p.join(commandsFile.parent.path, 'story-assistance.json')),
     ),

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 
+import 'build_identity.dart';
+
 /// Privacy-safe in-memory input metadata. Coordinates, timestamps, key values,
 /// paths and story content are intentionally absent from this model.
 class InputDiagnosticEvent {
@@ -116,11 +118,15 @@ class InputDiagnosticEvent {
 }
 
 class InputDiagnosticsRecorder extends ChangeNotifier {
-  InputDiagnosticsRecorder({this.capacity = 200});
+  InputDiagnosticsRecorder({
+    this.capacity = 200,
+    this.buildIdentity = const BuildIdentity.empty(),
+  });
 
   static const int maxScenarioLabelLength = 64;
 
   final int capacity;
+  final BuildIdentity buildIdentity;
   final List<InputDiagnosticEvent> _events = <InputDiagnosticEvent>[];
   final Set<int> _activePointers = <int>{};
   bool _enabled = false;
@@ -219,6 +225,7 @@ class InputDiagnosticsRecorder extends ChangeNotifier {
           .toList(),
     };
     if (_scenarioLabel.isNotEmpty) report['scenarioLabel'] = _scenarioLabel;
+    report.addAll(buildIdentity.reportFields);
     return const JsonEncoder.withIndent('  ').convert(report);
   }
 }

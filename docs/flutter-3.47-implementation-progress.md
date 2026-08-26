@@ -1,9 +1,9 @@
 # Flutter 3.47 implementation progress
 
-**Updated:** 2026-08-25
-**Current source base:** 5810af400ade1d84d5ff803f92b20d94aa45cbe6
-**Current lane:** P0 DXGI/WebView D3D11 adapter alignment
-**Status:** implementation and automated evidence complete; review and manual gates remain open.
+**Updated:** 2026-08-26
+**Current source base:** 94a6716ac21b35125c77388529d0387dcfc0cd9d
+**Current lane:** P1 running build identity in Settings and diagnostics
+**Status:** implementation and automated evidence complete; PR review and manual gates remain open.
 
 ## Completed
 
@@ -14,6 +14,10 @@
   5810af400ade1d84d5ff803f92b20d94aa45cbe6. Final CI run `32878550377`
   retains the same pre-existing Electron line-209 outside-viewport failure;
   it does not cover or invalidate this Flutter-native change.
+- **PR #4:** squash-merged to YuuKwn `main` at
+  94a6716ac21b35125c77388529d0387dcfc0cd9d. Final CI run `32882310406`
+  retains the same verified pre-existing Electron line-209 outside-viewport
+  failure; it does not cover or invalidate the P0 Flutter-native change.
 - **P0 inherited-behavior certification:** evidence captured in
   [flutter-3.47-certification-report.md](flutter-3.47-certification-report.md).
   Flutter 3.47 pub get, analyzer, 67/67 Flutter tests, 7/7 vendored
@@ -51,36 +55,63 @@
   `8B0D5B10716FEB83A2B7BF9D2AC881B9CE2FE4475ADF03B2DEB1E3A3076863CC`,
   ZIP
   `CA073BF1349D37DFCF3D392513533C69C48A8692E2D53DDB4684608867F6FFBE`.
+- **P1 running build identity:** implemented from Flutter 3.47's
+  `appBuildName`/`appBuildNumber` at `TwinePlayerDependencies.create()` with
+  no `package_info_plus`. Immutable normalization trims valid ASCII
+  version-like values and rejects absent, whitespace, control, path-like, and
+  over-64-byte inputs without coercion. Settings and Diagnostics each expose
+  one ordered, noninteractive `Build identity:` row. The shared diagnostics
+  recorder preserves the exact absent-identity report schema and adds only the
+  allowlisted top-level `appBuildName`/`appBuildNumber` keys when present.
+  Focused tests passed 19/19, the full Flutter suite passed 72/72, and
+  `flutter analyze` reported no issues. The final semantics correction uses a
+  single `Text` with a deterministic semantics label and no semantics
+  exclusion. Default `1.0.0+10` and override `9.8.7+42` release builds
+  passed; generated defines and PE versions matched. The corrected normal
+  package verified 27 files, 3/3 smoke cycles, EXE
+  `BB322EA778A27A12A6343477AD6D5571392A1783A77E46DE9CCBE7DE30660A17`,
+  manifest
+  `46C6712128112495D0C3D7AF44D8D1E0C40B4C8C05278CBF8E9A9C570B06458A`, and
+  ZIP
+  `074D795D698EC4D86C83F9EAB5E181A972EF3AE29204C12861A54BE2A5D7E38F`.
+  The 27-file count is intentional current-build output, not override
+  contamination: compared with the PR #4 26-file inventory, the only added
+  path is root `native_assets.json`, byte-identical to
+  `data/flutter_assets/NativeAssetsManifest.json` (SHA-256
+  `9548A31E4A048135C1D94F919328BFB62AE2C7BB3CAB96557C7941DAA97776CB`). The
+  package script rebuilt with its explicit normal `1.0.0+10` flags and copied
+  the release inventory/hash-for-hash before packaging.
+  Root Node/DOM/resilience gates passed: 132/132 Node tests and all three
+  named DOM/resilience suites. Packaged UI/report comparison and screen-reader
+  order remain manual **NOT CERTIFIED**.
 
 ## GitHub delivery check
 
-PR #3 final check run 32878550377 is **not green** because the out-of-scope legacy
-Electron smoke test “selects a fixture game and supports library search and
-sort” times out when getByRole('button', { name: /Library/ }) resolves the
-Back to Library button outside the viewport at
-test/electron-integration.js:209. The exact signature matches merged Flutter
-PR #2 check run 31730990711, so this is verified pre-existing and unrelated to
-the Flutter-native implementation. Electron remains out of scope and unfixed;
-all Flutter P0 evidence remains passed.
+PR #3 final check run 32878550377 and PR #4 final check run 32882310406 are
+**not green** because the out-of-scope legacy Electron smoke test “selects a
+fixture game and supports library search and sort” times out when
+getByRole('button', { name: /Library/ }) resolves the Back to Library button
+outside the viewport at test/electron-integration.js:209. The exact signature
+matches merged Flutter PR #2 check run 31730990711, so this is verified
+pre-existing and unrelated to the Flutter-native implementation. Electron
+remains out of scope and unfixed; all Flutter P0/P1 evidence remains passed.
 
 ## Next dependency
 
-**P1 — Add the running build identity to settings and diagnostics.** The P0
-DXGI adapter alignment implementation is complete and awaiting parent review;
-resume with the build-identity brief below. Use Flutter's exact renderer
-adapter contract for future native diagnostics and keep runtime GPU evidence
-separate from source/build evidence.
+**P1 — Debug-only focus visualization.** The build-identity implementation is
+complete in this lane and its PR is ready for parent review. Resume with the
+focus-visualization brief below. Keep runtime GPU, packaged UI/report, and
+manual accessibility evidence separate from source/build evidence.
 
 ## Remaining items in document order
 
-1. P1 — Running build identity in settings and diagnostics.
-2. P1 — Debug-only focus visualization.
-3. P1/P2 — Stronger semantics regression contracts.
-4. P2 optional — Windows flavors for standard and lab artifacts.
-5. N1 — Complete stylus and pen support end to end.
-6. N2 — Detachable console/native auxiliary windows/multiple story windows:
+1. P1 — Debug-only focus visualization.
+2. P1/P2 — Stronger semantics regression contracts.
+3. P2 optional — Windows flavors for standard and lab artifacts.
+4. N1 — Complete stylus and pen support end to end.
+5. N2 — Detachable console/native auxiliary windows/multiple story windows:
    **DO NOT SHIP** while Flutter 3.47 windowing remains experimental/internal.
-7. N3 — Separately identifiable certification release track.
+6. N3 — Separately identifiable certification release track.
 
 ## Exact resume instructions
 
@@ -98,10 +129,10 @@ Get-Content docs\flutter-3.47-implementation-progress.md
 ~~~
 
 Require origin to be https://github.com/YuuKwn/TwinePlayer.git, require HEAD
-to equal origin/main before new work, and verify gh auth status reports
-YuuKwn. Resume with the P1 build-identity brief and reread its research
-section before editing. Keep legacy Electron source and generated artifacts
-out of scope.
+to equal origin/main at the current reviewed base before new work, and verify
+gh auth status reports YuuKwn. Resume with the P1 debug-only focus
+visualization brief and reread its research section before editing. Keep
+legacy Electron source and generated artifacts out of scope.
 
 ## Explicit manual-gate boundary
 
@@ -111,3 +142,5 @@ screen-reader, focus, touch, mouse, wheel, pen, IME, DPI/display,
 multi-monitor, real SugarCube saves, or the four-client matrix. Every
 unperformed cell remains **NOT CERTIFIED** until attributable manual evidence
 names the device, driver, WebView2 runtime, build hash, and exercised scenario.
+For the build-identity item specifically, packaged UI/report comparison and
+screen-reader traversal order were not exercised and remain **NOT CERTIFIED**.
