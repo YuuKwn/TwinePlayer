@@ -1,9 +1,9 @@
 # Flutter 3.47 implementation progress
 
 **Updated:** 2026-08-26
-**Current source base:** 4a3dd210ee7eb60f72930803b5fc0a535815583b
-**Current lane:** P1/P2 stronger semantics regression contracts
-**Status:** P1 debug-only focus visualization is merged; stronger semantics contracts are implemented and ready for parent review, with manual gates remaining open.
+**Current source base:** 1f2f37b2f30563150c59d8bacd8e1c1deface801
+**Current lane:** N1 stylus/pen hardware spike
+**Status:** P2 Windows flavors and the dependent N3 certification release track are NOT ADOPTED AT THIS TIME; the next dependency is the N1 hardware-gated stylus/pen spike, blocked until real stylus hardware and attributable Input Lab evidence exist. Manual gates remain open.
 
 ## Completed
 
@@ -103,8 +103,15 @@
   is source/build proof of the `kDebugMode` guard only; runtime focus visuals,
   keyboard restoration, WebView DOM focus, and state-preservation behavior
   remain manual **NOT CERTIFIED**.
-- **P1/P2 stronger semantics regression contracts:** implemented as a test-only
-  change on top of PR #6. The final focused files are
+- **PR #7 / P1/P2 stronger semantics regression contracts:** squash-merged to
+  YuuKwn `main` at
+  `1f2f37b2f30563150c59d8bacd8e1c1deface801`. Final CI run `32981133318` is
+  not green only because the same pre-existing legacy Electron outside-viewport
+  timeout seen on PRs #2/#3 occurs at `test/electron-integration.js:209`, where
+  `getByRole('button', { name: /Library/ })` resolves the Back to Library button
+  outside the viewport. Electron remains unchanged and out of scope. The
+  stronger semantics contracts were implemented as a test-only change on top
+  of PR #6. The final focused files are
   `flutter_app/test/adaptive_controls_widget_test.dart` (3/3),
   `flutter_app/test/library_save_widget_test.dart` (8/8),
   `flutter_app/test/player_chrome_widget_test.dart` (14/14), and
@@ -118,10 +125,27 @@
   application source remain unchanged. Screen-reader, keyboard-only, and
   visual/accessibility behavior remain manual **NOT CERTIFIED**.
 
+- **P2 Windows flavors / N3 certification release track:** the P2 decision gate
+  closed 2026-08-26 against the merged base above as **NOT ADOPTED AT THIS
+  TIME**; the dependent N3 gate is also closed as **NOT ADOPTED AT THIS TIME**
+  and is **NOT SCHEDULED**. Input Lab is already bundled offline,
+  opt-in, and diagnostics-disabled by default; P0/P1 build identity plus exact
+  manifest/hash evidence makes the current standard artifact attributable; and
+  `tool/package_windows_release.ps1` intentionally builds/replaces one exact
+  hard-coded artifact. No user-facing or certification behavior difference
+  between proposed standard and lab binaries is defined. Label-only binaries
+  would double build/smoke/manual certification surfaces, make the lab result
+  non-identical to standard, and add CMake/runner/package risk without
+  operational value. No source/CMake/package changes were made. The chosen
+  certification path remains one standard artifact plus build identity, exact
+  hashes, and checklist/report evidence; this does not imply manual hardware
+  certification.
+
 ## GitHub delivery check
 
-PR #3 final check run 32878550377, PR #4 final check run 32882310406, and PR #6
-final check run 32976371828 are **not green** because the out-of-scope legacy
+PR #3 final check run 32878550377, PR #4 final check run 32882310406, PR #6
+final check run 32976371828, and PR #7 final check run 32981133318 are **not
+green** because the out-of-scope legacy
 Electron smoke test “selects a fixture game and supports library search and
 sort” times out when `getByRole('button', { name: /Library/ })` resolves the
 Back to Library button outside the viewport at
@@ -132,20 +156,20 @@ all Flutter P0/P1 evidence remains passed.
 
 ## Next dependency
 
-**P2 optional — Windows flavor design decision.** PR #5's build-identity,
-PR #6's focus visualization, and this semantics-contract item are complete for
-parent review. After this semantics PR is reviewed and merged, decide whether
-separate standard/lab Windows flavors solve a real operational need. Keep
-focus painting, runtime GPU, packaged UI/report, and manual accessibility
-evidence separate from source/build evidence.
+**N1 — Stylus/pen hardware spike.** The P2 Windows flavor decision gate is
+closed as **NOT ADOPTED AT THIS TIME**, and dependent N3 is not scheduled. The
+next work is explicitly blocked from implementation or certification until real
+stylus hardware and attributable Input Lab evidence exist. Do not infer pen
+support from Flutter event APIs or current automated tests. Keep focus painting,
+runtime GPU, packaged UI/report, and manual accessibility evidence separate from
+source/build evidence.
 
 ## Remaining items in document order
 
-1. P2 optional — Windows flavor design decision for standard and lab artifacts.
-2. N1 — Complete stylus and pen support end to end.
-3. N2 — Detachable console/native auxiliary windows/multiple story windows:
+1. N1 — Complete stylus and pen support end to end; hardware-gated and blocked
+   until real stylus hardware and attributable Input Lab evidence exist.
+2. N2 — Detachable console/native auxiliary windows/multiple story windows:
    **DO NOT SHIP** while Flutter 3.47 windowing remains experimental/internal.
-4. N3 — Separately identifiable certification release track.
 
 ## Exact resume instructions
 
@@ -166,11 +190,12 @@ Require origin to be https://github.com/YuuKwn/TwinePlayer.git, require HEAD
 to equal origin/main at the current reviewed base before new work, and verify
 gh auth status reports YuuKwn. Keep
 `codex/flutter-347-focus-debug` and
-`codex/flutter-347-semantics-contracts` only for review. After the semantics
-PR is merged, resume with the optional Windows flavor design decision and
-reread that research section before editing. Keep both reviewed branches, the
-legacy Electron source, and generated artifacts out of scope for the next
-item.
+`codex/flutter-347-semantics-contracts` only for review. After this decision PR
+is merged, resume with the N1
+stylus/pen hardware spike only when real stylus hardware and attributable Input
+Lab evidence are available; do not implement or certify it before that gate.
+Keep both reviewed branches, the legacy Electron source, and generated
+artifacts out of scope for the next item.
 
 ## Explicit manual-gate boundary
 
@@ -189,3 +214,6 @@ For the semantics-contract item specifically, screen-reader role/label
 announcements, hardware keyboard traversal and focus restoration, popup-menu
 announcements, and packaged visual/accessibility behavior were not exercised
 and remain **NOT CERTIFIED**.
+For the N1 item specifically, real stylus/pen hardware behavior, Flutter-to-
+native payload evidence, WebView2 pen mapping, and attributable Input Lab
+evidence remain **NOT CERTIFIED** and block implementation/certification.

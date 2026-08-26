@@ -797,7 +797,7 @@ gate.
 
 **Priority:** optional
 
-**Readiness:** design decision first
+**Readiness:** **NOT ADOPTED AT THIS TIME** (decision gate closed 2026-08-26)
 
 ### Why TwinePlayer might benefit
 
@@ -812,7 +812,41 @@ This is useful only if separate binaries solve a real operational need. Input
 Lab is already bundled, offline, opt-in, and disabled by default, so flavors
 must not be introduced merely because the tool supports them.
 
-### Proposed scope if approved
+### Decision gate — NOT ADOPTED AT THIS TIME (2026-08-26)
+
+The gate was reviewed against YuuKwn `origin/main` at
+`1f2f37b2f30563150c59d8bacd8e1c1deface801` after PR #7. Do not adopt Windows
+flavors for standard/lab artifacts at this time, and do not add flavor-specific
+CMake, runner, packaging, or application behavior.
+
+Evidence and rationale:
+
+- Input Lab is already bundled offline, opt-in, and diagnostics-disabled by
+  default.
+- P0/P1 build identity plus exact manifest and hash evidence already make the
+  current standard artifact attributable.
+- `tool/package_windows_release.ps1` intentionally builds and replaces one
+  exact hard-coded artifact.
+- No user-facing or certification behavior difference between proposed
+  `standard` and `lab` artifacts has been defined.
+- Two binaries created solely for labels would double build, smoke, and manual
+  certification surfaces, make a lab result non-identical to the standard
+  binary, and add CMake/runner/package risk without operational value.
+
+This documentation-only decision makes no source, CMake, or package changes.
+
+Reopen only with all of the following documented:
+
+- a concrete side-by-side operational need;
+- the smallest identity-only delta between artifacts;
+- willingness to build, smoke, and manually certify both binaries;
+- an explicit compatibility and storage policy; and
+- a complete flavor-aware output, PE identity, visible badge, manifest, hash,
+  and smoke plan.
+
+The following material is a contingent reference only if this gate is reopened.
+
+### Proposed scope if reopened
 
 - Define the exact difference between `standard` and `lab`; keep game behavior,
   save format, and settings compatibility identical.
@@ -825,7 +859,7 @@ must not be introduced merely because the tool supports them.
   visible badge, directory, ZIP, manifest, and hash.
 - Do not enable `debugPaintFocusBoxes` in release; it has no release effect.
 
-### Acceptance criteria
+### Acceptance criteria if reopened
 
 - Standard, lab, and existing unflavored builds do not collide on disk.
 - The standard build is behaviorally equivalent to today's release.
@@ -833,22 +867,22 @@ must not be introduced merely because the tool supports them.
 - Save and preference storage compatibility is intentional and tested.
 - Packaging replaces only its exact target directory.
 
-### Automated validation
+### Automated validation if reopened
 
 - Build all approved variants and compare inventories.
 - Run relevant Flutter tests with injected flavor values.
 - Run full analyzer/tests, packaging, manifest/hash, and smoke cycles.
 
-### Manual gates
+### Manual gates if reopened
 
 - Confirm the user can always identify the lab build.
 - Confirm side-by-side launch/storage behavior and no accidental save split or
   collision.
 
-### Future-thread brief
+### Future-thread brief if reopened
 
 ```text
-First decide whether TwinePlayer genuinely needs separate standard and
+If reopened, first decide whether TwinePlayer genuinely needs separate standard and
 certification/lab Windows artifacts. If yes, adopt Flutter 3.47 Windows flavor
 plumbing narrowly into the customized runner without regenerating or losing
 fullscreen, icon, Impeller, WebView, or packaging behavior. Make output paths,
@@ -1016,7 +1050,7 @@ experimental flags, or unresolved multi-view WebView ownership remain.
 
 ## N3 — A separately identifiable certification release track
 
-**Readiness:** optional operational feature
+**Readiness:** **NOT ADOPTED AT THIS TIME**; dependent release track is **NOT SCHEDULED**
 
 **Dependency:** the P2 Windows flavor decision
 
@@ -1027,7 +1061,26 @@ a manifest that lists the certification checklist version. It must not enable
 privacy-sensitive logging, networking, debug paint in release, or behavior that
 makes the lab result unrepresentative of the standard build.
 
-### Staged path
+### Decision gate — NOT ADOPTED AT THIS TIME; NOT SCHEDULED (2026-08-26)
+
+Because the P2 Windows flavor gate is not adopted, the dependent N3 release
+track is also not scheduled. The chosen certification path is the current
+single standard artifact with P0/P1 build identity, exact manifest and hash
+evidence, and checklist/report evidence. This is an artifact-provenance path;
+it does not imply manual GPU, WebView, input, accessibility, or other hardware
+certification. Those cells remain **NOT CERTIFIED** until attributable evidence
+exists.
+
+This documentation-only decision makes no source, CMake, or package changes.
+
+Reopen N3 only after the P2 gate is reopened and there is a concrete operational
+need plus a complete, reviewable plan for identity, compatibility/storage,
+flavor-aware outputs, PE metadata, badges, manifests, hashes, and equivalent
+build/smoke/manual certification of both artifacts.
+
+The following material is a contingent reference only if the N3 gate is reopened.
+
+### Staged path if reopened
 
 1. Define the smallest lab-only difference and prove it cannot affect story or
    input behavior.
@@ -1037,10 +1090,10 @@ makes the lab result unrepresentative of the standard build.
 5. Use the lab track for evidence collection; certify the standard artifact
    separately whenever their behavior can differ.
 
-### Future-thread brief
+### Future-thread brief if reopened
 
 ```text
-Evaluate a separately identifiable TwinePlayer certification release track
+If reopened, evaluate a separately identifiable TwinePlayer certification release track
 using Flutter 3.47 Windows flavors. Keep the lab and standard runtime behavior
 equivalent except for explicit identity/evidence UI; do not add telemetry,
 networking, privacy-sensitive diagnostics, or debug paint to release. Make
