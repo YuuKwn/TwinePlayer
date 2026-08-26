@@ -126,6 +126,40 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 200));
 
+      final settingsDialog = find.byType(AlertDialog);
+      expect(settingsDialog, findsOneWidget);
+      expect(
+        tester.getSemantics(settingsDialog),
+        isSemantics(role: ui.SemanticsRole.alertDialog),
+      );
+      final settingsScrollable = find.semantics.descendant(
+        of: find.semantics.byLabel('Settings dialog'),
+        matching: find.semantics.byPredicate(
+          (node) =>
+              !node.flagsCollection.isHidden &&
+              node.flagsCollection.hasImplicitScrolling,
+        ),
+      );
+      expect(settingsScrollable, findsOneWidget);
+      expect(
+        settingsScrollable.evaluate().single,
+        isSemantics(hasImplicitScrolling: true),
+      );
+      final diagnosticsToggle = find.semantics.byLabel(
+        RegExp(r'^Input diagnostics'),
+      );
+      expect(diagnosticsToggle, findsOneWidget);
+      expect(
+        diagnosticsToggle.evaluate().single,
+        isSemantics(
+          hasToggledState: true,
+          isToggled: false,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+
       final identityText = find.text('Build identity: 1.0.0+10');
       expect(identityText, findsOneWidget);
       expect(
@@ -272,6 +306,17 @@ void main() {
     await tester.pump(kThemeAnimationDuration);
 
     expect(find.text('Overwrite save?'), findsOneWidget);
+    final overwriteDialogRole = find.semantics.byPredicate(
+      (node) => node.role == ui.SemanticsRole.alertDialog,
+    );
+    expect(
+      overwriteDialogRole,
+      findsOneWidget,
+    );
+    expect(
+      overwriteDialogRole.evaluate().single,
+      isSemantics(role: ui.SemanticsRole.alertDialog),
+    );
     expect(service.writeCount, 0);
     for (final label in ['Cancel', 'Overwrite']) {
       final button = find.semantics.byLabel(label);
@@ -331,12 +376,90 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(kThemeAnimationDuration);
 
     expect(find.text('Delete Save'), findsOneWidget);
+    final deleteDialogRole = find.semantics.byPredicate(
+      (node) => node.role == ui.SemanticsRole.alertDialog,
+    );
+    expect(
+      deleteDialogRole,
+      findsOneWidget,
+    );
+    expect(
+      deleteDialogRole.evaluate().single,
+      isSemantics(role: ui.SemanticsRole.alertDialog),
+    );
+    for (final label in ['Cancel', 'Delete']) {
+      final button = find.semantics.byLabel(label);
+      expect(button, findsOneWidget);
+      expect(
+        button.evaluate().single,
+        isSemantics(
+          label: label,
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+    }
     expect(service.deleteCount, 0);
     await tester.tap(find.text('Cancel'));
     await tester.pump(const Duration(milliseconds: 200));
     expect(service.deleteCount, 0);
+  });
+
+  testWidgets('save manager grid exposes implicit scrolling semantics', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    final originalSize = tester.view.physicalSize;
+    final originalRatio = tester.view.devicePixelRatio;
+    try {
+      tester.view
+        ..physicalSize = const Size(520, 700)
+        ..devicePixelRatio = 1;
+      final service = _FakeSaveService(
+        saves: [
+          for (var index = 0; index < 8; index++)
+            SaveEntry(
+              filename: 'slot-$index.save',
+              size: index + 1,
+              modified: DateTime.utc(2026, 1, index + 1),
+            ),
+        ],
+      );
+      await tester.pumpWidget(
+        _harness(
+          SaveManagerDialog(
+            mode: SaveManagerMode.load,
+            gamePath: r'C:\games\fixture.html',
+            saveService: service,
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final grid = find.byKey(const ValueKey<String>('save-manager-grid'));
+      expect(grid, findsOneWidget);
+      final scrollingGrid = find.semantics.byPredicate(
+        (node) => node.flagsCollection.hasImplicitScrolling,
+      );
+      expect(
+        scrollingGrid,
+        findsOneWidget,
+      );
+      expect(
+        scrollingGrid.evaluate().single,
+        isSemantics(hasImplicitScrolling: true),
+      );
+    } finally {
+      semanticsHandle.dispose();
+      tester.view
+        ..physicalSize = originalSize
+        ..devicePixelRatio = originalRatio;
+    }
   });
 
   testWidgets('save manager grid switches between one and two columns', (

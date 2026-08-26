@@ -672,7 +672,7 @@ release build is unaffected.
 
 **Priority:** medium, after Gate 0
 
-**Readiness:** ready only after the baseline semantics blocker is resolved
+**Readiness:** implementation complete; ready for parent review
 
 ### Why TwinePlayer benefits
 
@@ -689,8 +689,8 @@ buttons, settings scroll areas, command bar, console logs, and save manager.
 - Assert relevant child structure, labels, enabled state, selected/toggled
   state, traversal, and dialog boundaries.
 - Keep tests resilient to decorative Forui implementation details.
-- Do not begin until Gate 0 establishes how the pinned Forui version should
-  compose merged semantics.
+- Preserve the resolved Gate 0 Forui 0.22.3 composition workaround; this pass
+  requires no application semantics change.
 
 Likely tests include:
 
@@ -698,7 +698,9 @@ Likely tests include:
 - `flutter_app/test/library_save_widget_test.dart`
 - `flutter_app/test/player_chrome_widget_test.dart`
 - `flutter_app/test/console_widget_test.dart`
-- `flutter_app/test/command_bar_preferences_test.dart`
+
+`flutter_app/test/command_bar_preferences_test.dart` remains pure
+model/store coverage and is intentionally unchanged.
 
 ### Acceptance criteria
 
@@ -710,20 +712,85 @@ Likely tests include:
 
 ### Automated validation
 
-Run the focused files above, full `flutter test`, and `flutter analyze`.
+Run the four focused widget files, full `flutter test`, and `flutter analyze`.
 Use a screen-reader/manual keyboard pass as a separate gate.
+
+### Implementation evidence (2026-08-26)
+
+- This item is test-only. The focused additions are at
+  `flutter_app/test/adaptive_controls_widget_test.dart:65-156`,
+  `flutter_app/test/library_save_widget_test.dart:126-161,306-458`,
+  `flutter_app/test/player_chrome_widget_test.dart:179-234`, and
+  `flutter_app/test/console_widget_test.dart:96-224`. No application source,
+  `command_bar_preferences_test.dart`, Forui dependency, save/load path, or
+  Gate 0 workaround changed.
+- The new widget contracts use `tester.ensureSemantics()` with `try/finally`
+  disposal; the existing settings identity test retains its manual handle
+  disposal. They assert adaptive enabled/disabled button flags and tap actions;
+  settings, overwrite, and delete boundaries with
+  `role: ui.SemanticsRole.alertDialog`; the Input diagnostics toggled state;
+  implicit scrolling for settings and the narrow save grid; the labeled
+  command-bar controls and actions; the console close/context actions; and two
+  visible overflowing console strips. The existing strict save text-field
+  contract and both Comfortable/Compact traversal tests remain intact.
+- The save popup's `Delete save` text did not expose a stable labeled
+  `SemanticsNode` with `ui.SemanticsRole.menuItem` in the pinned Flutter 3.47
+  tree. That assertion was omitted rather than selecting a widget by position,
+  dumping implementation details, or changing application semantics. The
+  existing keyboard menu path and subsequent delete alert-dialog contract
+  remain covered.
+- From `flutter_app`, the exact formatting command used was:
+
+  ```powershell
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' format test\adaptive_controls_widget_test.dart test\library_save_widget_test.dart test\player_chrome_widget_test.dart test\console_widget_test.dart
+  ```
+
+  The pre-existing formatting-only hunk at the top of
+  `library_save_widget_test.dart` was restored after this command so the PR
+  does not touch its existing callback test.
+- From `flutter_app`, the exact focused commands were:
+
+  ```powershell
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test test\adaptive_controls_widget_test.dart
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test test\library_save_widget_test.dart
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test test\player_chrome_widget_test.dart
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test test\console_widget_test.dart
+  ```
+
+  The focused results were respectively 3/3, 8/8, 14/14, and 5/5. The exact
+  broad commands were:
+
+  ```powershell
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check test
+  & 'C:\Users\fabio\development\flutter\bin\cache\dart-sdk\bin\dart.exe' 'C:\Users\fabio\development\flutter\packages\flutter_tools\bin\flutter_tools.dart' --no-version-check analyze
+  ```
+
+  The full Flutter suite passed 79/79 and the analyzer ended with
+  `No issues found!`. No packaging, Windows build, root Node/DOM, or runtime
+  certification command was required for this test-contract-only item.
+
+### Manual gates (NOT CERTIFIED)
+
+- Verify screen-reader roles, labels, toggle announcements, dialog boundaries,
+  popup-menu announcements, and action exposure on Windows.
+- Exercise keyboard-only traversal and focus restoration across Library,
+  Settings, player chrome, console, save/overwrite/delete dialogs, image
+  preview, fullscreen return, Input Lab, and both Compact/Comfortable profiles.
+- Visually inspect packaged controls and scroll affordances. Flutter semantics
+  assertions do not certify WebView DOM focus/content, native focus transfer,
+  DPI, touch, pointer, or real-game behavior.
 
 ### Future-thread brief
 
 ```text
-After the known Flutter 3.47/Forui save-dialog semantics blocker is resolved,
-strengthen TwinePlayer's accessibility tests with Flutter 3.47 role-aware and
+Strengthen TwinePlayer's accessibility tests with Flutter 3.47 role-aware and
 strict semantics matchers. Assert only observable contracts: labels, roles,
-enabled/toggled state, dialog boundaries, scrollable roles, and deterministic
-focus order for library cards, adaptive controls, command bar, console,
-settings, and save manager. Avoid coupling to decorative Forui internals and do
-not relax or exclude semantics. Run all focused files, the full Flutter suite,
-analyzer, and report screen-reader/keyboard checks as a manual gate.
+enabled/toggled state, dialog boundaries, scrollable semantics, and
+deterministic focus order for library cards, adaptive controls, command bar,
+console, settings, and save manager. Avoid coupling to decorative Forui
+internals and do not relax or exclude semantics. Run all focused files, the full
+Flutter suite, analyzer, and report screen-reader/keyboard checks as a manual
+gate.
 ```
 
 ## P2 optional — Use Windows flavors for distinct standard and lab artifacts

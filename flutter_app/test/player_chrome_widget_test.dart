@@ -176,6 +176,62 @@ void main() {
     expect(find.byTooltip('More player actions'), findsOneWidget);
   });
 
+  testWidgets('command bar controls expose stable labels and actions', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        harness(
+          child: ComfortableCommandBar(
+            collapsed: false,
+            onToggleCollapse: () {},
+            onBackToLibrary: () {},
+            onUndo: () {},
+            onSave: () {},
+            onLoad: () {},
+            onConsole: () {},
+            onMore: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final commandBar = find.semantics.byLabel('Player command bar');
+      expect(commandBar, findsOneWidget);
+      expect(
+        commandBar.evaluate().single,
+        isSemantics(label: 'Player command bar'),
+      );
+      for (final tooltip in [
+        'Collapse command bar',
+        'Back to Library',
+        'Undo / Back one turn',
+        'Save game',
+        'Load game',
+        'Console',
+        'More player actions',
+      ]) {
+        final control = find.byWidgetPredicate(
+          (widget) => widget is IconButton && widget.tooltip == tooltip,
+        );
+        expect(control, findsOneWidget);
+        expect(
+          tester.getSemantics(control),
+          isSemantics(
+            tooltip: tooltip,
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true,
+          ),
+        );
+      }
+    } finally {
+      semanticsHandle.dispose();
+    }
+  });
+
   testWidgets('compact toolbar keeps mouse-friendly commands and semantics', (
     tester,
   ) async {
