@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:twine_player_flutter/src/services/build_identity.dart';
 import 'package:twine_player_flutter/src/services/input_diagnostics.dart';
 
 void main() {
@@ -64,6 +65,44 @@ void main() {
       expect(recorder.serialize(), isNot(contains('scenarioLabel')));
     },
   );
+
+  test('build identity fields are additive, allowlisted, and partial-safe', () {
+    final complete = InputDiagnosticsRecorder(
+      buildIdentity: BuildIdentity(name: '1.0.0', number: '10'),
+    )..setScenarioLabel('native touch');
+    final completeReport =
+        jsonDecode(complete.serialize()) as Map<String, dynamic>;
+    expect(completeReport['appBuildName'], '1.0.0');
+    expect(completeReport['appBuildNumber'], '10');
+    expect(completeReport['scenarioLabel'], 'native touch');
+    expect(complete.serialize(), isNot(contains('coordinates')));
+    expect(complete.serialize(), isNot(contains('timestamp')));
+    expect(complete.serialize(), isNot(contains('story')));
+    expect(complete.serialize(), isNot(contains('key')));
+
+    final nameOnly = InputDiagnosticsRecorder(
+      buildIdentity: BuildIdentity(name: '1.0.0'),
+    );
+    final nameOnlyReport =
+        jsonDecode(nameOnly.serialize()) as Map<String, dynamic>;
+    expect(nameOnlyReport['appBuildName'], '1.0.0');
+    expect(nameOnlyReport, isNot(contains('appBuildNumber')));
+
+    final numberOnly = InputDiagnosticsRecorder(
+      buildIdentity: BuildIdentity(number: '10'),
+    );
+    final numberOnlyReport =
+        jsonDecode(numberOnly.serialize()) as Map<String, dynamic>;
+    expect(numberOnlyReport['appBuildNumber'], '10');
+    expect(numberOnlyReport, isNot(contains('appBuildName')));
+
+    final absent = InputDiagnosticsRecorder(
+      buildIdentity: const BuildIdentity.empty(),
+    );
+    final absentReport = jsonDecode(absent.serialize()) as Map<String, dynamic>;
+    expect(absentReport, isNot(contains('appBuildName')));
+    expect(absentReport, isNot(contains('appBuildNumber')));
+  });
 
   test('bounded report contains exact privacy-safe metadata keys', () {
     final recorder = InputDiagnosticsRecorder(capacity: 2)..setEnabled(true);
