@@ -907,7 +907,8 @@ compare inventories, and do not treat a lab flavor as hardware certification.
 
 ## N1 — Complete stylus and pen support end to end
 
-**Readiness:** feasible research/implementation, but hardware gated
+**Readiness:** **BLOCKED BEFORE THE HARDWARE SPIKE / NOT IMPLEMENTED**
+(reviewed 2026-08-26)
 
 **Do not claim:** pen support from Flutter events alone
 
@@ -924,6 +925,28 @@ hard-codes `ICoreWebView2PointerInfo::PointerKind` to `PT_TOUCH`. Stylus events
 take the non-touch mouse path. The existing roadmap correctly refuses to guess
 pen masks, flags, pressure, tilt, hover, or eraser semantics.
 
+### External gate — BLOCKED BEFORE THE HARDWARE SPIKE / NOT IMPLEMENTED (2026-08-26)
+
+This gate was reviewed against YuuKwn `origin/main` at
+`0aac37a82fbaf17570d8e03f7d8763fbe059d12b` after PR #8. No safe code PR is
+possible yet: there is no real stylus, inverted-eraser, barrel-button, or hover
+evidence, no attributable Input Lab capture and Win32 comparison, and this
+document forbids guessing Dart/native payload masks, pressure, tilt, or contact
+bytes. Current genuine touch behavior remains `PT_TOUCH`, mouse behavior remains
+preserved, and no pen-forwarding support is claimed. This checkpoint makes no
+source or native payload changes.
+
+Reopen the hardware spike only when all of these inputs are available:
+
+- a named Windows test machine and real stylus/inverted-eraser hardware;
+- stylus, driver, and WebView2 versions;
+- the exercised DPI/display configuration;
+- the exact application build hash;
+- an attributable Input Lab capture with a matching Win32 comparison;
+- privacy review for any additional diagnostics fields; and
+- the primary WebView2 pointer-contract mapping for kind, flags, pressure,
+  tilt/orientation, hover/contact, cancellation, and pointer identity.
+
 ### Prerequisites
 
 - Real stylus hardware and a repeatable Windows test machine.
@@ -933,7 +956,7 @@ pen masks, flags, pressure, tilt, hover, or eraser semantics.
 - Privacy review for any additional diagnostics fields.
 - Gate 0 and the graphics-adapter work should be stable first.
 
-### Staged path
+### Staged path after the hardware gate
 
 1. **Spike:** capture Flutter 3.47 stylus/inverted-stylus events in Input Lab;
    record only allowlisted categories/counts and compare with Win32 flags.
@@ -956,7 +979,7 @@ pen masks, flags, pressure, tilt, hover, or eraser semantics.
 - Unsupported/incomplete pen data follows the existing conservative path.
 - Physical evidence names hardware, driver, WebView2, build hash, and DPI.
 
-### Future-thread brief
+### Future-thread brief after the hardware gate
 
 ```text
 Design and implement full stylus/pen forwarding for TwinePlayer on Flutter 3.47
@@ -973,7 +996,7 @@ eraser, barrel, hover, DPI, fullscreen, cancellation, and reopen matrix passes.
 
 ## N2 — Detachable console, native auxiliary dialogs, or multiple story windows
 
-**Readiness:** research spike only
+**Readiness:** **NOT IMPLEMENTED** (decision gate reviewed 2026-08-26)
 
 **Shipping status on Flutter 3.47:** **DO NOT SHIP**
 
@@ -1002,6 +1025,20 @@ the registrar's current view/HWND, player state assumes one route/session,
 fullscreen is host-window-specific, and save/console/focus lifecycles are not
 multi-view aware.
 
+### External decision gate — DO NOT SHIP / NOT IMPLEMENTED (2026-08-26)
+
+This gate was reviewed against YuuKwn `origin/main` at
+`0aac37a82fbaf17570d8e03f7d8763fbe059d12b` after PR #8. Flutter 3.47's
+windowing API remains experimental/internal, so an experimental disposable
+spike may be used only as a non-product branch or sample and must not be merged
+to production. No production PR is justified until Flutter exposes a stable,
+production-supported windowing API and TwinePlayer has a design for per-view
+HWND/WebView ownership plus state, focus, fullscreen, save, and accessibility
+behavior. This checkpoint makes no source, runner, plugin, or packaging changes.
+
+Reopen implementation only when the stable API and the complete per-view/state
+design are available for review.
+
 ### Prerequisites
 
 - Flutter declares a stable, production-supported desktop windowing API.
@@ -1011,7 +1048,7 @@ multi-view aware.
 - Multi-window accessibility, DPI/display, crash recovery, and packaging have a
   deterministic test plan.
 
-### Staged path
+### Staged path if the stable-API gate reopens
 
 1. **No-product spike:** a disposable branch or sample, never merged into the
    production app, proving regular/dialog/popup lifecycle on the pinned SDK.
@@ -1034,7 +1071,7 @@ multi-view aware.
   every window.
 - Single-window behavior remains available and covered.
 
-### Future-thread brief
+### Future-thread brief if the stable-API gate reopens
 
 ```text
 Do a non-production TwinePlayer desktop-windowing feasibility spike only after

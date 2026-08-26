@@ -1,9 +1,9 @@
 # Flutter 3.47 implementation progress
 
 **Updated:** 2026-08-26
-**Current source base:** 1f2f37b2f30563150c59d8bacd8e1c1deface801
-**Current lane:** N1 stylus/pen hardware spike
-**Status:** P2 Windows flavors and the dependent N3 certification release track are NOT ADOPTED AT THIS TIME; the next dependency is the N1 hardware-gated stylus/pen spike, blocked until real stylus hardware and attributable Input Lab evidence exist. Manual gates remain open.
+**Current source base:** 0aac37a82fbaf17570d8e03f7d8763fbe059d12b
+**Current lane:** Flutter 3.47 implementation pass complete; external-gates checkpoint
+**Status:** All safely actionable document items are delivered: Gate 0, P0 certification, DXGI alignment, P1 build identity, P1 focus debug, P1/P2 semantics, and P2/N3 decisions. The N1 hardware gate and N2 stable-API gate remain external and **NOT CERTIFIED / NOT IMPLEMENTED**.
 
 ## Completed
 
@@ -141,11 +141,31 @@
   hashes, and checklist/report evidence; this does not imply manual hardware
   certification.
 
+- **PR #8 / P2 Windows flavor and N3 release decision gate:** squash-merged to
+  YuuKwn `main`
+  at `0aac37a82fbaf17570d8e03f7d8763fbe059d12b`. Final CI run `32982275914`
+  is not green only because the same pre-existing legacy Electron
+  outside-viewport timeout occurs at `test/electron-integration.js:209`, where
+  `getByRole('button', { name: /Library/ })` resolves the Back to Library
+  button outside the viewport. Electron remains unchanged and out of scope.
+
+## Merged PR ledger
+
+| PR | Item | Squash-merge commit |
+| --- | --- | --- |
+| #2 | Gate 0 / Save dialog semantics | `236194855836844cb9537263864fa80d0b858cc4` |
+| #3 | P0 inherited-behavior certification | `5810af400ade1d84d5ff803f92b20d94aa45cbe6` |
+| #4 | P0 DXGI adapter alignment | `94a6716ac21b35125c77388529d0387dcfc0cd9d` |
+| #5 | P1 build identity | `228937926c2d8b9fec6405f303b4569ef5bb5619` |
+| #6 | P1 debug-only focus visualization | `4a3dd210ee7eb60f72930803b5fc0a535815583b` |
+| #7 | P1/P2 semantics contracts | `1f2f37b2f30563150c59d8bacd8e1c1deface801` |
+| #8 | P2/N3 Windows flavor decision gate | `0aac37a82fbaf17570d8e03f7d8763fbe059d12b` |
+
 ## GitHub delivery check
 
 PR #3 final check run 32878550377, PR #4 final check run 32882310406, PR #6
-final check run 32976371828, and PR #7 final check run 32981133318 are **not
-green** because the out-of-scope legacy
+final check run 32976371828, PR #7 final check run 32981133318, and PR #8
+final check run 32982275914 are **not green** because the out-of-scope legacy
 Electron smoke test “selects a fixture game and supports library search and
 sort” times out when `getByRole('button', { name: /Library/ })` resolves the
 Back to Library button outside the viewport at
@@ -156,20 +176,31 @@ all Flutter P0/P1 evidence remains passed.
 
 ## Next dependency
 
-**N1 — Stylus/pen hardware spike.** The P2 Windows flavor decision gate is
-closed as **NOT ADOPTED AT THIS TIME**, and dependent N3 is not scheduled. The
-next work is explicitly blocked from implementation or certification until real
-stylus hardware and attributable Input Lab evidence exist. Do not infer pen
-support from Flutter event APIs or current automated tests. Keep focus painting,
-runtime GPU, packaged UI/report, and manual accessibility evidence separate from
-source/build evidence.
+**N1 — Stylus/pen hardware spike:** **BLOCKED BEFORE THE HARDWARE SPIKE / NOT
+IMPLEMENTED**. The P2 Windows flavor decision is **NOT ADOPTED AT THIS TIME**,
+dependent N3 is **NOT ADOPTED AT THIS TIME / NOT SCHEDULED**, and N1 remains
+blocked until the external inputs in the research gate exist. No safe code PR is
+justified without real stylus/inverted-eraser/barrel/hover evidence, an
+attributable Input Lab/Win32 comparison, and the required WebView2 pointer
+mapping. Do not infer pen support from Flutter event APIs or automated tests.
+
+**N2 — Stable desktop windowing gate:** **DO NOT SHIP / NOT IMPLEMENTED** on
+Flutter 3.47. A disposable experimental spike must not be merged to production;
+no production PR is justified until Flutter exposes a stable API and the
+per-view HWND/WebView plus state, focus, fullscreen, save, and accessibility
+design is reviewable.
+
+Keep focus painting, runtime GPU, packaged UI/report, and manual accessibility
+evidence separate from source/build evidence.
 
 ## Remaining items in document order
 
-1. N1 — Complete stylus and pen support end to end; hardware-gated and blocked
-   until real stylus hardware and attributable Input Lab evidence exist.
+1. N1 — Complete stylus and pen support end to end: **BLOCKED BEFORE THE
+   HARDWARE SPIKE / NOT IMPLEMENTED** until real stylus hardware and
+   attributable Input Lab/Win32 evidence exist.
 2. N2 — Detachable console/native auxiliary windows/multiple story windows:
-   **DO NOT SHIP** while Flutter 3.47 windowing remains experimental/internal.
+   **DO NOT SHIP / NOT IMPLEMENTED** while Flutter 3.47 windowing remains
+   experimental/internal.
 
 ## Exact resume instructions
 
@@ -184,18 +215,33 @@ git diff --quiet origin/main..HEAD
 git status --short --untracked-files=all
 Get-Content docs\flutter-3.47-certification-report.md
 Get-Content docs\flutter-3.47-implementation-progress.md
+gh auth status
 ~~~
 
 Require origin to be https://github.com/YuuKwn/TwinePlayer.git, require HEAD
 to equal origin/main at the current reviewed base before new work, and verify
 gh auth status reports YuuKwn. Keep
-`codex/flutter-347-focus-debug` and
-`codex/flutter-347-semantics-contracts` only for review. After this decision PR
-is merged, resume with the N1
-stylus/pen hardware spike only when real stylus hardware and attributable Input
-Lab evidence are available; do not implement or certify it before that gate.
-Keep both reviewed branches, the legacy Electron source, and generated
-artifacts out of scope for the next item.
+`codex/flutter-347-focus-debug`,
+`codex/flutter-347-semantics-contracts`, and
+`codex/flutter-347-flavor-decision` only for review. After this external-gates
+PR is merged, do not open an implementation PR until the external prerequisites
+below are satisfied. Keep the legacy Electron source and generated artifacts
+out of scope for the next item.
+
+## Exact external-gate resume prerequisites
+
+Resume N1 only with a named Windows test machine and real stylus/inverted-eraser
+hardware; recorded stylus, driver, WebView2, and DPI/display versions; the exact
+application build hash; an attributable Input Lab capture with a matching Win32
+comparison; privacy review for any added diagnostics; and a primary WebView2
+pointer-contract mapping for kind, flags, pressure, tilt/orientation,
+hover/contact, cancellation, and pointer identity.
+
+Resume N2 only after Flutter exposes a stable production-supported desktop
+windowing API and the reviewed design covers per-view HWND/WebView ownership,
+state, focus, fullscreen, save, accessibility, DPI, crash recovery, and
+deterministic validation. A disposable experimental spike remains a
+non-product branch/sample and must not be merged.
 
 ## Explicit manual-gate boundary
 
@@ -217,3 +263,8 @@ and remain **NOT CERTIFIED**.
 For the N1 item specifically, real stylus/pen hardware behavior, Flutter-to-
 native payload evidence, WebView2 pen mapping, and attributable Input Lab
 evidence remain **NOT CERTIFIED** and block implementation/certification.
+For the N2 item specifically, a stable production windowing API, per-view
+HWND/WebView ownership, multi-window state/focus/fullscreen/save/accessibility
+behavior, and certification evidence remain **NOT IMPLEMENTED / NOT CERTIFIED**.
+This implementation pass is not full physical, visual, accessibility, GPU,
+WebView2, or real-game certification.
