@@ -93,6 +93,129 @@ void main() {
     expect(savedDeletes, 1);
   });
 
+  testWidgets('console exposes stable actions and scroll semantics', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    try {
+      final profile = InteractionProfileController(
+        store: InteractionProfileStore(
+          File('console-semantics-preferences.json'),
+        ),
+        initial: InteractionProfile.comfortable,
+      );
+      final input = TextEditingController();
+      addTearDown(input.dispose);
+      final saved = List<String>.generate(
+        20,
+        (index) => 'saved-command-$index',
+      );
+      final suggestions = List<String>.generate(
+        20,
+        (index) => 'suggestion-$index',
+      );
+      await tester.pumpWidget(
+        InteractionProfileScope(
+          notifier: profile,
+          child: MaterialApp(
+            home: FTheme(
+              data: FThemes.zinc.dark.touch,
+              platform: FPlatformVariant.macOS,
+              child: Scaffold(
+                body: SizedBox(
+                  width: 800,
+                  height: 600,
+                  child: ConsolePanel(
+                    comfortable: true,
+                    inputController: input,
+                    logs: [
+                      ConsoleLog(
+                        message: '> 1 + 1',
+                        type: 'input',
+                        timestamp: DateTime(2026),
+                        command: '1 + 1',
+                      ),
+                    ],
+                    savedCommands: saved,
+                    suggestions: suggestions,
+                    onChanged: (_) {},
+                    onRun: (_) {},
+                    onSave: () {},
+                    onSaveCommand: (_) {},
+                    onClose: () {},
+                    onToggleLayout: () {},
+                    isSideBySide: false,
+                    onUseSaved: (_) {},
+                    onDeleteSaved: (_) {},
+                    initialSavedCommandsExpanded: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 220));
+
+      final overlay = find.semantics.byLabel('Developer Console overlay');
+      expect(overlay, findsOneWidget);
+      expect(
+        overlay.evaluate().single,
+        isSemantics(label: 'Developer Console overlay'),
+      );
+
+      final close = find.byWidgetPredicate(
+        (widget) => widget is IconButton && widget.tooltip == 'Close console',
+      );
+      expect(close, findsOneWidget);
+      expect(
+        tester.getSemantics(close),
+        isSemantics(
+          tooltip: 'Close console',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasTapAction: true,
+        ),
+      );
+
+      final contextAction = find.semantics.byLabel('Console command actions');
+      expect(contextAction, findsOneWidget);
+      expect(
+        contextAction.evaluate().single,
+        isSemantics(
+          label: 'Console command actions',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasLongPressAction: true,
+        ),
+      );
+
+      final scrollables = find.semantics.descendant(
+        of: overlay,
+        matching: find.semantics.byPredicate((node) {
+          final max = node.scrollExtentMax;
+          final min = node.scrollExtentMin;
+          return !node.flagsCollection.isHidden &&
+              node.flagsCollection.hasImplicitScrolling &&
+              max != null &&
+              min != null &&
+              max > min;
+        }),
+      );
+      expect(scrollables, findsNWidgets(2));
+      for (final scrollable in scrollables.evaluate()) {
+        expect(
+          scrollable,
+          isSemantics(hasImplicitScrolling: true),
+        );
+      }
+    } finally {
+      semanticsHandle.dispose();
+    }
+  });
+
   testWidgets(
     'compact console keeps hover accelerators and context menu path',
     (tester) async {

@@ -1,9 +1,9 @@
 # Flutter 3.47 implementation progress
 
 **Updated:** 2026-08-26
-**Current source base:** 228937926c2d8b9fec6405f303b4569ef5bb5619
+**Current source base:** 4a3dd210ee7eb60f72930803b5fc0a535815583b
 **Current lane:** P1/P2 stronger semantics regression contracts
-**Status:** P1 debug-only focus visualization is implemented and ready for parent review; the semantics-contract item is next and manual gates remain open.
+**Status:** P1 debug-only focus visualization is merged; stronger semantics contracts are implemented and ready for parent review, with manual gates remaining open.
 
 ## Completed
 
@@ -84,9 +84,14 @@
   Root Node/DOM/resilience gates passed: 132/132 Node tests and all three
   named DOM/resilience suites. Packaged UI/report comparison and screen-reader
   order remain manual **NOT CERTIFIED**.
-- **P1 debug-only focus visualization:** implemented on the focused
-  `codex/flutter-347-focus-debug` branch from source base
-  `228937926c2d8b9fec6405f303b4569ef5bb5619`. The compile-time
+- **PR #6 / P1 debug-only focus visualization:** squash-merged to YuuKwn
+  `main` at `4a3dd210ee7eb60f72930803b5fc0a535815583b`. Final CI run
+  `32976371828` is not green only because the same pre-existing legacy Electron
+  outside-viewport timeout seen on PRs #2/#3 occurs at
+  `test/electron-integration.js:209`, where
+  `getByRole('button', { name: /Library/ })` resolves the Back to Library
+  button outside the viewport. Electron remains unchanged and out of scope.
+  The compile-time
   `TWINEPLAYER_FOCUS_DEBUG` request and pure two-input gate live in
   `flutter_app/lib/src/focus_debug.dart`; startup config runs before async
   dependency creation or `runApp`; no runtime toggle, report field,
@@ -98,35 +103,49 @@
   is source/build proof of the `kDebugMode` guard only; runtime focus visuals,
   keyboard restoration, WebView DOM focus, and state-preservation behavior
   remain manual **NOT CERTIFIED**.
+- **P1/P2 stronger semantics regression contracts:** implemented as a test-only
+  change on top of PR #6. The final focused files are
+  `flutter_app/test/adaptive_controls_widget_test.dart` (3/3),
+  `flutter_app/test/library_save_widget_test.dart` (8/8),
+  `flutter_app/test/player_chrome_widget_test.dart` (14/14), and
+  `flutter_app/test/console_widget_test.dart` (5/5). The full Flutter suite is
+  79/79 and the pinned analyzer reports no issues. Flutter 3.47 role-aware
+  assertions use `role: ui.SemanticsRole.alertDialog` on stable settings,
+  overwrite, and delete dialog nodes; button flags/actions, toggled state,
+  and implicit-scrolling contracts cover the remaining user-facing surfaces.
+  The strict save text-field contract and both existing Comfortable/Compact
+  traversal tests are preserved. `command_bar_preferences_test.dart` and all
+  application source remain unchanged. Screen-reader, keyboard-only, and
+  visual/accessibility behavior remain manual **NOT CERTIFIED**.
 
 ## GitHub delivery check
 
-PR #3 final check run 32878550377 and PR #4 final check run 32882310406 are
-**not green** because the out-of-scope legacy Electron smoke test “selects a
-fixture game and supports library search and sort” times out when
-getByRole('button', { name: /Library/ }) resolves the Back to Library button
-outside the viewport at test/electron-integration.js:209. The exact signature
-matches merged Flutter PR #2 check run 31730990711, so this is verified
-pre-existing and unrelated to the Flutter-native implementation. Electron
-remains out of scope and unfixed; all Flutter P0/P1 evidence remains passed.
+PR #3 final check run 32878550377, PR #4 final check run 32882310406, and PR #6
+final check run 32976371828 are **not green** because the out-of-scope legacy
+Electron smoke test “selects a fixture game and supports library search and
+sort” times out when `getByRole('button', { name: /Library/ })` resolves the
+Back to Library button outside the viewport at
+`test/electron-integration.js:209`. The exact signature matches merged Flutter
+PR #2 check run 31730990711, so this is verified pre-existing and unrelated to
+the Flutter-native implementation. Electron remains out of scope and unfixed;
+all Flutter P0/P1 evidence remains passed.
 
 ## Next dependency
 
-**P1/P2 — Stronger semantics regression contracts.** PR #5's build-identity
-implementation and the focused debug-only focus-visualization implementation
-are complete for parent review. After the focus PR is reviewed and merged,
-resume with the semantics-contract brief below. Keep focus painting, runtime
-GPU, packaged UI/report, and manual accessibility evidence separate from
-source/build evidence.
+**P2 optional — Windows flavor design decision.** PR #5's build-identity,
+PR #6's focus visualization, and this semantics-contract item are complete for
+parent review. After this semantics PR is reviewed and merged, decide whether
+separate standard/lab Windows flavors solve a real operational need. Keep
+focus painting, runtime GPU, packaged UI/report, and manual accessibility
+evidence separate from source/build evidence.
 
 ## Remaining items in document order
 
-1. P1/P2 — Stronger semantics regression contracts.
-2. P2 optional — Windows flavors for standard and lab artifacts.
-3. N1 — Complete stylus and pen support end to end.
-4. N2 — Detachable console/native auxiliary windows/multiple story windows:
+1. P2 optional — Windows flavor design decision for standard and lab artifacts.
+2. N1 — Complete stylus and pen support end to end.
+3. N2 — Detachable console/native auxiliary windows/multiple story windows:
    **DO NOT SHIP** while Flutter 3.47 windowing remains experimental/internal.
-5. N3 — Separately identifiable certification release track.
+4. N3 — Separately identifiable certification release track.
 
 ## Exact resume instructions
 
@@ -146,10 +165,12 @@ Get-Content docs\flutter-3.47-implementation-progress.md
 Require origin to be https://github.com/YuuKwn/TwinePlayer.git, require HEAD
 to equal origin/main at the current reviewed base before new work, and verify
 gh auth status reports YuuKwn. Keep
-`codex/flutter-347-focus-debug` only for review; after that PR is merged,
-resume with the P1/P2 stronger-semantics brief and reread its research section
-before editing. Keep the focus branch, legacy Electron source, and generated
-artifacts out of scope for the next item.
+`codex/flutter-347-focus-debug` and
+`codex/flutter-347-semantics-contracts` only for review. After the semantics
+PR is merged, resume with the optional Windows flavor design decision and
+reread that research section before editing. Keep both reviewed branches, the
+legacy Electron source, and generated artifacts out of scope for the next
+item.
 
 ## Explicit manual-gate boundary
 
@@ -164,3 +185,7 @@ screen-reader traversal order were not exercised and remain **NOT CERTIFIED**.
 For the focus-visualization item specifically, the debug visual pass,
 keyboard traversal and focus restoration, Flutter/WebView focus boundary, and
 state-preservation behavior were not exercised and remain **NOT CERTIFIED**.
+For the semantics-contract item specifically, screen-reader role/label
+announcements, hardware keyboard traversal and focus restoration, popup-menu
+announcements, and packaged visual/accessibility behavior were not exercised
+and remain **NOT CERTIFIED**.
