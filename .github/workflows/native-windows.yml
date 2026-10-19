@@ -1,0 +1,39 @@
+name: Native Windows
+
+on:
+  pull_request:
+    paths:
+      - 'native_windows/**'
+      - 'shared/webview/twine-bridge.js'
+      - 'flutter_app/assets/input_lab.html'
+      - '.github/workflows/native-windows.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'native_windows/**'
+      - 'shared/webview/twine-bridge.js'
+      - 'flutter_app/assets/input_lab.html'
+      - '.github/workflows/native-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native Release build and tests
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: native_windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.402'
+      - name: Locked restore
+        run: dotnet restore TwinePlayer.Native.slnx --locked-mode
+      - name: Release build
+        run: dotnet build TwinePlayer.Native.slnx -c Release --no-restore
+      - name: Unit tests
+        run: dotnet test TwinePlayer.Native.slnx -c Release --no-build --no-restore

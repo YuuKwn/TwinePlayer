@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TwinePlayer.App/TwinePlayer.App.csproj" />
+    <Project Path="src/TwinePlayer.Core/TwinePlayer.Core.csproj" />
+    <Project Path="src/TwinePlayer.Persistence/TwinePlayer.Persistence.csproj" />
+    <Project Path="src/TwinePlayer.Player/TwinePlayer.Player.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TwinePlayer.Core.Tests/TwinePlayer.Core.Tests.csproj" />
+    <Project Path="tests/TwinePlayer.Player.Tests/TwinePlayer.Player.Tests.csproj" />
+  </Folder>
+</Solution>

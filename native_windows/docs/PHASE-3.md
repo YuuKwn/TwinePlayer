@@ -1,0 +1,15 @@
+# Phase 3 report — library and explicit Flutter JSON migration
+
+Implemented: authoritative versioned SQLite Games/AppPreferences/StoryPreferences schema; case-insensitive normalized path keys and stable IDs; history, missing indicators and native library counts/empty state; title/path search and recent/title/path sort; Play/Relink/Copy path/Reveal/Remove context actions and Undo; bounded metadata extraction and IFID; explicit Flutter import preview/confirmation, checksum snapshots, source-change detection, invalid-entry reports, idempotence and native-edit preservation. Earlier native identity registry IDs are retained without rewriting their JSON. Unknown console/preference JSON remains available for later feature phases. Browser profiles are not imported automatically.
+
+Changed files: native Core models/metadata, Persistence SQLite/importer/identity adapter, App library/import UI, tests, docs and lock files. New dependency: stable Microsoft.Data.Sqlite 10.0.13 and locked SQLite runtime dependencies. Flutter/Electron/WPF source remains unchanged.
+
+Tests: Release build completed with zero warnings/errors; 16 Core/persistence tests and 13 Player tests passed. Coverage includes registry/source preservation, path deduplication, snapshots matching original bytes, idempotent import, timestamps, malformed/stale data, fresh installation, relink ID/origin/imported-preference retention, missing files, metadata priority/entities and removal/Undo. Save integrity regressions remain green.
+
+Native evidence: six-story playback, library registration/no duplicates, path search and title sorting passed in `artifacts/native-smoke-0c938b9f05b944a5bec11f2fe589117b/report.json`. Earlier Phase 1 disposable profile upgraded to SQLite with all six origins/localStorage retained: `artifacts/native-smoke-a736709ffc924356876d8a38a734467c/report.json`. Accidental Mind save/restart/restore, native disk input, Flutter SaveService compatibility and async results passed with SQLite in `artifacts/native-save-smoke-5abf7f64f1434ed5956397d8c33c00fa/`.
+
+Manual validation: physical picker/context-menu/clipboard/Explorer/import-confirmation interaction remains unverified. Automated imports use synthetic sources and never modify production Flutter JSON. Browser localStorage/IndexedDB/cookie transfer remains unresolved. No performance advantage is claimed; large-file metadata reads at most two 1 MiB edges, and database/filesystem operations run outside the UI thread.
+
+Limitations: imported console/command-bar/story settings are retained for later feature phases. Sidecars remain at their original locations after relink, as stated by its confirmation. Removal retains IDs/settings/browser data for Undo and re-add; games/saves are not deleted. Future database schema versions are rejected without rewriting them. Historical GUI-created save provenance and hardware/manual quality checks remain open.
+
+Parity: F07–F11 implemented with automated storage/library evidence; physical actions remain manual checks. Next: Phase 4 essential player controls, story undo, fullscreen/window placement and native themes.

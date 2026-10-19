@@ -1,0 +1,107 @@
+<Window x:Class="TwinePlayer.Native.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:core="using:TwinePlayer.Native.Core"
+    xmlns:local="using:TwinePlayer.Native.App">
+    <Grid x:Name="Root">
+        <Grid.Resources>
+            <Style x:Key="SidebarButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="MinWidth" Value="44" /><Setter Property="MinHeight" Value="44" />
+                <Setter Property="Padding" Value="8" /><Setter Property="CornerRadius" Value="6" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+        </Grid.Resources>
+        <Grid.KeyboardAccelerators><KeyboardAccelerator Key="F11" Invoked="FullscreenKey_Invoked" /><KeyboardAccelerator Key="Escape" Invoked="EscapeKey_Invoked" /></Grid.KeyboardAccelerators>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TitleBar x:Name="NativeTitleBar" Grid.ColumnSpan="2" Title="TwinePlayer" Subtitle="Right sidebar · UX Preview 5" IsBackButtonVisible="False" BackRequested="TitleBar_BackRequested">
+            <TitleBar.IconSource><FontIconSource Glyph="&#xE8A5;" /></TitleBar.IconSource>
+        </TitleBar>
+        <Border x:Name="RightSidebar" Grid.Row="1" Grid.Column="1" Width="72" Margin="0,0,8,8" Padding="8" CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" AutomationProperties.Name="Right sidebar controls">
+            <Grid RowSpacing="8">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <StackPanel Spacing="8">
+                    <Button x:Name="CollapseBarButton" AccessKey="B" Content="›" Style="{StaticResource SidebarButtonStyle}" Click="CollapseBar_Click" AutomationProperties.Name="Collapse right sidebar" ToolTipService.ToolTip="Collapse right sidebar" />
+                    <TextBlock x:Name="PlayerTitle" Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" Style="{ThemeResource CaptionTextBlockStyle}" />
+                    <ProgressBar IsIndeterminate="True" Visibility="Collapsed" x:Name="Loading" Height="2" AutomationProperties.Name="Loading story" />
+                </StackPanel>
+                <ScrollViewer x:Name="CompactScroll" Grid.Row="1" VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="CompactBar" Spacing="4">
+                        <Button x:Name="OpenButton" AccessKey="O" Style="{StaticResource SidebarButtonStyle}" Click="OpenGame_Click" AutomationProperties.Name="Open an HTML game" ToolTipService.ToolTip="Open game"><FontIcon Glyph="&#xE8E5;" FontSize="20" /></Button>
+                        <Button x:Name="HomeButton" AccessKey="H" Style="{StaticResource SidebarButtonStyle}" Click="Home_Click" IsEnabled="False" AutomationProperties.Name="Back to library" ToolTipService.ToolTip="Back to library"><FontIcon Glyph="&#xE80F;" FontSize="20" /></Button>
+                        <Button x:Name="UndoStoryButton" AccessKey="U" Style="{StaticResource SidebarButtonStyle}" Click="UndoStory_Click" AutomationProperties.Name="Undo story" ToolTipService.ToolTip="Undo story"><FontIcon Glyph="&#xE7A7;" FontSize="20" /></Button>
+                        <Button x:Name="SaveButton" AccessKey="S" Style="{StaticResource SidebarButtonStyle}" Click="Save_Click" IsEnabled="False" AutomationProperties.Name="Save game" ToolTipService.ToolTip="Save game"><FontIcon Glyph="&#xE74E;" FontSize="20" /></Button>
+                        <Button x:Name="LoadButton" AccessKey="L" Style="{StaticResource SidebarButtonStyle}" Click="Load_Click" IsEnabled="False" AutomationProperties.Name="Load game" ToolTipService.ToolTip="Load game"><FontIcon Glyph="&#xE898;" FontSize="20" /></Button>
+                        <Button x:Name="ConsoleEntryButton" AccessKey="C" Style="{StaticResource SidebarButtonStyle}" Click="ConsoleEntry_Click" AutomationProperties.Name="Developer console" ToolTipService.ToolTip="Developer console"><FontIcon Glyph="&#xE756;" FontSize="20" /></Button>
+                        <ToggleButton x:Name="FullscreenButton" AccessKey="F" MinWidth="44" MinHeight="44" Padding="8" Background="Transparent" BorderBrush="Transparent" HorizontalAlignment="Stretch" Click="Fullscreen_Click" AutomationProperties.Name="Fullscreen (F11)" ToolTipService.ToolTip="Fullscreen (F11)"><FontIcon Glyph="&#xE740;" FontSize="20" /></ToggleButton>
+                        <StackPanel x:Name="LibraryActions" Spacing="4">
+                            <Button x:Name="PlaySelectedButton" AccessKey="P" Style="{StaticResource SidebarButtonStyle}" Click="LibraryPlay_Click" IsEnabled="False" AutomationProperties.Name="Play selected game" ToolTipService.ToolTip="Play selected game"><FontIcon Glyph="&#xE768;" FontSize="20" /></Button>
+                            <Button x:Name="RelinkSelectedButton" AccessKey="R" Style="{StaticResource SidebarButtonStyle}" Click="LibraryRelink_Click" IsEnabled="False" AutomationProperties.Name="Relink selected game" ToolTipService.ToolTip="Relink selected game"><FontIcon Glyph="&#xE71B;" FontSize="20" /></Button>
+                            <Button x:Name="UndoRemove" AccessKey="Z" Style="{StaticResource SidebarButtonStyle}" Click="LibraryUndo_Click" IsEnabled="False" AutomationProperties.Name="Undo library removal" ToolTipService.ToolTip="Undo removal"><FontIcon Glyph="&#xE7A7;" FontSize="20" /></Button>
+                            <Button x:Name="ImportButton" Style="{StaticResource SidebarButtonStyle}" AccessKey="I" AutomationProperties.Name="Import from Flutter" ToolTipService.ToolTip="Import from Flutter"><FontIcon Glyph="&#xE896;" FontSize="20" /><Button.Flyout><MenuFlyout><MenuFlyoutItem Text="Library and settings from Flutter…" Click="ImportFlutter_Click" /><MenuFlyoutItem Text="Browser data from Flutter…" Click="ImportBrowserData_Click" /></MenuFlyout></Button.Flyout></Button>
+                            <Button x:Name="LibrarySelectionMore" AccessKey="G" Style="{StaticResource SidebarButtonStyle}" AutomationProperties.Name="Selected game actions" ToolTipService.ToolTip="Selected game actions"><FontIcon Glyph="&#xE712;" FontSize="20" /><Button.Flyout><MenuFlyout><MenuFlyoutItem x:Name="CopySelectedButton" Text="Copy path" Click="LibraryCopy_Click" IsEnabled="False" /><MenuFlyoutItem x:Name="RevealSelectedButton" Text="Show in Explorer" Click="LibraryReveal_Click" IsEnabled="False" /><MenuFlyoutSeparator /><MenuFlyoutItem x:Name="RemoveSelectedButton" Text="Remove from library" Click="LibraryRemove_Click" IsEnabled="False" /></MenuFlyout></Button.Flyout></Button>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+                <Grid x:Name="ComfortableBar" Grid.Row="1" Visibility="Collapsed" RowSpacing="8" AutomationProperties.Name="Comfortable right sidebar">
+                    <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <ScrollViewer x:Name="ComfortableScroll" SizeChanged="ComfortableScroll_SizeChanged" VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch"><Grid x:Name="ComfortableLayout"><StackPanel x:Name="ComfortableCommands" Spacing="8" /></Grid></ScrollViewer>
+                    <StackPanel x:Name="ComfortablePinned" Grid.Row="1" Spacing="8" />
+                </Grid>
+                <Button x:Name="CompactMoreButton" AccessKey="M" Grid.Row="2" Style="{StaticResource SidebarButtonStyle}" Click="SidebarMore_Click" AutomationProperties.Name="More app actions" ToolTipService.ToolTip="More actions · press Alt for keytips"><FontIcon Glyph="&#xE712;" FontSize="20" /></Button>
+                <TextBlock x:Name="StatusText" Grid.Row="3" Text="{x:Bind ViewModel.Status, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind ViewModel.Status, Mode=OneWay}" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxLines="3" AutomationProperties.LiveSetting="Polite" />
+            </Grid>
+        </Border>
+        <Grid Grid.Row="1" x:Name="Viewport">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="ConsoleColumn" Width="0" /></Grid.ColumnDefinitions>
+            <InfoBar x:Name="ErrorBar" Grid.ColumnSpan="2" Canvas.ZIndex="20" VerticalAlignment="Top" Margin="12" Severity="Error" IsOpen="False" IsClosable="True" />
+<Grid x:Name="Welcome" Grid.ColumnSpan="2" Margin="12,0,8,8" Padding="24" RowSpacing="16" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <StackPanel Spacing="4"><TextBlock Text="Your library" Style="{ThemeResource TitleTextBlockStyle}" /><TextBlock x:Name="LibraryTagline" Text="A home for your stories. Pick up where you left off." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel>
+                <Grid Grid.Row="1" x:Name="LibraryTools" ColumnSpacing="12" RowSpacing="8" SizeChanged="LibraryTools_SizeChanged">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBox x:Name="LibrarySearch" AccessKey="Q" PlaceholderText="Search your library" TextChanged="LibraryFilter_Changed" AutomationProperties.Name="Search library" HorizontalAlignment="Stretch" />
+                    <ComboBox x:Name="LibrarySort" AccessKey="T" Grid.Column="1" SelectedIndex="0" MinWidth="180" SelectionChanged="LibrarySort_Changed" AutomationProperties.Name="Library sort order"><ComboBoxItem Content="Recently played" /><ComboBoxItem Content="Title" /><ComboBoxItem Content="File path" /></ComboBox>
+                </Grid>
+                <TextBlock x:Name="LibrarySummary" Grid.Row="2" Text="Loading library…" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                <Grid Grid.Row="3">
+                    <ListView x:Name="LibraryList" IsItemClickEnabled="True" ItemClick="Library_ItemClick" RightTapped="Library_RightTapped" SelectionChanged="LibrarySelection_Changed" SelectionMode="Single" AutomationProperties.Name="Game library">
+                        <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="12" /><Setter Property="Margin" Value="0,0,0,4" /><Setter Property="CornerRadius" Value="6" /></Style></ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate><DataTemplate x:DataType="core:LibraryGame">
+                            <Grid ColumnSpacing="16" ToolTipService.ToolTip="{x:Bind FilePath}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border Width="44" Height="44" CornerRadius="8" Background="{ThemeResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Center"><FontIcon Glyph="&#xE8A5;" FontSize="20" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></Border>
+                                <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{x:Bind local:LibraryPresentation.Heading(Title, Missing)}" Style="{ThemeResource BodyStrongTextBlockStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /><TextBlock Text="{x:Bind FilePath}" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /><TextBlock Text="{x:Bind local:LibraryPresentation.LastPlayed(LastPlayedUtc)}" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" /></StackPanel>
+                            </Grid>
+                        </DataTemplate></ListView.ItemTemplate>
+                        <ListView.ContextFlyout><MenuFlyout><MenuFlyoutItem Text="Play" Icon="Play" Click="LibraryPlay_Click" /><MenuFlyoutItem Text="Relink…" Click="LibraryRelink_Click" /><MenuFlyoutSeparator /><MenuFlyoutItem Text="Copy path" Icon="Copy" Click="LibraryCopy_Click" /><MenuFlyoutItem Text="Show in Explorer" Icon="OpenFile" Click="LibraryReveal_Click" /><MenuFlyoutSeparator /><MenuFlyoutItem Text="Remove from library" Icon="Delete" Click="LibraryRemove_Click" /></MenuFlyout></ListView.ContextFlyout>
+                    </ListView>
+                    <ScrollViewer x:Name="LibraryEmptyScroll" Visibility="Collapsed" VerticalScrollMode="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">
+                    <StackPanel x:Name="LibraryEmptyState" Visibility="Collapsed" HorizontalAlignment="Center" MaxWidth="380" Spacing="12" Margin="16">
+                        <FontIcon x:Name="LibraryEmptyIcon" Glyph="&#xE8A5;" FontSize="44" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock x:Name="LibraryEmptyTitle" Text="Your next story starts here" Style="{ThemeResource SubtitleTextBlockStyle}" TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock x:Name="LibraryEmptyDescription" Text="Open a Twine HTML game to add it to your library. Your games stay in their current folders." TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="EmptyOpenButton" AccessKey="A" Content="Open a game" Style="{StaticResource AccentButtonStyle}" Click="OpenGame_Click" HorizontalAlignment="Center" />
+                        <Button x:Name="ClearSearchButton" AccessKey="X" Content="Clear search" Click="ClearLibrarySearch_Click" HorizontalAlignment="Center" Visibility="Collapsed" />
+                    </StackPanel></ScrollViewer>
+                </Grid>
+
+            </Grid>
+            <Border x:Name="ConsolePanel" Grid.Column="0" Canvas.ZIndex="10" Visibility="Collapsed" HorizontalAlignment="Right" Width="440" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
+                <Grid RowSpacing="8">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="Console" Style="{ThemeResource SubtitleTextBlockStyle}" VerticalAlignment="Center" /><Button Grid.Column="1" Click="ConsoleClose_Click" AutomationProperties.Name="Close developer console" ToolTipService.ToolTip="Close console"><FontIcon Glyph="&#xE711;" FontSize="12" /></Button></Grid>
+                    <StackPanel Grid.Row="1" Spacing="8"><TextBlock Text="Run JavaScript in this story. Commands can change game state." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /><ComboBox x:Name="ConsoleLayout" SelectedIndex="0" SelectionChanged="ConsoleLayout_Changed" AutomationProperties.Name="Console layout"><ComboBoxItem Content="Overlay" /><ComboBoxItem Content="Side by side" /></ComboBox></StackPanel>
+                    <ListView x:Name="ConsoleLogs" Grid.Row="2" SelectionMode="Single" AutomationProperties.Name="Console results and errors" />
+                    <ScrollViewer Grid.Row="3" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Console result actions"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Run again" Click="ConsoleRerun_Click" /><Button Content="Use" Click="ConsoleUseLog_Click" /><Button Content="Save command" Click="ConsoleSaveLog_Click" /><Button Content="DevTools" Click="DevTools_Click" /></StackPanel></ScrollViewer>
+                    <ListView x:Name="SavedCommands" Grid.Row="4" MaxHeight="80" IsItemClickEnabled="True" ItemClick="SavedCommand_Click" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved story commands"><ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ListView.ItemsPanel></ListView>
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8"><Button Content="Run saved" Click="ConsoleRunSaved_Click" /><Button Content="Delete saved" Click="ConsoleDeleteSaved_Click" /></StackPanel>
+                    <ListView x:Name="Completions" Grid.Row="6" MaxHeight="100" IsItemClickEnabled="True" ItemClick="Completion_Click" AutomationProperties.Name="JavaScript completions" />
+                    <StackPanel Grid.Row="7" Spacing="8"><TextBox x:Name="ConsoleInput" PlaceholderText="JavaScript · Enter runs · Tab completes" TextChanged="ConsoleInput_Changed" KeyDown="ConsoleInput_KeyDown" MaxLength="4096" AutomationProperties.Name="Story JavaScript command" /><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Run" Click="ConsoleRun_Click" /><Button Content="Save input" Click="ConsoleSaveInput_Click" /></StackPanel></StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
