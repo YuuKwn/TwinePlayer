@@ -60,3 +60,15 @@ This is packaging/lifecycle evidence on the development host. It does not imply
 clean-Windows, interactive wizard, SmartScreen reputation or missing-Runtime
 bootstrapper installation certification. Runtime detection follows Microsoft's
 [distribution guidance](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution).
+
+Release installer `TwinePlayer-Native-0.9.0-ux5-windows-x64-Setup.exe` is
+68,881,638 bytes, SHA-256
+`8EFAC0925968A0A1EC703780E2ED6F62FE70A92C82406CFFD01016DE26F063ED`.
+It was built from installer source commit `1304e364613992fd88ce19c4030a1b8a79201c05`.
+The final shipping EXE passed the lifecycle test above (report
+`native-installer-test-6345381931fd452492ebac18fa211cc3`) and all four installed
+deployment probes (`native-deployment-ca621d551957448b94b2ad29453a5411`).
+Existing WebView2 155.0.4283.62 was detected and skipped on both installation
+passes. All 546 application hashes and the manifest itself matched; three user
+data/save/unowned-file sentinels survived uninstall. Only metadata/name differs
+from the earlier trial installer, whose lifecycle checks also passed.
