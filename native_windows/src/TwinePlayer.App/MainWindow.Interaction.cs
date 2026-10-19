@@ -82,6 +82,7 @@ public sealed partial class MainWindow
         }
         ComfortableScroll.Visibility = ComfortablePinned.Visibility = Visibility.Visible;
         SetSidebarCommandContent(CollapseBarButton, "Collapse", _sidebarExpanded ? "\uE76C" : "\uE76B");
+        SyncSaveButtons();
         AutomationProperties.SetName(CollapseBarButton, _sidebarExpanded ? "Collapse right sidebar to icons" : "Expand right sidebar with labels");
         ToolTipService.SetToolTip(CollapseBarButton, _sidebarExpanded ? "Show icons only" : "Show icons and labels");
     }

@@ -1,5 +1,7 @@
 # Runtime and acceptance contract
 
+**TwinePlayer 1.0:** The native migration is the primary official product. Save/Load managers are modeless panels within the player viewport so their sidebar buttons can close them; overwrite/delete confirmations remain modal. Home confirms before detaching the story, defaulting to Stay in game. Actual engine save payloads, first-use dialog suppression and data locations are unchanged. New UI integration tests cover native panel writes/restores, no-write toggles, hit targets in both sidebar profiles/states and Home state preservation. See RELEASE-1.0.md and EXECUTION.md. Earlier phase evidence and unverified hardware/client scope remain historical and explicit.
+
 2026-10-18 UX Preview 5 follow-up: native Save/Load directly invokes SugarCube disk routines with in-memory files and no visible engine Saves window. Early native-only browser interception handles first-use save pickers and browser/page Save As. Genuine SC1 1.0.35 and SC2 2.18.0/2.36.1/2.37.3 regressions cover valid, invalid and repeated operations; custom save menus/bundles remain a compatibility boundary. Details and final native evidence: UX-NATIVE-SAVES.md and EXECUTION.md.
 
 ## Architecture

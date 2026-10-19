@@ -32,7 +32,7 @@ public sealed partial class MainWindow
                 if (mode == "native-ui")
                 {
                     await ExerciseNativeSaveUiAsync(game);
-                    await File.WriteAllTextAsync(output, JsonSerializer.Serialize(new { passed = true, mode, firstAndRepeatedSaveLoad = true, invalidSaveAndRetry = true, nativeLoadCancelAndNewSave = true, filePickerEntryPoints = true, browserSaveAsSuppressed = true }));
+                    await File.WriteAllTextAsync(output, JsonSerializer.Serialize(new { passed = true, mode, firstAndRepeatedSaveLoad = true, invalidSaveAndRetry = true, nativeLoadCancelAndNewSave = true, sidebarSaveLoadConsoleToggles = true, compactComfortableIconsLabels = true, filePickerEntryPoints = true, browserSaveAsSuppressed = true }));
                 }
                 else if (mode == "capture")
                 {

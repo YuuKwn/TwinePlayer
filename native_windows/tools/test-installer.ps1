@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Installer)
+param([Parameter(Mandatory)][string]$Installer, [string]$PreviousInstaller = '')
 $ErrorActionPreference = 'Stop'
 $Installer = (Resolve-Path -LiteralPath $Installer).Path
 $provenance = Get-Content -Raw -LiteralPath "$Installer.provenance.json" | ConvertFrom-Json
@@ -8,10 +8,12 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $root = Join-Path $repo ('artifacts\native-installer-test-' + [Guid]::NewGuid().ToString('N'))
 $install = Join-Path $root 'Installed App'
 $registration = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{B29F972B-8A70-4F5A-A457-A7E7D2247689}_is1'
-$menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'TwinePlayer Native.lnk'
-$desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'TwinePlayer Native.lnk'
+$menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'TwinePlayer.lnk'
+$desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'TwinePlayer.lnk'
 # Exercise the actual shipping identity, but never replace an existing install.
-if ((Test-Path $registration) -or (Test-Path -LiteralPath $menu) -or (Test-Path -LiteralPath $desktop)) {
+if ((Test-Path $registration) -or (Test-Path -LiteralPath $menu) -or (Test-Path -LiteralPath $desktop) -or
+    (Test-Path -LiteralPath (Join-Path ([Environment]::GetFolderPath('Programs')) 'TwinePlayer Native.lnk')) -or
+    (Test-Path -LiteralPath (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'TwinePlayer Native.lnk'))) {
     throw 'An existing native installation or shortcut is present. Use a disposable Windows user for this test.'
 }
 New-Item -ItemType Directory -Path $root | Out-Null
@@ -42,11 +44,21 @@ function Assert-Payload {
 $previousData = $env:TWINEPLAYER_NATIVE_DATA_ROOT
 try {
     $env:TWINEPLAYER_NATIVE_DATA_ROOT = $data
-    foreach ($pass in @('install','reinstall')) {
-        Invoke-Setup $Installer @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=desktopicon',
-            ('/DIR="' + $install + '"'), ('/LOG="' + (Join-Path $root "$pass.log") + '"'))
+    if ($PreviousInstaller) {
+        Invoke-Setup (Resolve-Path -LiteralPath $PreviousInstaller).Path @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=desktopicon',
+            ('/DIR="' + $install + '"'), ('/LOG="' + (Join-Path $root 'preview-install.log') + '"'))
+        if (-not (Test-Path $registration)) { throw 'Previous installer did not register the upgrade identity.' }
+        $legacyMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'TwinePlayer Native.lnk'
+        if (-not (Test-Path -LiteralPath $legacyMenu)) { throw 'Preview shortcut is missing before upgrade.' }
+        $passes = @('upgrade','reinstall')
+    } else { $passes = @('install','reinstall') }
+    foreach ($pass in $passes) {
+        $arguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=desktopicon',('/LOG="' + (Join-Path $root "$pass.log") + '"'))
+        if ($pass -eq 'install') { $arguments += ('/DIR="' + $install + '"') }
+        Invoke-Setup $Installer $arguments
         $fileCount = Assert-Payload
         $registered = Get-ItemProperty $registration
+        if ($registered.DisplayName -ne 'TwinePlayer 1.0.0' -or $registered.DisplayVersion -ne '1.0.0') { throw 'Installer still has preview product/version branding.' }
         if ($registered.InstallLocation.TrimEnd('\') -ne $install -or
             -not (Test-Path -LiteralPath $menu) -or -not (Test-Path -LiteralPath $desktop)) { throw 'Installation registration or shortcuts are missing.' }
         if (-not (Select-String -LiteralPath (Join-Path $root "$pass.log") -SimpleMatch 'WebView2 Runtime is already installed; bootstrapper skipped.' -Quiet)) {
@@ -57,6 +69,7 @@ try {
             if ($shell.CreateShortcut($link).TargetPath -ne (Join-Path $install 'TwinePlayer.Native.exe')) { throw 'Shortcut points to the wrong executable.' }
         }
         Write-Output "PASS $pass, $fileCount application hashes, registration and shortcuts"
+        if ($PreviousInstaller -and (Test-Path -LiteralPath $legacyMenu)) { throw 'Upgrade left the obsolete preview shortcut.' }
     }
     & (Join-Path $PSScriptRoot 'run-deployment-smoke.ps1') -Executable (Join-Path $install 'TwinePlayer.Native.exe')
     # In addition to app data and external saves, unowned files inside the install
@@ -72,7 +85,7 @@ try {
         if ((Get-FileHash -LiteralPath $file).Hash -ne $hashes[$file]) { throw "User file changed: $file" }
     }
     $report = [ordered]@{passed=$true; installer=$Installer; sha256=(Get-FileHash -LiteralPath $Installer).Hash;
-        applicationHashes=$fileCount; install=$true; reinstall=$true; shortcuts=$true; installedDeploymentChecks=4;
+        applicationHashes=$fileCount; install=$true; upgradedFromPreview=[bool]$PreviousInstaller; reinstall=$true; shortcuts=$true; installedDeploymentChecks=4;
         uninstall=$true; preservedUserFiles=$hashes.Count; missingRuntimeInstall='not exercised on this host';
         notes='Silent lifecycle in an isolated install path, using the shipping AppId. Default-path visual and clean-machine testing are not inferred.'}
     $report | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'report.json') -Encoding utf8

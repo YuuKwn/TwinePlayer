@@ -102,9 +102,12 @@ public sealed partial class MainWindow
         for (var attempt = 0; attempt < 100 && await _player.ExecuteScriptAsync("!!window.SugarCube?.state?.active?.title") != "true"; attempt++) await Task.Delay(10);
         if (!SaveButton.Focus(FocusState.Programmatic)) throw new InvalidDataException("Save toolbar button could not receive keyboard focus.");
         await SendTestKeyAsync(0x0D);
-        for (var attempt = 0; attempt < 200 && FocusedNativeDialog() is null; attempt++) await Task.Delay(10);
-        if (FocusedNativeDialog()?.Title as string != "Save game" || !_saveDialogOpen) throw new InvalidDataException("Enter on Save did not open the production save dialog: " + ErrorBar.Message);
-        await SendTestKeyAsync(0x09); if (FocusedNativeDialog() is null) throw new InvalidDataException("Tab escaped the production save dialog.");
+        for (var attempt = 0; attempt < 200 && _activeSaveManager is not { IsOpen: true }; attempt++) await Task.Delay(10);
+        if (_activeSaveManager?.Title != "Save game" || !_saveDialogOpen) throw new InvalidDataException("Enter on Save did not open the production save panel: " + ErrorBar.Message);
+        await SendTestKeyAsync(0x09);
+        var focused = FocusManager.GetFocusedElement(Root.XamlRoot) as DependencyObject;
+        while (focused is not null && focused != _activeSaveManager) focused = VisualTreeHelper.GetParent(focused);
+        if (focused != _activeSaveManager) throw new InvalidDataException("Tab escaped the production save panel.");
         await SendTestKeyAsync(0x1B);
         for (var attempt = 0; attempt < 200 && (_saveDialogOpen || _saveActionInProgress); attempt++) await Task.Delay(10);
         if (_saveDialogOpen || _saveActionInProgress) throw new InvalidDataException("Escape did not finish canceling the production save dialog.");

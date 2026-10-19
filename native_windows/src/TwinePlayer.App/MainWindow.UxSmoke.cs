@@ -25,6 +25,8 @@ public sealed partial class MainWindow
             try
             {
                 await RefreshLibraryAsync();
+                if (Title != "TwinePlayer 1.0" || NativeTitleBar.Title != "TwinePlayer 1.0" || NativeTitleBar.IconSource is not BitmapIconSource || !File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png")))
+                    throw new InvalidDataException($"Official branding mismatch: title={Title}; subtitle={NativeTitleBar.Subtitle}; icon={NativeTitleBar.IconSource?.GetType().FullName}; PNG={File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png"))}.");
                 if (_library.Count != 0) throw new InvalidDataException("UX smoke requires a new isolated library.");
                 async Task Capture(string name, ElementTheme theme, int width, FrameworkElement? target = null, int height = 820)
                 {
@@ -177,33 +179,34 @@ public sealed partial class MainWindow
                 await OpenAsync(formGame);
                 await _saves.WriteAsync(formGame, "selection.save", System.Text.Encoding.UTF8.GetBytes("{\"fixture\":true}"), false);
                 var manager = ShowSaveManagerAsync(null); await Task.Delay(150);
-                dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot).Select(popup => FindUxDialog(popup.Child)).FirstOrDefault(candidate => candidate?.Title as string == "Load game");
-                if (dialog is null) throw new InvalidDataException("Load form did not open.");
+                var savePanel = _activeSaveManager;
+                if (savePanel is null || savePanel.Title != "Load game") throw new InvalidDataException("Load form did not open.");
                 try
                 {
-                    if (dialog.IsPrimaryButtonEnabled || dialog.IsSecondaryButtonEnabled) throw new InvalidDataException("Load/delete are enabled without a selection.");
-                    var saveList = FindUxElement<ListView>(dialog) ?? throw new InvalidDataException("Load list is absent.");
+                    if (savePanel.IsPrimaryButtonEnabled || savePanel.IsSecondaryButtonEnabled) throw new InvalidDataException("Load/delete are enabled without a selection.");
+                    var saveList = FindUxElement<ListView>(savePanel) ?? throw new InvalidDataException("Load list is absent.");
                     saveList.SelectedIndex = 0; await Task.Delay(60);
-                    if (!dialog.IsPrimaryButtonEnabled || !dialog.IsSecondaryButtonEnabled) throw new InvalidDataException("Selected save did not enable Load/delete.");
-                    await Capture("load-selected", ElementTheme.Light, 640, dialog);
+                    if (!savePanel.IsPrimaryButtonEnabled || !savePanel.IsSecondaryButtonEnabled) throw new InvalidDataException("Selected save did not enable Load/delete.");
+                    await Capture("load-selected", ElementTheme.Light, 640, savePanel);
+                    await Capture("load-sidebar-available", ElementTheme.Light, 1200);
                 }
-                finally { dialog.Hide(); await manager; }
+                finally { savePanel.Hide(); await manager; }
                 manager = ShowSaveManagerAsync(System.Text.Encoding.UTF8.GetBytes("{\"fixture\":true}"), "bad/name.save"); await Task.Delay(150);
-                dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot).Select(popup => FindUxDialog(popup.Child)).FirstOrDefault(candidate => candidate?.Title as string == "Save game");
-                if (dialog is null) throw new InvalidDataException("Save form did not open.");
+                savePanel = _activeSaveManager;
+                if (savePanel is null || savePanel.Title != "Save game") throw new InvalidDataException("Save form did not open.");
                 try
                 {
-                    var name = FindUxElement<TextBox>(dialog) ?? throw new InvalidDataException("Save filename field is absent.");
-                    if (dialog.IsPrimaryButtonEnabled || name.Description is not string { Length: > 0 }) throw new InvalidDataException("Invalid filename has no inline guard.");
-                    await Capture("save-inline-validation", ElementTheme.Dark, 640, dialog);
+                    var name = FindUxElement<TextBox>(savePanel) ?? throw new InvalidDataException("Save filename field is absent.");
+                    if (savePanel.IsPrimaryButtonEnabled || name.Description is not string { Length: > 0 }) throw new InvalidDataException("Invalid filename has no inline guard.");
+                    await Capture("save-inline-validation", ElementTheme.Dark, 640, savePanel);
                     name.Text = "recovered.save"; await Task.Delay(60);
-                    if (!dialog.IsPrimaryButtonEnabled) throw new InvalidDataException("Correcting the filename did not enable Save.");
+                    if (!savePanel.IsPrimaryButtonEnabled) throw new InvalidDataException("Correcting the filename did not enable Save.");
                     name.Text = ""; await Task.Delay(60);
-                    if (dialog.IsPrimaryButtonEnabled) throw new InvalidDataException("Empty filename enabled Save.");
+                    if (savePanel.IsPrimaryButtonEnabled) throw new InvalidDataException("Empty filename enabled Save.");
                 }
-                finally { dialog.Hide(); await manager; }
+                finally { savePanel.Hide(); await manager; }
                 if ((await _saves.ListAsync(formGame)).Count != 1) throw new InvalidDataException("Canceled form validation wrote an extra save.");
-                await Task.Delay(150); Home_Click(this, new RoutedEventArgs()); await Task.Delay(150);
+                await ExerciseHomeConfirmationAsync();
                 if (_player.Story is not null || Welcome.Visibility != Visibility.Visible || NativeTitleBar.IsBackButtonEnabled || SaveButton.Visibility != Visibility.Collapsed)
                     throw new InvalidDataException("Sidebar library action did not return to a usable library.");
                 await File.WriteAllTextAsync(report, JsonSerializer.Serialize(new { passed = true, captures, menuLabels, scope = "Native XAML layout renders; Mica/WebView/native-flyout pixels excluded; menu uses actual UIA; no physical/client certification", contextualActions = true, missingSelection = true, narrowReflow = true, searchRecovery = true, rightSidebar = true, sidebarIconsAndLabels = true, opaqueThemedConsole = true, sidebarLibrary = true, nativeSettings = true, accessKeysNoVisibleCollisions = true, groupedNativeMenu = true, saveLoadInlineValidation = true, settingsPrimaryAction = true }));
@@ -214,6 +217,64 @@ public sealed partial class MainWindow
     }
     private static ContentDialog? FindUxDialog(DependencyObject? root)
         => FindUxElement<ContentDialog>(root);
+
+    private static void InvokeUxButton(Button button)
+    {
+        if (!button.IsEnabled || button.Visibility != Visibility.Visible) throw new InvalidDataException("Sidebar action is unavailable.");
+        var peer = FrameworkElementAutomationPeer.CreatePeerForElement(button);
+        ((Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
+    }
+    private void AssertSidebarHitTarget(Button button)
+    {
+        var point = button.TransformToVisual(Root).TransformPoint(new(button.ActualWidth / 2, button.ActualHeight / 2));
+        var hit = VisualTreeHelper.FindElementsInHostCoordinates(point, Root).FirstOrDefault();
+        while (hit is not null && hit != button) hit = VisualTreeHelper.GetParent(hit) as UIElement;
+        if (hit != button) throw new InvalidDataException("The save manager blocks its sidebar toggle's hit target.");
+    }
+    private async Task ExerciseHomeConfirmationAsync()
+    {
+        await _player.ExecuteScriptAsync("window.__nativeHomeMarker='preserved'");
+        var core = _player.Core;
+        var managerTask = ShowSaveManagerAsync(null);
+        for (var i = 0; i < 100 && _activeSaveManager is not { IsOpen: true }; i++) await Task.Delay(20);
+        var openManager = _activeSaveManager ?? throw new InvalidDataException("Home preservation test needs an open save manager.");
+        async Task<ContentDialog> WaitConfirmation()
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                var prompt = VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot).Select(p => FindUxDialog(p.Child)).FirstOrDefault(d => d?.Title as string == "Return to library?");
+                if (prompt is not null) return prompt;
+                await Task.Delay(20);
+            }
+            throw new InvalidDataException("Home did not request confirmation.");
+        }
+        foreach (var profile in new[] { InteractionProfile.Compact, InteractionProfile.Comfortable })
+        {
+            _interaction.Select(profile); ApplyInteractionLayout(); await Task.Delay(80);
+            var home = profile == InteractionProfile.Compact ? HomeButton : ComfortableCommands.Children.OfType<Button>().Single(b => b.Tag as string == "back");
+            InvokeUxButton(home);
+            var prompt = await WaitConfirmation();
+            if (prompt.DefaultButton != ContentDialogButton.Close || prompt.CloseButtonText != "Stay in game" || _player.Core != core)
+                throw new InvalidDataException("Home confirmation did not default to preserving the game.");
+            prompt.Hide();
+            for (var i = 0; i < 100 && _homeConfirmationOpen; i++) await Task.Delay(20);
+            if (_player.Core != core || await _player.ExecuteScriptAsync("window.__nativeHomeMarker") != "\"preserved\"")
+                throw new InvalidDataException("Canceling Home lost the current game state.");
+            if (_activeSaveManager != openManager || !openManager.IsOpen) throw new InvalidDataException("Canceling Home discarded the open save manager.");
+        }
+        openManager.Hide(); await managerTask;
+        var request = RequestHomeAsync();
+        var confirm = await WaitConfirmation();
+        Button? FindLeave(DependencyObject root)
+        {
+            if (root is Button { Content: "Leave game" } button) return button;
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++) if (FindLeave(VisualTreeHelper.GetChild(root, i)) is { } child) return child;
+            return null;
+        }
+        InvokeUxButton(FindLeave(confirm) ?? throw new InvalidDataException("Leave game action is missing."));
+        await request;
+        if (_player.Story is not null || _browser is not null || Welcome.Visibility != Visibility.Visible) throw new InvalidDataException("Confirmed Home did not leave the game.");
+    }
     private void VerifySidebarPresentation(bool expanded)
     {
         IEnumerable<ContentControl> commands = ComfortableBar.Visibility == Visibility.Visible

@@ -1,5 +1,7 @@
 # Baseline and performance evidence
 
+1.0 promotion changes sidebar toggles, Home confirmation, icon/branding and release packaging. Integration checks establish behavior and data preservation; they are not a new performance benchmark. No startup, throughput, memory or superiority claim is added.
+
 UX Preview 5 changes save/load presentation and engine dispatch. Its first-use/repeated-operation checks are correctness evidence, not a startup, throughput or memory benchmark; no new performance-superiority claim is made. See UX-NATIVE-SAVES.md.
 
 Audit date: 2026-10-16. Flutter reference source identity is local main c450a3c / app 1.0.0+10. The existing August 13 Flutter artifact is a historical reference; a newly rebuilt baseline must be identified separately. Existing WPF packages are not the WinUI migration.

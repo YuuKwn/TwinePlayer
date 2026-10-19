@@ -33,7 +33,9 @@ public sealed partial class MainWindow
     private async void ConsoleEntry_Click(object sender, RoutedEventArgs e)
     {
         if (_player.Story is null) { ViewModel.Status = "Open a story before using its developer console."; return; }
-        ConsolePanel.Visibility = Visibility.Visible; ApplyConsoleLayout(); await LoadSavedCommandsAsync(); ConsoleInput.Focus(FocusState.Programmatic);
+        if (ConsolePanel.Visibility == Visibility.Visible) { ConsoleClose_Click(sender, e); return; }
+        ConsolePanel.Visibility = Visibility.Visible; ApplyConsoleLayout(); await LoadSavedCommandsAsync();
+        if (!_closed && ConsolePanel.Visibility == Visibility.Visible) ConsoleInput.Focus(FocusState.Programmatic);
     }
     private void ConsoleClose_Click(object sender, RoutedEventArgs e) { ConsolePanel.Visibility = Visibility.Collapsed; ConsoleColumn.Width = new GridLength(0); _browser?.Focus(FocusState.Programmatic); }
     private void ConsoleLayout_Changed(object sender, SelectionChangedEventArgs e) { if (ConsolePanel is not null) ApplyConsoleLayout(); }

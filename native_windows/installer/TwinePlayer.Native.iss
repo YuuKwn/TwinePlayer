@@ -1,17 +1,17 @@
 ; Build through tools/package-installer.ps1 using an immutable portable release.
 [Setup]
 AppId={{B29F972B-8A70-4F5A-A457-A7E7D2247689}
-AppName=TwinePlayer Native
+AppName=TwinePlayer
 AppVersion={#AppVersion}
-AppVerName=TwinePlayer Native {#DisplayVersion}
+AppVerName=TwinePlayer {#DisplayVersion}
 AppPublisher=YUUKWN
 AppPublisherURL=https://github.com/YuuKwn/TwinePlayer
 AppSupportURL=https://github.com/YuuKwn/TwinePlayer/issues
 AppUpdatesURL=https://github.com/YuuKwn/TwinePlayer/releases
 VersionInfoVersion={#AppVersion}
-VersionInfoDescription=TwinePlayer Native {#DisplayVersion} Setup
-DefaultDirName={localappdata}\Programs\TwinePlayer Native
-DefaultGroupName=TwinePlayer Native
+VersionInfoDescription=TwinePlayer {#DisplayVersion} Setup
+DefaultDirName={localappdata}\Programs\TwinePlayer
+DefaultGroupName=TwinePlayer
 PrivilegesRequired=lowest
 MinVersion=10.0.22621
 ArchitecturesAllowed=x64os
@@ -40,11 +40,16 @@ Source: "{#PayloadDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recurses
 Source: "{#BootstrapperPath}"; DestName: "MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 
 [Icons]
-Name: "{userprograms}\TwinePlayer Native"; Filename: "{app}\TwinePlayer.Native.exe"; WorkingDir: "{app}"
-Name: "{userdesktop}\TwinePlayer Native"; Filename: "{app}\TwinePlayer.Native.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userprograms}\TwinePlayer"; Filename: "{app}\TwinePlayer.Native.exe"; WorkingDir: "{app}"
+Name: "{userdesktop}\TwinePlayer"; Filename: "{app}\TwinePlayer.Native.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+
+[InstallDelete]
+; Replace the previous native preview's shortcut names during an upgrade.
+Type: files; Name: "{userprograms}\TwinePlayer Native.lnk"
+Type: files; Name: "{userdesktop}\TwinePlayer Native.lnk"
 
 [Run]
-Filename: "{app}\TwinePlayer.Native.exe"; Description: "{cm:LaunchProgram,TwinePlayer Native}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\TwinePlayer.Native.exe"; Description: "{cm:LaunchProgram,TwinePlayer}"; Flags: nowait postinstall skipifsilent
 
 ; No directory-wide deletion: only installer-owned files are removed. The native
 ; profile, external games, sidecar saves and shared WebView2 Runtime are retained.
