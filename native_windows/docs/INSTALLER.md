@@ -1,10 +1,10 @@
-# UX Preview 5 installer
+# TwinePlayer installer
 
-The installer is a per-user Windows 11 x64 installer for the published
-`native-v0.9.0-ux5` preview. It wraps the exact approved portable application;
-it does not rebuild, rename or change the app's TEST/preview identity.
+The installer is a per-user Windows 11 x64 installer for the official
+`native-v1.0.0` release. It wraps the same application files as the 1.0 ZIP.
+The earlier UX5 installer and its recorded evidence remain historical below.
 
-Setup defaults to `%LOCALAPPDATA%\Programs\TwinePlayer Native`, adds a Start
+New installs default to `%LOCALAPPDATA%\Programs\TwinePlayer`, add a Start
 menu shortcut and an Apps > Installed apps entry, and offers an optional desktop
 shortcut. It requires Windows 11 build 22621 or later. .NET and Windows App SDK
 are already included. Microsoft Edge WebView2 Evergreen Runtime is detected in
@@ -13,7 +13,9 @@ bundled, Microsoft-signed Evergreen bootstrapper before installing the app.
 That step needs Internet access. For offline setup, install Microsoft's x64
 Evergreen Standalone Runtime first. Existing Runtime installations are reused.
 
-Re-running Setup updates the same installation. Close TwinePlayer before
+Re-running Setup updates the same installation. Upgrades retain the native
+preview's AppId, previous install directory and user data, while replacing its
+old shortcut names with TwinePlayer. Close TwinePlayer before
 upgrading or uninstalling; Setup also uses Windows Restart Manager to detect
 files in use. Uninstall removes installer-owned files and shortcuts, while
 preserving `%LOCALAPPDATA%\TwinePlayer.Native`, external games and sidecar saves.
@@ -36,15 +38,20 @@ The compiler download used for this release has SHA-256
 
 ```powershell
 .\native_windows\tools\package-installer.ps1 `
-  -PayloadDirectory 'C:\build\TwinePlayer-Native-phase-9-TEST-20261018-ux5-windows-x64' `
+  -PayloadDirectory 'C:\build\TwinePlayer-1.0.0-windows-x64' `
   -CompilerPath 'C:\tools\Inno Setup 7\ISCC.exe' `
   -BootstrapperPath 'C:\tools\MicrosoftEdgeWebview2Setup.exe' `
-  -OutputDirectory 'C:\build\installer' -ReleaseTag 'native-v0.9.0-ux5'
+  -OutputDirectory 'C:\build\installer' -ReleaseTag 'native-v1.0.0' -AppVersion '1.0.0'
 ```
 
 Outputs: setup EXE, SHA-256 text file and JSON provenance recording the original
 application identity, installer source hashes, compiler and bootstrapper hashes.
 The release's original ZIP/manifest/provenance stay unchanged.
+
+Create the official ZIP first with `tools/package-test-build.ps1 -ReleaseVersion
+1.0.0 -BuildId <unique-id> -Notes docs/RELEASE-1.0.md -Dotnet <pinned-sdk>`.
+Stable packaging checks the executable version and writes README.txt and a
+stable build identity. Phase/TEST labels stay in historical packages.
 
 ## Verification
 
@@ -55,11 +62,15 @@ and reinstall, all application manifest hashes, uninstall registration, Start
 menu/desktop shortcut targets, four existing deployment/runtime probes against
 the installed executable, uninstall and preservation of disposable app-data,
 external save and unowned installation-folder sentinels.
+Supply `-PreviousInstaller <UX5-setup.exe>` to also test an in-place preview
+upgrade, remembered install location, renamed shortcuts and retained user files.
 
 This is packaging/lifecycle evidence on the development host. It does not imply
 clean-Windows, interactive wizard, SmartScreen reputation or missing-Runtime
 bootstrapper installation certification. Runtime detection follows Microsoft's
 [distribution guidance](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution).
+
+## Historical UX5 installer evidence
 
 Release installer `TwinePlayer-Native-0.9.0-ux5-windows-x64-Setup.exe` is
 68,881,638 bytes, SHA-256

@@ -37,7 +37,7 @@ public sealed partial class MainWindow : Window
         _commandStore = commandStore;
         _assistanceStore = assistanceStore;
         InitializeComponent();
-        Title = "TwinePlayer · Right sidebar · UX Preview 5";
+        Title = "TwinePlayer 1.0";
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1200, 820));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.ico"));
         InitializeWindowing();
@@ -73,6 +73,7 @@ public sealed partial class MainWindow : Window
 
     internal async Task OpenAsync(string path, bool inputLab = false)
     {
+        _activeSaveManager?.Hide();
         _opening?.Cancel();
         _opening?.Dispose();
         _opening = new CancellationTokenSource();
@@ -133,6 +134,37 @@ public sealed partial class MainWindow : Window
 
     private async void Home_Click(object sender, RoutedEventArgs e)
     {
+        try { await RequestHomeAsync(); }
+        catch (Exception error) { if (!_closed) ShowPresentationError(error.Message); }
+    }
+
+    private bool _homeConfirmationOpen;
+    private async Task RequestHomeAsync()
+    {
+        if (_homeConfirmationOpen || _closed || _closing || _player.Story is not { } story) return;
+        if (_saveActionInProgress && _activeSaveManager is not { IsOpen: true })
+        { ViewModel.Status = "Finish the current save/load action before leaving the game."; return; }
+        _homeConfirmationOpen = true;
+        try
+        {
+            var confirm = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Return to library?",
+                Content = "Unsaved progress will be lost. Save your game before leaving.",
+                PrimaryButtonText = "Leave game", CloseButtonText = "Stay in game", DefaultButton = ContentDialogButton.Close };
+            if (await confirm.ShowAsync() != ContentDialogResult.Primary || _closed || _closing || _player.Story?.Id != story.Id) return;
+            _activeSaveManager?.Hide();
+            await _saves.WaitForIdleAsync();
+            ReturnHome();
+            await RefreshLibraryAsync();
+        }
+        finally
+        {
+            _homeConfirmationOpen = false;
+            if (_activeSaveManager is { IsOpen: true } panel) panel.RestoreFocus(); else RestoreStoryFocus();
+        }
+    }
+
+    private void ReturnHome()
+    {
         _opening?.Cancel();
         ResetConsole();
         _assistanceStory = null; _zoomResize?.Cancel();
@@ -146,7 +178,6 @@ public sealed partial class MainWindow : Window
         ViewModel.Title = "Library";
         ViewModel.Status = "Ready";
         RestoreStoryFocus();
-        await RefreshLibraryAsync();
     }
 
     private void ShowError(string message)

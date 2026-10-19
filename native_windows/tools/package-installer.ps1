@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory)][string]$BootstrapperPath,
     [Parameter(Mandatory)][string]$OutputDirectory,
     [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9._-]+$')][string]$ReleaseTag,
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$AppVersion = '0.9.0'
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$AppVersion = '1.0.0'
 )
 $ErrorActionPreference = 'Stop'
 $PayloadDirectory = (Resolve-Path -LiteralPath $PayloadDirectory).Path
@@ -39,8 +39,8 @@ foreach ($tool in @(@{Path=$CompilerPath; Publisher='Pyrsys B.V.'}, @{Path=$Boot
 }
 $compilerVersion = (& $CompilerPath --version | Out-String).Trim()
 if ([Version]$compilerVersion -lt [Version]'7.1.0') { throw 'Inno Setup 7.1.0 or later is required.' }
-$displayVersion = $ReleaseTag -replace '^native-v', ''
-$name = "TwinePlayer-Native-$displayVersion-windows-x64-Setup"
+$displayVersion = $ReleaseTag -replace '^(native-)?v', ''
+$name = "TwinePlayer-$displayVersion-windows-x64-Setup"
 $installer = Join-Path $OutputDirectory "$name.exe"
 if (Test-Path -LiteralPath $installer) { throw 'Refusing to overwrite an existing installer.' }
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null

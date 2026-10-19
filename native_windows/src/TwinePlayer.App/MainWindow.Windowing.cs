@@ -61,7 +61,7 @@ public sealed partial class MainWindow
     private async Task RequestCloseAsync()
     {
         if (_closing) return;
-        _closing = true; _opening?.Cancel(); _browserMigration?.Cancel();
+        _closing = true; _activeSaveManager?.Hide(); _opening?.Cancel(); _browserMigration?.Cancel();
         OpenButton.IsEnabled = SaveButton.IsEnabled = LoadButton.IsEnabled = false;
         try
         {
@@ -106,7 +106,12 @@ public sealed partial class MainWindow
     }
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
     private void FullscreenKey_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { ToggleFullscreen(); args.Handled = true; }
-    private void EscapeKey_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { if (IsFullscreen) { ToggleFullscreen(); args.Handled = true; } }
+    private void EscapeKey_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_homeConfirmationOpen) return;
+        if (_activeSaveManager is { IsOpen: true }) { _activeSaveManager.Hide(); args.Handled = true; }
+        else if (IsFullscreen) { ToggleFullscreen(); args.Handled = true; }
+    }
     private async void UndoStory_Click(object sender, RoutedEventArgs e)
         => await UndoStoryAsync();
     private async Task UndoStoryAsync()

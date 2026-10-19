@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateRange(1,9)][int]$Phase,
+    [ValidateRange(1,9)][int]$Phase = 9,
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$ReleaseVersion = '',
     [string]$BuildId = (Get-Date -Format 'yyyyMMdd-HHmmss'),
     [string]$Dotnet = '',
     [string]$Notes = ''
@@ -13,7 +14,9 @@ if (-not $Dotnet) {
     $localSdk = Join-Path $repo 'artifacts\toolchain\dotnet-10.0.402\dotnet.exe'
     $Dotnet = if (Test-Path -LiteralPath $localSdk) { $localSdk } else { 'dotnet' }
 }
-$artifactName = "TwinePlayer-Native-phase-$Phase-TEST-$BuildId-windows-x64"
+$release = -not [string]::IsNullOrWhiteSpace($ReleaseVersion)
+if ($release -and -not $Notes) { throw 'A stable release requires release notes.' }
+$artifactName = if ($release) { "TwinePlayer-$ReleaseVersion-windows-x64" } else { "TwinePlayer-Native-phase-$Phase-TEST-$BuildId-windows-x64" }
 $artifact = Join-Path $repo "artifacts\$artifactName"
 if (Test-Path -LiteralPath $artifact) { throw 'Artifact exists; choose a new BuildId.' }
 $dirty = & git -C $repo status --porcelain -- native_windows docs/winui-native-migration-plan.md
@@ -28,10 +31,31 @@ try {
 } finally { Pop-Location }
 if (-not (Test-Path -LiteralPath (Join-Path $artifact 'TwinePlayer.Native.pri'))) { throw 'Portable application PRI missing.' }
 $version = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $artifact 'TwinePlayer.Native.exe')).ProductVersion
-if ($version -notlike "*-phase$Phase-test*") { throw "Build identity doesn't match Phase $Phase : $version" }
-Copy-Item -LiteralPath (Join-Path $native "docs\PHASE-$Phase.md") -Destination $artifact
+if ($release) {
+    if (($version -split '\+')[0] -ne $ReleaseVersion) { throw "Build identity doesn't match release $ReleaseVersion : $version" }
+} else {
+    if ($version -notlike "*-phase$Phase-test*") { throw "Build identity doesn't match Phase $Phase : $version" }
+    Copy-Item -LiteralPath (Join-Path $native "docs\PHASE-$Phase.md") -Destination $artifact
+}
 if ($Notes) { Copy-Item -LiteralPath (Join-Path $native $Notes) -Destination $artifact }
 $testNotes = if ($Notes) { [IO.Path]::GetFileName($Notes) } else { "PHASE-$Phase.md" }
+if ($release) {
+@"
+TWINEPLAYER $ReleaseVersion
+Build: $BuildId
+Source commit: $commit
+Version: $version
+
+Extract the entire folder and run TwinePlayer.Native.exe. Keep all DLLs/assets
+together. Requires Windows 11 x64 build 22621+ and Microsoft Edge WebView2
+Evergreen Runtime. .NET and Windows App SDK are included. An installer is also
+available on the release page. Read $testNotes for release notes.
+
+User data: %LOCALAPPDATA%\TwinePlayer.Native. Existing native profiles are retained.
+Games and adjacent sidecar saves stay in their original locations. Flutter import
+is opt-in. No private games, personal user data or browser profiles are included.
+"@ | Set-Content -LiteralPath (Join-Path $artifact 'README.txt') -Encoding utf8
+} else {
 @"
 TWINEPLAYER NATIVE — PHASE $Phase TEST BUILD
 Build: $BuildId
@@ -49,9 +73,11 @@ Native data: %LOCALAPPDATA%\TwinePlayer.Native (separate from Flutter and WPF).
 Original game files and adjacent save files remain at their current locations.
 No private games, personal user data or browser profiles are included.
 "@ | Set-Content -LiteralPath (Join-Path $artifact 'TEST-BUILD.txt') -Encoding utf8
+}
 $sources = & git -C $repo ls-files native_windows docs/winui-native-migration-plan.md shared/webview/twine-bridge.js flutter_app/assets/input_lab.html
 $identity = [ordered]@{
-    phase=$Phase; buildId=$BuildId; version=$version; commit=$commit
+    channel=if($release){'stable'}else{'test'}; releaseVersion=$ReleaseVersion
+    phase=if($release){$null}else{$Phase}; buildId=$BuildId; version=$version; commit=$commit
     packagedUtc=[DateTime]::UtcNow.ToString('O'); sdk=$sdkVersion
     sourceHashes=@($sources | ForEach-Object { [ordered]@{path=$_;sha256=(Get-FileHash -LiteralPath (Join-Path $repo $_) -Algorithm SHA256).Hash} })
 }

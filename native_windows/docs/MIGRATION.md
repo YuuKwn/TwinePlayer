@@ -1,5 +1,7 @@
 # Data compatibility and migration contract
 
+**1.0 promotion:** Native is now the primary product by the user's request. No data/schema migration is introduced by the toggle/Home-confirmation/icon changes. Existing `%LOCALAPPDATA%\TwinePlayer.Native` databases and per-story browser profiles are retained; original games, sidecar saves and read-only Flutter import boundaries stay unchanged. Stable installer upgrades reuse the preview's AppId and previous install location. See RELEASE-1.0.md.
+
 ## Authorities and shapes
 
 The Windows runner declares CompanyName `TwinePlayer contributors` and ProductName `Twine Player`. The five Flutter stores append `TwinePlayerFlutter` to path_provider's application support directory. Live inspection confirms this authority on this machine:

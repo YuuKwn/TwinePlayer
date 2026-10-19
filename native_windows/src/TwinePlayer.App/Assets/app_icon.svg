@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>TwinePlayer — woven stories, ready to play</title>
+  <path fill="#172135" d="M60 8 H196 Q248 8 248 60 V196 Q248 248 196 248 H60 Q8 248 8 196 V60 Q8 8 60 8 Z"/>
+  <path fill="none" stroke="#67DAD0" stroke-width="18" stroke-linecap="round" d="M72 68 H144 C172 68 188 84 188 108 C188 132 172 144 148 144 H108 C84 144 68 160 68 184 V188"/>
+  <path fill="none" stroke="#FFBF80" stroke-width="18" stroke-linecap="round" d="M184 188 H112 C84 188 68 172 68 148 C68 124 84 112 108 112 H148 C172 112 188 96 188 72 V68"/>
+  <path fill="#172135" d="M100 94 H150 Q164 94 164 108 V148 Q164 162 150 162 H100 Z"/>
+  <path fill="#FFFFFF" d="M112 102 Q112 98 116 101 L153 125 Q157 128 153 131 L116 155 Q112 158 112 154 Z"/>
+</svg>

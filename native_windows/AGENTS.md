@@ -2,6 +2,8 @@
 
 Use the YUUKWN Git/GitHub profile. Follow `../docs/winui-native-migration-plan.md` and the user's execution instruction: produce a marked test build and notify the user at each development phase, then continue. That instruction supersedes the plan's stop-for-approval gates. Optional Phase 10, publishing, installers, signing, automatic updates, telemetry and AI services require separate authorization.
 
+The user has promoted the native migration to the primary TwinePlayer product and authorized the 1.0 stable release, ZIP, installer and original icon. Stable release packaging must use the official version/identity rather than phase/TEST/preview labels. Historical migration gates and their explicitly waived manual checks do not block this promotion. Preserve the historical Flutter, Electron and WPF implementations; this authorization does not include signing, automatic updates, telemetry or AI services.
+
 - Implement one phase at a time, on a dedicated `codex/` branch, in small reviewable commits. Check branch and user changes before each phase.
 - Never delete, overwrite or refactor `flutter_app/`; it is the behavioral specification. Do not modify Electron or existing WPF work.
 - Keep native implementation under this directory. Do not share writable databases or browser profiles with Flutter or WPF.
@@ -15,6 +17,6 @@ Use the YUUKWN Git/GitHub profile. Follow `../docs/winui-native-migration-plan.m
 - Accessibility, focus and security apply from Phase 1. Honor theme, contrast, reduced motion and text scaling.
 - After every implementation phase run restore, Release build, tests and applicable DOM/integration checks. Package a uniquely named x64 test folder/ZIP with phase/build identity, source hashes, SHA-256 manifest and test notes. Never overwrite earlier phase builds.
 - Keep FEATURE_PARITY, MIGRATION, COMPATIBILITY, BENCHMARKS and phase reports current. Distinguish static, DOM, native runtime, manual and hardware evidence. Do not claim real-game, accessibility, hardware, performance superiority or clean-machine certification without corresponding tests.
-- Do not replace Flutter until all mandatory parity and release gates pass. Unperformed checks remain unverified and cannot be counted as passing.
+- Native is the primary product by the user's explicit 1.0 promotion. Preserve Flutter as a historical reference. Unperformed checks remain unverified and cannot be counted as passing.
 
 Work solo unless the user or applicable instructions explicitly request delegation.

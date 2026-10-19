@@ -10,6 +10,8 @@ namespace TwinePlayer.Native.App;
 public sealed partial class MainWindow
 {
     private bool _saveDialogOpen;
+    private Controls.SaveManagerPanel? _activeSaveManager;
+    private bool _saveManagerIsSave;
     private string? _restoreId;
     private TaskCompletionSource<bool>? _restoreCompletion;
     private TaskCompletionSource<byte[]>? _captureCompletion;
@@ -23,16 +25,22 @@ public sealed partial class MainWindow
     {
         if (_saveActionInProgress || _saveDialogOpen) { ViewModel.Status = "Finish the current save/load action first."; return; }
         _saveActionInProgress = true; SaveButton.IsEnabled = LoadButton.IsEnabled = false;
+        SyncSaveButtons();
         try { await action(); }
         finally
         {
             _saveActionInProgress = false;
-            if (!_closed) SaveButton.IsEnabled = LoadButton.IsEnabled = !_closing && !_isInputLab && _player.Story is not null;
+            if (!_closed)
+            {
+                SaveButton.IsEnabled = LoadButton.IsEnabled = !_closing && !_isInputLab && _player.Story is not null;
+                SyncSaveButtons();
+            }
         }
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeSaveManager is { IsOpen: true } && _saveManagerIsSave) { _activeSaveManager.Hide(); return; }
         try
         {
             await RunSaveActionAsync(async () => await ShowSaveManagerAsync(await CaptureBytesAsync(_opening?.Token ?? default)));
@@ -43,6 +51,7 @@ public sealed partial class MainWindow
 
     private async void Load_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeSaveManager is { IsOpen: true } && !_saveManagerIsSave) { _activeSaveManager.Hide(); return; }
         try
         {
             await RunSaveActionAsync(async () =>
@@ -193,7 +202,7 @@ public sealed partial class MainWindow
             content.Children.Add(filename);
             content.Children.Add(list);
             content.Children.Add(error);
-            var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = isSave ? "Save game" : "Load game", Content = content, PrimaryButtonText = isSave ? "Save" : "Load", SecondaryButtonText = "Delete selected", CloseButtonText = "Cancel", IsSecondaryButtonEnabled = false, DefaultButton = ContentDialogButton.Primary };
+            var dialog = new Controls.SaveManagerPanel { Title = isSave ? "Save game" : "Load game", Content = content, PrimaryButtonText = isSave ? "Save" : "Load", SecondaryButtonText = "Delete selected", CloseButtonText = "Cancel", IsSecondaryButtonEnabled = false };
             createSave.Click += (_, _) => { createSaveRequested = true; dialog.Hide(); };
             void UpdateActions()
             {
@@ -221,7 +230,11 @@ public sealed partial class MainWindow
                     if (saves.Count == 0) error.Text = "No sidecar saves yet.";
                     refresh = false;
                 }
-                var action = await dialog.ShowAsync();
+                _activeSaveManager = dialog; _saveManagerIsSave = isSave;
+                SaveButton.IsEnabled = isSave; LoadButton.IsEnabled = !isSave; SyncSaveButtons();
+                var action = await dialog.ShowAsync(SaveManagerHost);
+                _activeSaveManager = null;
+                SaveButton.IsEnabled = LoadButton.IsEnabled = false; SyncSaveButtons();
                 if (action == ContentDialogResult.None) { if (createSaveRequested) break; return; }
                 token.ThrowIfCancellationRequested();
                 if (_player.Story?.Id != story.Id || document != _player.DocumentGeneration) throw new OperationCanceledException("The story changed while the save dialog was open.");
@@ -256,8 +269,25 @@ public sealed partial class MainWindow
                 catch (Exception failure) { error.Text = failure.Message; ViewModel.Status = "Save operation failed; the dialog remains available to retry."; }
             }
         }
-        finally { _saveDialogOpen = false; if (!_closed) _browser?.Focus(FocusState.Programmatic); }
+        finally
+        {
+            _activeSaveManager?.Hide(); _activeSaveManager = null; _saveDialogOpen = false;
+            if (!_closed)
+            {
+                if (!_saveActionInProgress) SaveButton.IsEnabled = LoadButton.IsEnabled = !_closing && !_isInputLab && _player.Story is not null;
+                SyncSaveButtons(); _browser?.Focus(FocusState.Programmatic);
+            }
+        }
         if (createSaveRequested && !_closed && document == _player.DocumentGeneration)
             await ShowSaveManagerAsync(await CaptureBytesAsync(token));
+    }
+
+    private void SyncSaveButtons()
+    {
+        foreach (var button in ComfortableCommands.Children.OfType<Button>())
+        {
+            if (button.Tag as string == "save") button.IsEnabled = SaveButton.IsEnabled;
+            if (button.Tag as string == "load") button.IsEnabled = LoadButton.IsEnabled;
+        }
     }
 }
