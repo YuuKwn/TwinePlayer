@@ -1,12 +1,18 @@
 # Twine Player
 
-Twine Player is now primarily a Flutter Windows desktop app for playing Twine HTML games outside your regular browser profile.
+Twine Player is a Windows desktop app for playing Twine HTML games outside your regular browser profile. The newest native WinUI version lives in [`native_windows`](native_windows/).
+
+## Native Windows release
+
+[Download Native UX Preview 5](https://github.com/YuuKwn/TwinePlayer/releases/tag/native-v0.9.0-ux5) for Windows 11 x64. Extract the entire portable ZIP and run `TwinePlayer.Native.exe`. .NET and Windows App SDK are included; WebView2 Evergreen Runtime is required.
+
+The approved preview includes the right sidebar with icon/label states, an opaque console, and native Save/Load UI without the standard SugarCube or browser file dialogs. It uses its own app-data profile; existing Flutter data is imported only when requested. See [native documentation](native_windows/README.md) and [save/load notes](native_windows/docs/UX-NATIVE-SAVES.md).
 
 The Flutter app keeps the core non-AI player workflow: local library management, Twine/SugarCube metadata extraction, WebView2 playback, sidecar save files, native SugarCube save/load bridging, image previews, right-click actions, and an in-game developer console. AI Illustrator is intentionally not part of the Flutter version.
 
 The previous Electron application still exists in this repository for legacy maintenance and remains available on the `legacy-electron` branch.
 
-## Primary Flutter App
+## Flutter App
 
 The Flutter app lives in [`flutter_app`](flutter_app/).
 

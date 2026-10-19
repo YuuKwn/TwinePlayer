@@ -1,0 +1,1 @@
+window.nativeAssetReady = true;

@@ -1,0 +1,16 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const crypto = require('node:crypto');
+const formatPath = process.argv[2];
+if (!formatPath) throw new Error('Pass the official SugarCube 1.0.35 offline format.js path.');
+let format;
+vm.runInNewContext(fs.readFileSync(formatPath, 'utf8'), { window: { storyFormat(value) { format = value; } } });
+if (format.version !== '1.0.35') throw new Error('Expected official SugarCube 1.0.35.');
+const story = '<tw-storydata name="Native SugarCube 1 fixture" startnode="1" creator="TwinePlayer Native tests" ifid="930E925A-897D-46DD-9700-C2566070A51C" format="SugarCube" format-version="1.0.35" options=""><tw-passagedata pid="1" name="Start" tags="" position="100,100">Legacy passage one. [[Continue-&gt;Next]]</tw-passagedata><tw-passagedata pid="2" name="Next" tags="" position="200,100">Legacy passage two. [[Return-&gt;Start]]</tw-passagedata></tw-storydata>';
+const html = format.source.replaceAll('{{STORY_NAME}}', 'Native SugarCube 1 fixture').replaceAll('{{STORY_DATA}}', story);
+const output = path.join(__dirname, '../fixtures/sugarcube1');
+fs.mkdirSync(output, { recursive: true });
+fs.writeFileSync(path.join(output, 'legacy-sugarcube1.html'), html);
+fs.copyFileSync(path.join(path.dirname(formatPath), 'LICENSE'), path.join(output, 'LICENSE'));
+console.log('SHA256=' + crypto.createHash('sha256').update(html).digest('hex'));

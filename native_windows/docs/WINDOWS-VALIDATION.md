@@ -1,0 +1,39 @@
+# Windows quality evidence and remaining checks
+
+> **Current status — 2026-10-17:** Mandatory migration phases 0–9 are implemented and accepted on the user's Windows setup with Phase 9 TEST r4 (`20261017-r4`, binary source `12c9779`). The user reported "All good, tested here" and then explicitly waived the additional accessibility/display, VoidLink/Quest and separate clean-Windows validation: "No need foe all thoae". Those scenarios remain unverified and are no longer completion gates for this delivery. Earlier pending/blocker entries below are historical evidence, superseded by this acceptance and waiver. Optional Phase 10, signing, installers and publishing remain outside this delivery. The accepted immutable r4 package keeps its TEST label and is not rebuilt or renamed.
+
+This matrix records evidence, not blanket certification. The test host is Windows 11 Pro build 26300 with WebView2 155.0.4283.45, Ryzen 7 9800X3D, RTX 5070 Ti driver 32.0.16.1714 and installed virtual display adapters. Physical hardware/client results require actual interaction and cannot be inferred from these installed components.
+
+| Requirement | Current evidence | Remaining verification |
+|---|---|---|
+| Critical native UIA names/roles | Actual WinUI peers for Open, library search and console command input pass | Screen reader narration and complete UI traversal |
+| Dialog focus | Windows-injected Tab/Shift+Tab trap and Escape/focus return pass; r4 packaged suite activates the real Save dialog with Enter while fullscreen, cancels without a file and retains fullscreen/story focus | Physical interaction and complete production-dialog workflows |
+| Keyboard navigation | Windows-injected F11/Escape and Ctrl zoom/reset work with browser focus after r3 native routing fix; normal game Escape retained | Keyboard-only library/import/save/settings/console/image workflows and physical clients |
+| Tab routing | Installed WinUI programmatic Next/Previous options remain unsupported; actual Windows key-message Tab/Shift+Tab integration passes | Full manual workflows and screen-reader navigation |
+| High contrast/reduced motion | Native theme resources/controls; image zoom uses nonanimated ChangeView | Actual OS high-contrast/reduced-animation configurations |
+| Touch targets/text scaling | Comfortable commands enforce 44/48/56 DIP; native text/settings controls | Physical 100/150/200% text and touch usability, narrow layouts |
+| DPI/monitors/refresh | AppWindow work-area clamp/restoration and XamlRoot change handling | Mixed DPI/refresh, display removal/reconnect and resolution changes |
+| Fullscreen | Presenter cycles/restored dimensions and actual Windows-injected browser-focused F11/Escape pass after r3 fix | Extended physical input/display combinations |
+| Reopen/storage | Sixty native recreations retain storage/bridge and deliver one correlated host message exactly once; host/browser resource snapshots recorded | Long play and sustained-session trends |
+| Browser crash/recovery | Kill only isolated test browser, surface failure, recreate and retain data: passed | User recovery/focus after actual GPU/renderer failures |
+| Isolation | Distinct persistent story origins and cross-process storage tests pass; Phase 9 copied-profile LS/IDB/cookie and actual browser-slot migration passed | Production/historical profiles and unsupported value types remain uncertified |
+| Scoped browser reset | Native selected-origin reset clears its marker and preserves another origin | Physical confirmation UX and rollback expectations |
+| Resource folder scope | Actual junction-containing story rejected before mapping; ordinary local CSS/JS/image fixtures pass | Malicious local filesystem races are not a sandbox guarantee |
+| Untrusted web messages | Shape/origin/size rules and malformed rejection; bounded off-thread parsing | Stress/denial-of-service certification is outside this bounded check |
+| Navigation/permissions | Actual external navigation canceled and geolocation denied | Actual media/device permission UI and broader navigation fixtures |
+| Popups/downloads | Actual WebView2 popup handled and unexpected Blob download canceled; no host objects; DevTools user opt-in | Physical user-facing blocked-action feedback |
+| Images | Native local/blob retrieval, preview controls and SVG external-reference rejection | Physical gesture/clipboard checks and remote server/error behavior |
+| Saves/exit | Actual close cancels deterministic pending capture/load, cancels an active write without damaging old bytes and drains a noncancelable write; read-only story/write-denied sidecar test passes | Real-game UI close during capture/load and extended manual usage |
+| Offline runtime | Bundled actual engine fixtures and Input Lab require no network | Clean supported Windows installation without network |
+| External clients | No client is certified | VoidLink native touch/simulated mouse; Quest controller ray/hand tracking |
+| Performance | Eight baseline cases; sequential 341.2s Flutter/327.8s native sessions; separate canvas/video/CSS progress-validated checks; memory/CPU/GPU and excluded failures documented in BENCHMARKS.md | OS-cold startup, end-to-end input latency, long play and physical display conditions |
+| Browser profile isolation | R4 refuses environment redirects before environment creation; verifies returned folder; extracted disposable target unchanged | Applicable policy cases run only in a guarded disposable guest; production profiles remain closed |
+| Distribution | Phase 9 ZIP/545 extracted hashes, extracted suites and copied-profile upgrade pass; non-admin host startup/denied data checks; clean offline Sandbox 26100 extraction/fresh startup and genuinely unavailable Runtime error path pass | Evergreen installer failed in disposable guest (0x80040902); clean offline gameplay with installed prerequisite and SmartScreen remain unverified |
+
+Security implementation notes: virtual-host-mapped files do **not** raise WebResourceRequested. Native validates the approved resource tree off-thread before mapping and rejects reparse entries; the request filter separately controls nonmapped requests and keeps Input Lab offline. The application does not claim that a request callback mediates mapped files. [Microsoft documentation](https://github.com/MicrosoftDocs/edge-developer/blob/main/microsoft-edge/webview2/how-to/webresourcerequested.md) describes this distinction. Original game directories are read-only during these tests; controlled junctions live exclusively in disposable artifact fixtures.
+
+Latest Phase 8 packaged quality evidence: `artifacts/native-smoke-c96e40a5367e49248f4b1c9970236746/report.json`. Reports explicitly identify which methods ran; no unperformed row may be counted as passing. Flutter remains the reference application until the mandatory gates are satisfied.
+
+R4 guest policy evidence: native-sandbox-8dcd00e520ea4dc2a24be5a0cfc89f04 passes app-specific/wildcard refusal, unrelated-policy bypass, target preservation, ZIP hashes/fresh startup and genuine unavailable-Runtime remediation. No clean guest gameplay is claimed. Extracted r4 six-story keyboard, four deployment and four shutdown cases pass; exact paths/commit/ZIP hash are in EXECUTION.md. Remaining rows require real external/manual evidence; this is the current completion blocker.
+
+User test result — 2026-10-17: after receiving Phase 9 TEST r4 (source 12c9779), the user reported "All good, tested here". Record this as a successful user-reported local acceptance test with no failure reported. Detailed workflow, accessibility/display, remote-client and clean-install coverage was not specified. Do not invent failures or require another local acceptance run; retain separately unverified matrix rows until their scope is confirmed. The existing r4 EXE/ZIP remains the accepted test artifact; no runtime change or rebuild is needed for this evidence update.

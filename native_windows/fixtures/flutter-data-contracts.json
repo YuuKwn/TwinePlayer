@@ -1,0 +1,12 @@
+{
+  "description": "Synthetic non-user records for future importer regression tests",
+  "library": [
+    { "path": "C:\\Games\\Example.html", "title": "Example", "lastPlayed": "2026-01-02T03:04:05.000Z" },
+    { "path": "C:\\Games\\Example.html", "title": "Older duplicate", "lastPlayed": "2025-01-01T00:00:00.000Z" },
+    { "path": "", "title": "Invalid path", "lastPlayed": "invalid" }
+  ],
+  "commands": { "EXAMPLE-IFID": ["State.variables.score", "Engine.backward()"], "fallback_legacy-key": ["1 + 1"] },
+  "preferences": { "version": 1, "interactionProfile": "comfortable" },
+  "commandBar": { "version": 1, "preferences": { "alignment": "center", "order": ["back", "undo", "save", "load", "console", "more"], "size": "standard", "reach": "balanced", "pageUpEnabled": false, "pageDownEnabled": false } },
+  "storyAssistance": { "version": 2, "games": { "c:\\games\\example.html": { "zoomFactor": 1, "enhancedChoices": false, "readabilityEnabled": false, "textScale": 1, "lineHeight": 1.4, "paragraphSpacing": 1, "readableLineLengthEnabled": false, "readableLineLength": 72, "targetSpacing": 1 } } }
+}
