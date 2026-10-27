@@ -11,10 +11,12 @@ public sealed partial class MainWindow
     private string? _currentIfid;
     private CancellationTokenSource? _completionRequest;
     private int _historyPosition;
+    private int _savedCommandsRequest;
     private string? ConsoleScope => _player.Story is { } story ? ConsoleSession.Scope(story, _currentIfid) : null;
     private void ResetConsole()
     {
-        _completionRequest?.Cancel(); _currentIfid = null; _console = new(); _historyPosition = 0;
+        _completionRequest?.Cancel(); _currentIfid = null; _console = new(); _historyPosition = 0; _savedCommandsRequest++;
+        _pinnedCommands = []; _pinsGameId = null; ApplyPinnedCommands();
         if (ConsolePanel is null) return;
         ConsolePanel.Visibility = Visibility.Collapsed; ConsoleColumn.Width = new GridLength(0);
         ConsoleLogs.ItemsSource = null; SavedCommands.ItemsSource = null; Completions.ItemsSource = null; ConsoleInput.Text = "";
@@ -26,9 +28,16 @@ public sealed partial class MainWindow
     }
     private async Task LoadSavedCommandsAsync()
     {
-        if (ConsoleScope is not { } scope) return;
-        try { var saved = await _commandStore.GetAsync(scope); if (scope == ConsoleScope && !_closed) SavedCommands.ItemsSource = saved; }
-        catch (Exception error) { if (!_closed) AppendConsole(error.Message, "error"); }
+        if (ConsoleScope is not { } scope || _player.Story is not { } story) return;
+        var request = ++_savedCommandsRequest;
+        try
+        {
+            var saved = await _commandStore.GetAsync(scope);
+            var pins = await _commandStore.GetPinnedAsync(story.Id);
+            if (request != _savedCommandsRequest || scope != ConsoleScope || _player.Story?.Id != story.Id || _closed) return;
+            SavedCommands.ItemsSource = saved; _pinnedCommands = pins; _pinsGameId = story.Id; ApplyPinnedCommands();
+        }
+        catch (Exception error) { if (!_closed && request == _savedCommandsRequest) { AppendConsole(error.Message, "error"); ShowCommandError(error.Message); } }
     }
     private async void ConsoleEntry_Click(object sender, RoutedEventArgs e)
     {
@@ -47,16 +56,23 @@ public sealed partial class MainWindow
         Grid.SetColumn(ConsolePanel, side ? 1 : 0); ConsoleColumn.Width = new GridLength(side ? ConsolePanel.Width : 0);
         ConsolePanel.HorizontalAlignment = side ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
     }
-    private async Task RunConsoleAsync(string command)
+    private async Task<bool> RunConsoleAsync(string command, bool fromSidebar = false)
     {
-        command = command.Trim(); if (command.Length == 0) return;
-        var scope = ConsoleScope;
+        command = command.Trim(); if (command.Length == 0 || _closed || _player.Story is null) return false;
+        var session = _console;
+        var document = _player.DocumentGeneration;
+        bool IsCurrent() => !_closed && ReferenceEquals(session, _console) && document == _player.DocumentGeneration;
         AppendConsole("> " + command, "input", command); _historyPosition = _console.History.Count;
-        try { AppendConsole(await _bridge.RunCommandAsync(command, _opening?.Token ?? default), "result"); }
+        var succeeded = false;
+        try { var result = await _bridge.RunCommandAsync(command, _opening?.Token ?? default); if (IsCurrent()) { AppendConsole(result, "result"); succeeded = true; } }
         catch (OperationCanceledException) { }
-        catch (Exception error) { AppendConsole(error.Message, "error"); }
-        if (scope == ConsoleScope && ConsoleInput.Text.Trim() == command) ConsoleInput.Text = "";
-        Completions.ItemsSource = null; ConsoleInput.Focus(FocusState.Programmatic);
+        catch (Exception error) { if (IsCurrent()) { AppendConsole(error.Message, "error"); if (fromSidebar) ShowCommandError(error.Message); } }
+        if (IsCurrent() && !fromSidebar)
+        {
+            if (ConsoleInput.Text.Trim() == command) ConsoleInput.Text = "";
+            Completions.ItemsSource = null; ConsoleInput.Focus(FocusState.Programmatic);
+        }
+        return succeeded;
     }
     private async void ConsoleRun_Click(object sender, RoutedEventArgs e) => await RunConsoleAsync(ConsoleInput.Text);
     private async void ConsoleRerun_Click(object sender, RoutedEventArgs e) { if (ConsoleLogs.SelectedItem is ConsoleEntry { Command: { } command }) await RunConsoleAsync(command); }
@@ -64,7 +80,8 @@ public sealed partial class MainWindow
     private async Task SaveConsoleAsync(string command, bool delete = false)
     {
         if (ConsoleScope is not { } scope) return;
-        try { await _commandStore.SaveAsync(scope, command, delete); await LoadSavedCommandsAsync(); }
+        var session = _console;
+        try { await _commandStore.SaveAsync(scope, command, delete, _player.Story?.Id); if (ReferenceEquals(session, _console)) await LoadSavedCommandsAsync(); }
         catch (Exception error) { AppendConsole(error.Message, "error"); }
     }
     private async void ConsoleSaveLog_Click(object sender, RoutedEventArgs e) { if (ConsoleLogs.SelectedItem is ConsoleEntry { Command: { } command }) await SaveConsoleAsync(command); }

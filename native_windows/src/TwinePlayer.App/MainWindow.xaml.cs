@@ -123,13 +123,14 @@ public sealed partial class MainWindow : Window
             if (!_closed && ReferenceEquals(opening, _opening))
             {
                 _player.Detach();
+                ResetConsole();
                 if (_browser is not null) { Viewport.Children.Remove(_browser); _browser.Close(); _browser = null; }
                 Welcome.Visibility = Visibility.Visible; HomeButton.IsEnabled = SaveButton.IsEnabled = LoadButton.IsEnabled = false;
                 ApplyInteractionLayout(); ShowError(error.Message);
             }
             _logger.LogError(error, "Story initialization failed"); throw;
         }
-        finally { if (!_closed && ReferenceEquals(opening, _opening)) { OpenButton.IsEnabled = true; Loading.Visibility = Visibility.Collapsed; } }
+        finally { if (!_closed && ReferenceEquals(opening, _opening)) { OpenButton.IsEnabled = true; Loading.Visibility = Visibility.Collapsed; ApplyPinnedCommands(); } }
     }
 
     private async void Home_Click(object sender, RoutedEventArgs e)
