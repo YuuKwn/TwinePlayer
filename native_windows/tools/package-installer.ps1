@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory)][string]$BootstrapperPath,
     [Parameter(Mandatory)][string]$OutputDirectory,
     [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9._-]+$')][string]$ReleaseTag,
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$AppVersion = '1.0.0'
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$AppVersion = '1.1.0'
 )
 $ErrorActionPreference = 'Stop'
 $PayloadDirectory = (Resolve-Path -LiteralPath $PayloadDirectory).Path

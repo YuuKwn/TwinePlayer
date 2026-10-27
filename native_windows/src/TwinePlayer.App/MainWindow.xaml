@@ -1,6 +1,7 @@
 <Window x:Class="TwinePlayer.Native.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:TwinePlayer.Native.App.Controls"
     xmlns:core="using:TwinePlayer.Native.Core"
     xmlns:local="using:TwinePlayer.Native.App">
     <Grid x:Name="Root">
@@ -15,7 +16,7 @@
         <Grid.KeyboardAccelerators><KeyboardAccelerator Key="F11" Invoked="FullscreenKey_Invoked" /><KeyboardAccelerator Key="Escape" Invoked="EscapeKey_Invoked" /></Grid.KeyboardAccelerators>
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-        <TitleBar x:Name="NativeTitleBar" Grid.ColumnSpan="2" Title="TwinePlayer 1.0" IsBackButtonVisible="False" BackRequested="TitleBar_BackRequested">
+        <TitleBar x:Name="NativeTitleBar" Grid.ColumnSpan="2" Title="TwinePlayer 1.1" IsBackButtonVisible="False" BackRequested="TitleBar_BackRequested">
             <TitleBar.IconSource><BitmapIconSource UriSource="ms-appx:///Assets/app_icon.png" ShowAsMonochrome="False" /></TitleBar.IconSource>
         </TitleBar>
         <Border x:Name="RightSidebar" Grid.Row="1" Grid.Column="1" Width="72" Margin="0,0,8,8" Padding="8" CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" AutomationProperties.Name="Right sidebar controls">
@@ -34,6 +35,7 @@
                         <Button x:Name="SaveButton" AccessKey="S" Style="{StaticResource SidebarButtonStyle}" Click="Save_Click" IsEnabled="False" AutomationProperties.Name="Save game" ToolTipService.ToolTip="Save game"><FontIcon Glyph="&#xE74E;" FontSize="20" /></Button>
                         <Button x:Name="LoadButton" AccessKey="L" Style="{StaticResource SidebarButtonStyle}" Click="Load_Click" IsEnabled="False" AutomationProperties.Name="Load game" ToolTipService.ToolTip="Load game"><FontIcon Glyph="&#xE898;" FontSize="20" /></Button>
                         <Button x:Name="ConsoleEntryButton" AccessKey="C" Style="{StaticResource SidebarButtonStyle}" Click="ConsoleEntry_Click" AutomationProperties.Name="Developer console" ToolTipService.ToolTip="Developer console"><FontIcon Glyph="&#xE756;" FontSize="20" /></Button>
+                        <StackPanel x:Name="CompactPinnedCommands" Spacing="4" Visibility="Collapsed" AutomationProperties.Name="Pinned game commands" />
                         <ToggleButton x:Name="FullscreenButton" AccessKey="F" MinWidth="44" MinHeight="44" Padding="8" Background="Transparent" BorderBrush="Transparent" HorizontalAlignment="Stretch" Click="Fullscreen_Click" AutomationProperties.Name="Fullscreen (F11)" ToolTipService.ToolTip="Fullscreen (F11)"><FontIcon Glyph="&#xE740;" FontSize="20" /></ToggleButton>
                         <StackPanel x:Name="LibraryActions" Spacing="4">
                             <Button x:Name="PlaySelectedButton" AccessKey="P" Style="{StaticResource SidebarButtonStyle}" Click="LibraryPlay_Click" IsEnabled="False" AutomationProperties.Name="Play selected game" ToolTipService.ToolTip="Play selected game"><FontIcon Glyph="&#xE768;" FontSize="20" /></Button>
@@ -91,15 +93,31 @@
             </Grid>
             <Border x:Name="ConsolePanel" Grid.Column="0" Canvas.ZIndex="10" Visibility="Collapsed" HorizontalAlignment="Right" Width="440" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
                 <Grid RowSpacing="8">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="Console" Style="{ThemeResource SubtitleTextBlockStyle}" VerticalAlignment="Center" /><Button Grid.Column="1" Click="ConsoleClose_Click" AutomationProperties.Name="Close developer console" ToolTipService.ToolTip="Close console"><FontIcon Glyph="&#xE711;" FontSize="12" /></Button></Grid>
                     <StackPanel Grid.Row="1" Spacing="8"><TextBlock Text="Run JavaScript in this story. Commands can change game state." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /><ComboBox x:Name="ConsoleLayout" SelectedIndex="0" SelectionChanged="ConsoleLayout_Changed" AutomationProperties.Name="Console layout"><ComboBoxItem Content="Overlay" /><ComboBoxItem Content="Side by side" /></ComboBox></StackPanel>
-                    <ListView x:Name="ConsoleLogs" Grid.Row="2" SelectionMode="Single" AutomationProperties.Name="Console results and errors" />
-                    <ScrollViewer Grid.Row="3" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Console result actions"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Run again" Click="ConsoleRerun_Click" /><Button Content="Use" Click="ConsoleUseLog_Click" /><Button Content="Save command" Click="ConsoleSaveLog_Click" /><Button Content="DevTools" Click="DevTools_Click" /></StackPanel></ScrollViewer>
-                    <ListView x:Name="SavedCommands" Grid.Row="4" MaxHeight="80" IsItemClickEnabled="True" ItemClick="SavedCommand_Click" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved story commands"><ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ListView.ItemsPanel></ListView>
-                    <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8"><Button Content="Run saved" Click="ConsoleRunSaved_Click" /><Button Content="Delete saved" Click="ConsoleDeleteSaved_Click" /></StackPanel>
-                    <ListView x:Name="Completions" Grid.Row="6" MaxHeight="100" IsItemClickEnabled="True" ItemClick="Completion_Click" AutomationProperties.Name="JavaScript completions" />
-                    <StackPanel Grid.Row="7" Spacing="8"><TextBox x:Name="ConsoleInput" PlaceholderText="JavaScript · Enter runs · Tab completes" TextChanged="ConsoleInput_Changed" KeyDown="ConsoleInput_KeyDown" MaxLength="4096" AutomationProperties.Name="Story JavaScript command" /><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Run" Click="ConsoleRun_Click" /><Button Content="Save input" Click="ConsoleSaveInput_Click" /></StackPanel></StackPanel>
+                    <Grid x:Name="ConsolePanes" Grid.Row="2" SizeChanged="ConsolePanes_SizeChanged">
+                        <Grid.RowDefinitions><RowDefinition x:Name="ConsoleHistoryRow" Height="3*" /><RowDefinition Height="24" /><RowDefinition x:Name="ConsoleSavedRow" Height="2*" /></Grid.RowDefinitions>
+                        <Grid RowSpacing="6">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="History" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                            <ListView x:Name="ConsoleLogs" Grid.Row="1" SelectionMode="Single" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Console results and errors" />
+                            <ScrollViewer Grid.Row="2" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Console result actions"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Run again" Click="ConsoleRerun_Click" /><Button Content="Use" Click="ConsoleUseLog_Click" /><Button Content="Save command" Click="ConsoleSaveLog_Click" /><Button Content="DevTools" Click="DevTools_Click" /></StackPanel></ScrollViewer>
+                        </Grid>
+                        <controls:ConsolePaneSplitter x:Name="ConsoleDivider" Grid.Row="1">
+                            <Thumb x:Name="ConsoleResizeThumb" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsTabStop="True" UseSystemFocusVisuals="True" DragDelta="ConsoleDivider_DragDelta" KeyDown="ConsoleDivider_KeyDown" AutomationProperties.Name="Resize console history and saved commands" AutomationProperties.HelpText="Drag up or down, or use the Up and Down arrow keys, to resize the two lists." ToolTipService.ToolTip="Drag to resize history and saved commands">
+                                <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="Transparent"><Grid><Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" /><Border Width="40" Height="4" CornerRadius="2" Background="{ThemeResource TextFillColorSecondaryBrush}" /></Grid></Border></ControlTemplate></Thumb.Template>
+                            </Thumb>
+                        </controls:ConsolePaneSplitter>
+                        <Grid Grid.Row="2" RowSpacing="6">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <TextBlock Text="Saved commands" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+                            <ListView x:Name="SavedCommands" Grid.Row="1" IsItemClickEnabled="True" ItemClick="SavedCommand_Click" SelectionMode="Single" HorizontalContentAlignment="Stretch" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Saved story commands"><ListView.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ListView.ItemTemplate></ListView>
+                            <ScrollViewer Grid.Row="2" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Run saved" Click="ConsoleRunSaved_Click" /><Button x:Name="PinSavedCommandButton" Content="Pin to sidebar…" Click="ConsolePinSaved_Click" /><Button Content="Delete saved" Click="ConsoleDeleteSaved_Click" /></StackPanel></ScrollViewer>
+                        </Grid>
+                    </Grid>
+                    <ListView x:Name="Completions" Grid.Row="3" MaxHeight="100" IsItemClickEnabled="True" ItemClick="Completion_Click" AutomationProperties.Name="JavaScript completions" />
+                    <StackPanel Grid.Row="4" Spacing="8"><TextBox x:Name="ConsoleInput" PlaceholderText="JavaScript · Enter runs · Tab completes" TextChanged="ConsoleInput_Changed" KeyDown="ConsoleInput_KeyDown" MaxLength="4096" AutomationProperties.Name="Story JavaScript command" /><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Run" Click="ConsoleRun_Click" /><Button Content="Save input" Click="ConsoleSaveInput_Click" /></StackPanel></StackPanel>
                 </Grid>
             </Border>
             <Grid x:Name="SaveManagerHost" Grid.ColumnSpan="2" Canvas.ZIndex="30" Background="#80000000" Visibility="Collapsed" />

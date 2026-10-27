@@ -31,4 +31,54 @@ public sealed class ConsoleTests
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
+    [Fact]
+    public async Task PinsPersistByGameRenameInPlaceAndUnpinWithoutDeletingSavedCommand()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "TwinePlayer-pins-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var database = new NativeDatabase(root); var store = new ConsoleCommandStore(database);
+            var first = Guid.NewGuid(); var second = Guid.NewGuid();
+            await store.SaveAsync("shared-IFID", "State.variables.gold += 10");
+            await store.PinAsync(first, " State.variables.gold += 10 ", " Gold ");
+            await store.PinAsync(first, "1 + 1", "Math");
+            Assert.Empty(await store.GetPinnedAsync(second));
+            await store.PinAsync(second, "State.variables.gold += 10", "Other game");
+            await store.PinAsync(first, "State.variables.gold += 10", "Add gold");
+            var reopened = new ConsoleCommandStore(new NativeDatabase(root));
+            Assert.Equal(new[] { "Add gold", "Math" }, (await reopened.GetPinnedAsync(first)).Select(pin => pin.Label));
+            Assert.Equal("State.variables.gold += 10", (await reopened.GetPinnedAsync(first))[0].Command);
+            Assert.Equal("Other game", Assert.Single(await reopened.GetPinnedAsync(second)).Label);
+            await reopened.UnpinAsync(first, "State.variables.gold += 10");
+            Assert.Equal("Math", Assert.Single(await reopened.GetPinnedAsync(first)).Label);
+            Assert.Single(await reopened.GetAsync("shared-IFID"));
+            await reopened.PinAsync(first, "State.variables.gold += 10", "Gold again");
+            await reopened.SaveAsync("shared-IFID", "State.variables.gold += 10", delete: true, gameId: first);
+            Assert.Equal("Math", Assert.Single(await reopened.GetPinnedAsync(first)).Label);
+            Assert.Empty(await reopened.GetAsync("shared-IFID"));
+            Assert.Single(await reopened.GetPinnedAsync(second));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+    [Fact]
+    public async Task InvalidPinsAreRejectedAndCorruptDataIsPreserved()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "TwinePlayer-pins-invalid-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var database = new NativeDatabase(root); var store = new ConsoleCommandStore(database); var game = Guid.NewGuid();
+            await Assert.ThrowsAsync<ArgumentException>(() => store.PinAsync(game, "1", " "));
+            await Assert.ThrowsAsync<ArgumentException>(() => store.PinAsync(game, "1", new string('x', 41)));
+            await Assert.ThrowsAsync<ArgumentException>(() => store.PinAsync(game, new string('x', 4097), "Long"));
+            await Assert.ThrowsAsync<ArgumentException>(() => store.PinAsync(Guid.Empty, "1", "None"));
+            var corrupt = "{\"" + game.ToString("N") + "\":[{\"Command\":\"1\",\"Label\":\"\"}]}";
+            await database.SetPreferenceAsync("console-command-pins", corrupt);
+            await store.SaveAsync("IFID", "1");
+            await Assert.ThrowsAsync<InvalidDataException>(() => store.PinAsync(game, "2", "Two"));
+            await Assert.ThrowsAsync<InvalidDataException>(() => store.SaveAsync("IFID", "1", delete: true, gameId: game));
+            Assert.Equal(corrupt, await database.GetPreferenceAsync("console-command-pins"));
+            Assert.Single(await store.GetAsync("IFID"));
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
 }

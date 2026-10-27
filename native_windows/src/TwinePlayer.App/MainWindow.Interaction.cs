@@ -85,6 +85,7 @@ public sealed partial class MainWindow
         SyncSaveButtons();
         AutomationProperties.SetName(CollapseBarButton, _sidebarExpanded ? "Collapse right sidebar to icons" : "Expand right sidebar with labels");
         ToolTipService.SetToolTip(CollapseBarButton, _sidebarExpanded ? "Show icons only" : "Show icons and labels");
+        ApplyPinnedCommands();
     }
     private void SetSidebarCommandContent(ContentControl button, string label, string glyph)
     {

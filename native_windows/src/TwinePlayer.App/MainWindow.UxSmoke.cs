@@ -25,7 +25,7 @@ public sealed partial class MainWindow
             try
             {
                 await RefreshLibraryAsync();
-                if (Title != "TwinePlayer 1.0" || NativeTitleBar.Title != "TwinePlayer 1.0" || NativeTitleBar.IconSource is not BitmapIconSource || !File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png")))
+                if (Title != "TwinePlayer 1.1" || NativeTitleBar.Title != "TwinePlayer 1.1" || NativeTitleBar.IconSource is not BitmapIconSource || !File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png")))
                     throw new InvalidDataException($"Official branding mismatch: title={Title}; subtitle={NativeTitleBar.Subtitle}; icon={NativeTitleBar.IconSource?.GetType().FullName}; PNG={File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png"))}.");
                 if (_library.Count != 0) throw new InvalidDataException("UX smoke requires a new isolated library.");
                 async Task Capture(string name, ElementTheme theme, int width, FrameworkElement? target = null, int height = 820)
@@ -161,6 +161,7 @@ public sealed partial class MainWindow
                         throw new InvalidDataException("Docked console lost its opaque surface.");
                 }
                 if (consoleColors[0] == consoleColors[1]) throw new InvalidDataException("Console surface did not follow light/dark theme changes.");
+                await ExerciseConsolePanesAsync((name, theme, width, height) => Capture(name, theme, width, height: height));
                 ConsoleClose_Click(this, new RoutedEventArgs());
                 StorySettings_Click(this, new RoutedEventArgs()); await Task.Delay(200);
                 dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot).Select(popup => FindUxDialog(popup.Child)).FirstOrDefault(candidate => candidate?.Title as string == "Story appearance");
@@ -206,14 +207,57 @@ public sealed partial class MainWindow
                 }
                 finally { savePanel.Hide(); await manager; }
                 if ((await _saves.ListAsync(formGame)).Count != 1) throw new InvalidDataException("Canceled form validation wrote an extra save.");
+                await ExerciseCommandShortcutsAsync(files, (name, theme, width) => Capture(name, theme, width));
                 await ExerciseHomeConfirmationAsync();
                 if (_player.Story is not null || Welcome.Visibility != Visibility.Visible || NativeTitleBar.IsBackButtonEnabled || SaveButton.Visibility != Visibility.Collapsed)
                     throw new InvalidDataException("Sidebar library action did not return to a usable library.");
-                await File.WriteAllTextAsync(report, JsonSerializer.Serialize(new { passed = true, captures, menuLabels, scope = "Native XAML layout renders; Mica/WebView/native-flyout pixels excluded; menu uses actual UIA; no physical/client certification", contextualActions = true, missingSelection = true, narrowReflow = true, searchRecovery = true, rightSidebar = true, sidebarIconsAndLabels = true, opaqueThemedConsole = true, sidebarLibrary = true, nativeSettings = true, accessKeysNoVisibleCollisions = true, groupedNativeMenu = true, saveLoadInlineValidation = true, settingsPrimaryAction = true }));
+                await File.WriteAllTextAsync(report, JsonSerializer.Serialize(new { passed = true, captures, menuLabels, scope = "Native XAML layout renders; Mica/WebView/native-flyout pixels excluded; menu uses actual UIA; no physical/client certification", contextualActions = true, missingSelection = true, narrowReflow = true, searchRecovery = true, rightSidebar = true, sidebarIconsAndLabels = true, opaqueThemedConsole = true, sidebarLibrary = true, nativeSettings = true, accessKeysNoVisibleCollisions = true, groupedNativeMenu = true, saveLoadInlineValidation = true, settingsPrimaryAction = true, perGameCommandShortcuts = true, scrollableResizableConsolePanes = true }));
             }
             catch (Exception error) { await File.WriteAllTextAsync(report, JsonSerializer.Serialize(new { passed = false, error = error.ToString(), captures })); }
             finally { await RequestCloseAsync(); }
         };
+    }
+    private async Task ExerciseConsolePanesAsync(Func<string, ElementTheme, int, int, Task> capture)
+    {
+        var commands = Enumerable.Range(0, 50).Select(index => $"window.__savedListSmoke = {index}").ToArray();
+        SavedCommands.ItemsSource = commands;
+        for (var index = 0; index < 80; index++) AppendConsole("History item " + index, "normal");
+        ConsoleLayout.SelectedIndex = 0; ApplyConsoleLayout();
+        await capture("console-lists-overlay", ElementTheme.Dark, 1200, 820);
+        var savedScroll = FindUxElement<ScrollViewer>(SavedCommands) ?? throw new InvalidDataException("Saved commands have no scroll container.");
+        var historyScroll = FindUxElement<ScrollViewer>(ConsoleLogs) ?? throw new InvalidDataException("Console history has no scroll container.");
+        if (savedScroll.ScrollableHeight <= 0 || historyScroll.ScrollableHeight <= 0 || SavedCommands.ItemsPanelRoot is not ItemsStackPanel { Orientation: Orientation.Vertical })
+            throw new InvalidDataException("Console lists do not scroll vertically within their containers.");
+        var historyOffset = historyScroll.VerticalOffset;
+        savedScroll.ChangeView(null, savedScroll.ScrollableHeight, null, true); await Task.Delay(80);
+        if (savedScroll.VerticalOffset <= 0 || Math.Abs(historyScroll.VerticalOffset - historyOffset) > 1)
+            throw new InvalidDataException("Saved commands cannot scroll independently of history.");
+        SavedCommands.SelectedItem = commands[^1];
+        ConsoleRunSaved_Click(this, new RoutedEventArgs()); await Task.Delay(80);
+        if (await _player.ExecuteScriptAsync("window.__savedListSmoke") != "49") throw new InvalidDataException("A scrolled saved command could not be selected and run.");
+        var historyHeight = ConsoleHistoryRow.ActualHeight; var savedHeight = ConsoleSavedRow.ActualHeight;
+        ConsoleDivider_DragDelta(ConsoleResizeThumb, new Microsoft.UI.Xaml.Controls.Primitives.DragDeltaEventArgs(0, -70)); Root.UpdateLayout();
+        if (ConsoleHistoryRow.ActualHeight >= historyHeight - 1 || ConsoleSavedRow.ActualHeight <= savedHeight + 1)
+            throw new InvalidDataException("Dragging up did not give space to saved commands.");
+        await capture("console-lists-saved-expanded", ElementTheme.Light, 1200, 820);
+        historyHeight = ConsoleHistoryRow.ActualHeight;
+        ConsoleDivider_DragDelta(ConsoleResizeThumb, new Microsoft.UI.Xaml.Controls.Primitives.DragDeltaEventArgs(0, 110)); Root.UpdateLayout();
+        if (ConsoleHistoryRow.ActualHeight <= historyHeight + 1) throw new InvalidDataException("Dragging down did not give space to history.");
+        var share = _consoleHistoryShare;
+        ConsoleLayout.SelectedIndex = 1; ApplyConsoleLayout();
+        await capture("console-lists-docked", ElementTheme.Dark, 1200, 820);
+        if (Math.Abs(share - _consoleHistoryShare) > .01 || Grid.GetColumn(ConsolePanel) != 1) throw new InvalidDataException("Changing console layout lost the divider position.");
+        ResizeConsolePanes(double.MaxValue); Root.UpdateLayout();
+        if (ConsoleSavedRow.ActualHeight < 99) throw new InvalidDataException("History resizing collapsed saved commands.");
+        ResizeConsolePanes(0); Root.UpdateLayout();
+        if (ConsoleHistoryRow.ActualHeight < 99) throw new InvalidDataException("Saved-command resizing collapsed history.");
+        ResizeConsolePanes((ConsolePanes.ActualHeight - ConsoleDivider.ActualHeight) * .6);
+        await capture("console-lists-short", ElementTheme.Light, 640, 480);
+        if (ConsoleHistoryRow.ActualHeight <= 0 || ConsoleSavedRow.ActualHeight <= 0 || SavedCommands.ActualHeight < 32 || ConsoleLogs.ActualHeight < 32)
+            throw new InvalidDataException("Short-window console lost a list viewport.");
+        var inputPosition = ConsoleInput.TransformToVisual(ConsolePanel).TransformPoint(new Windows.Foundation.Point());
+        if (inputPosition.Y + ConsoleInput.ActualHeight > ConsolePanel.ActualHeight) throw new InvalidDataException("Resized lists clipped console input.");
+        await LoadSavedCommandsAsync();
     }
     private static ContentDialog? FindUxDialog(DependencyObject? root)
         => FindUxElement<ContentDialog>(root);

@@ -1,4 +1,8 @@
-# TwinePlayer 1.0 — native Windows player
+# TwinePlayer 1.1 — native Windows player
+
+Version 1.1 adds per-game sidebar command shortcuts and independently scrollable, resizable console lists. See [RELEASE-1.1.md](docs/RELEASE-1.1.md) for the current release and installation details.
+
+## Previous 1.0 release
 
 TwinePlayer 1.0 is the primary Windows product, promoted from the WinUI 3 migration by the user. [Download the official release](https://github.com/YuuKwn/TwinePlayer/releases/tag/native-v1.0.0): choose the per-user Setup EXE or portable ZIP. See [RELEASE-1.0.md](docs/RELEASE-1.0.md) for features and compatibility, and [INSTALLER.md](docs/INSTALLER.md) for installation and upgrade details.
 
