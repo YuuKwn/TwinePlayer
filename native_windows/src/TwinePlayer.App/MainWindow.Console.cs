@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using TwinePlayer.Native.Core;
 using Windows.System;
@@ -12,6 +13,7 @@ public sealed partial class MainWindow
     private CancellationTokenSource? _completionRequest;
     private int _historyPosition;
     private int _savedCommandsRequest;
+    private double _consoleHistoryShare = .6;
     private string? ConsoleScope => _player.Story is { } story ? ConsoleSession.Scope(story, _currentIfid) : null;
     private void ResetConsole()
     {
@@ -55,6 +57,26 @@ public sealed partial class MainWindow
         ConsolePanel.Width = Math.Min(440, Math.Max(280, Viewport.ActualWidth));
         Grid.SetColumn(ConsolePanel, side ? 1 : 0); ConsoleColumn.Width = new GridLength(side ? ConsolePanel.Width : 0);
         ConsolePanel.HorizontalAlignment = side ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
+    }
+    private void ResizeConsolePanes(double historyHeight)
+    {
+        var available = ConsolePanes.ActualHeight - ConsoleDivider.ActualHeight;
+        if (available <= 0) return;
+        var minimum = Math.Min(112, available / 2);
+        _consoleHistoryShare = Math.Clamp(historyHeight, minimum, available - minimum) / available;
+        ConsoleHistoryRow.Height = new GridLength(_consoleHistoryShare, GridUnitType.Star);
+        ConsoleSavedRow.Height = new GridLength(1 - _consoleHistoryShare, GridUnitType.Star);
+    }
+    private void ConsolePanes_SizeChanged(object sender, SizeChangedEventArgs e)
+    { if (ConsoleDivider is not null) ResizeConsolePanes(_consoleHistoryShare * (ConsolePanes.ActualHeight - ConsoleDivider.ActualHeight)); }
+    private void ConsoleDivider_DragDelta(object sender, DragDeltaEventArgs e)
+        => ResizeConsolePanes(_consoleHistoryShare * (ConsolePanes.ActualHeight - ConsoleDivider.ActualHeight) + e.VerticalChange);
+    private void ConsoleDivider_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is not (VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End)) return;
+        var available = ConsolePanes.ActualHeight - ConsoleDivider.ActualHeight;
+        ResizeConsolePanes(e.Key switch { VirtualKey.Home => 0, VirtualKey.End => available, _ => _consoleHistoryShare * available + (e.Key == VirtualKey.Up ? -24 : 24) });
+        e.Handled = true;
     }
     private async Task<bool> RunConsoleAsync(string command, bool fromSidebar = false)
     {
