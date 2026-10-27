@@ -16,7 +16,7 @@
         <Grid.KeyboardAccelerators><KeyboardAccelerator Key="F11" Invoked="FullscreenKey_Invoked" /><KeyboardAccelerator Key="Escape" Invoked="EscapeKey_Invoked" /></Grid.KeyboardAccelerators>
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-        <TitleBar x:Name="NativeTitleBar" Grid.ColumnSpan="2" Title="TwinePlayer 1.0" IsBackButtonVisible="False" BackRequested="TitleBar_BackRequested">
+        <TitleBar x:Name="NativeTitleBar" Grid.ColumnSpan="2" Title="TwinePlayer 1.1" IsBackButtonVisible="False" BackRequested="TitleBar_BackRequested">
             <TitleBar.IconSource><BitmapIconSource UriSource="ms-appx:///Assets/app_icon.png" ShowAsMonochrome="False" /></TitleBar.IconSource>
         </TitleBar>
         <Border x:Name="RightSidebar" Grid.Row="1" Grid.Column="1" Width="72" Margin="0,0,8,8" Padding="8" CornerRadius="8" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" AutomationProperties.Name="Right sidebar controls">

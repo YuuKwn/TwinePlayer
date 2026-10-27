@@ -37,7 +37,7 @@ public sealed partial class MainWindow : Window
         _commandStore = commandStore;
         _assistanceStore = assistanceStore;
         InitializeComponent();
-        Title = "TwinePlayer 1.0";
+        Title = "TwinePlayer 1.1";
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1200, 820));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.ico"));
         InitializeWindowing();

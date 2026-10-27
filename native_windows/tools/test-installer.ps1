@@ -58,7 +58,7 @@ try {
         Invoke-Setup $Installer $arguments
         $fileCount = Assert-Payload
         $registered = Get-ItemProperty $registration
-        if ($registered.DisplayName -ne 'TwinePlayer 1.0.0' -or $registered.DisplayVersion -ne '1.0.0') { throw 'Installer still has preview product/version branding.' }
+        if ($registered.DisplayName -ne "TwinePlayer $($provenance.applicationBuild.releaseVersion)" -or $registered.DisplayVersion -ne $provenance.applicationBuild.releaseVersion) { throw 'Installer still has preview product/version branding.' }
         if ($registered.InstallLocation.TrimEnd('\') -ne $install -or
             -not (Test-Path -LiteralPath $menu) -or -not (Test-Path -LiteralPath $desktop)) { throw 'Installation registration or shortcuts are missing.' }
         if (-not (Select-String -LiteralPath (Join-Path $root "$pass.log") -SimpleMatch 'WebView2 Runtime is already installed; bootstrapper skipped.' -Quiet)) {

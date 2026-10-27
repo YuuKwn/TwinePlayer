@@ -59,3 +59,5 @@ Post-migration UX Preview 1: native TitleBar/back navigation, responsive layered
 User-requested UX Preview 2 supersedes the horizontal compact/Comfortable bars with a right sidebar. Order, target sizes, optional page commands and Console/More pins remain supported vertically. Alignment maps to top/center/bottom; legacy horizontal reach values are preserved but the sidebar stays right. Sidebar navigation replaces the title-bar app back button. See UX-SIDEBAR.md for tested bounds, scroll/collapse and runtime evidence.
 
 UX Preview 3 adds native access keys with visible-scope collision checks, lighter compact controls, grouped native menus and existing shortcut hints. Settings Apply is primary. Save filename validity and Load/Delete selection gate the dialog actions live; service validation, overwrite/delete confirmations and Cancel behavior remain intact. The right-sidebar layout is retained; see UX-CONVENTIONS.md.
+
+Version 1.1 adds per-game saved-command sidebar shortcuts and vertically scrollable, resizable console lists. The existing Save/Load/Console toggles and Home confirmation are retained. See RELEASE-1.1.md.
