@@ -21,6 +21,11 @@ public sealed partial class MainWindow
                 var mode = settings.RootElement.GetProperty("mode").GetString()!;
                 var filename = settings.RootElement.GetProperty("filename").GetString()!;
                 await OpenAsync(game);
+                if (mode.StartsWith("private-sugarcube-", StringComparison.Ordinal))
+                {
+                    await ExercisePrivateSugarCubeSaveAsync(game, mode, filename, input, output);
+                    return;
+                }
                 for (var i = 0; i < 100; i++)
                 {
                     if (await _player.ExecuteScriptAsync("!!((window.SugarCube?.State?.passage||window.SugarCube?.state?.active?.title)&&document.querySelector('#passages .passage'))") == "true") break;
