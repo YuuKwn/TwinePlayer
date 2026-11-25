@@ -15,6 +15,24 @@ public sealed partial class MainWindow
     private int _savedCommandsRequest;
     private double _consoleHistoryShare = .6;
     private string? ConsoleScope => _player.Story is { } story ? ConsoleSession.Scope(story, _currentIfid) : null;
+    private void InitializeConsolePresentation()
+    {
+        ConsoleLogs.RegisterPropertyChangedCallback(ItemsControl.ItemsSourceProperty, (_, _) => UpdateConsoleActions());
+        SavedCommands.RegisterPropertyChangedCallback(ItemsControl.ItemsSourceProperty, (_, _) => UpdateConsoleActions());
+        Completions.RegisterPropertyChangedCallback(ItemsControl.ItemsSourceProperty, (_, _) =>
+            Completions.Visibility = Completions.ItemsSource is IReadOnlyCollection<string> { Count: > 0 } ? Visibility.Visible : Visibility.Collapsed);
+    }
+    private void ConsoleSelection_Changed(object sender, SelectionChangedEventArgs e) => UpdateConsoleActions();
+    private void UpdateConsoleActions()
+    {
+        if (ConsoleHistoryEmpty is null || DeleteSavedCommandButton is null) return;
+        var historyCommand = ConsoleLogs.SelectedItem is ConsoleEntry { Command: { Length: > 0 } };
+        RerunCommandButton.IsEnabled = EditCommandButton.IsEnabled = SaveCommandButton.IsEnabled = historyCommand;
+        var selected = SavedCommands.SelectedItem is string;
+        RunSavedCommandButton.IsEnabled = PinSavedCommandButton.IsEnabled = DeleteSavedCommandButton.IsEnabled = selected;
+        ConsoleHistoryEmpty.Visibility = ConsoleLogs.ItemsSource is ConsoleEntry[] { Length: > 0 } ? Visibility.Collapsed : Visibility.Visible;
+        ConsoleSavedEmpty.Visibility = SavedCommands.ItemsSource is IReadOnlyCollection<string> { Count: > 0 } ? Visibility.Collapsed : Visibility.Visible;
+    }
     private void ResetConsole()
     {
         _completionRequest?.Cancel(); _currentIfid = null; _console = new(); _historyPosition = 0; _savedCommandsRequest++;
@@ -25,8 +43,12 @@ public sealed partial class MainWindow
     }
     private void AppendConsole(string message, string level, string? command = null)
     {
-        _console.Append(message, level, command); ConsoleLogs.ItemsSource = _console.Entries.ToArray();
-        if (_console.Entries.Count > 0) ConsoleLogs.ScrollIntoView(_console.Entries[^1]);
+        var selected = ConsoleLogs.SelectedItem as ConsoleEntry;
+        _console.Append(message, level, command);
+        var entries = _console.Entries.ToArray();
+        ConsoleLogs.ItemsSource = entries;
+        if (selected is not null && entries.Contains(selected)) ConsoleLogs.SelectedItem = selected;
+        else if (entries.Length > 0) ConsoleLogs.ScrollIntoView(entries[^1]);
     }
     private async Task LoadSavedCommandsAsync()
     {
@@ -37,7 +59,10 @@ public sealed partial class MainWindow
             var saved = await _commandStore.GetAsync(scope);
             var pins = await _commandStore.GetPinnedAsync(story.Id);
             if (request != _savedCommandsRequest || scope != ConsoleScope || _player.Story?.Id != story.Id || _closed) return;
-            SavedCommands.ItemsSource = saved; _pinnedCommands = pins; _pinsGameId = story.Id; ApplyPinnedCommands();
+            var selected = SavedCommands.SelectedItem as string;
+            SavedCommands.ItemsSource = saved;
+            if (selected is not null && saved.Contains(selected)) SavedCommands.SelectedItem = selected;
+            _pinnedCommands = pins; _pinsGameId = story.Id; ApplyPinnedCommands();
         }
         catch (Exception error) { if (!_closed && request == _savedCommandsRequest) { AppendConsole(error.Message, "error"); ShowCommandError(error.Message); } }
     }
@@ -52,11 +77,18 @@ public sealed partial class MainWindow
     private void ConsoleLayout_Changed(object sender, SelectionChangedEventArgs e) { if (ConsolePanel is not null) ApplyConsoleLayout(); }
     private void ApplyConsoleLayout()
     {
-        if (ConsolePanel is null || ConsoleLayout is null || Viewport is null) return;
+        if (ConsoleInputHint is null || ConsolePanel is null || ConsoleLayout is null || Viewport is null) return;
         var side = ConsolePanel.Visibility == Visibility.Visible && ConsoleLayout.SelectedIndex == 1 && Viewport.ActualWidth >= 760;
-        ConsolePanel.Width = Math.Min(440, Math.Max(280, Viewport.ActualWidth));
+        ConsolePanel.Width = Math.Min(440, Viewport.ActualWidth);
+        var narrow = ConsolePanel.Width < 350;
+        Grid.SetRow(ConsoleLayout, narrow ? 1 : 0);
+        Grid.SetColumn(ConsoleLayout, narrow ? 0 : 1);
+        Grid.SetColumnSpan(ConsoleLayout, narrow ? 3 : 1);
+        Completions.MaxHeight = Math.Clamp(Viewport.ActualHeight / 6, 36, 100);
+        ConsoleInputHint.Visibility = Viewport.ActualHeight < 500 ? Visibility.Collapsed : Visibility.Visible;
         Grid.SetColumn(ConsolePanel, side ? 1 : 0); ConsoleColumn.Width = new GridLength(side ? ConsolePanel.Width : 0);
         ConsolePanel.HorizontalAlignment = side ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
+        ConsoleOverlayHint.Visibility = ConsoleLayout.SelectedIndex == 1 && !side ? Visibility.Visible : Visibility.Collapsed;
     }
     private void ResizeConsolePanes(double historyHeight)
     {
@@ -98,7 +130,13 @@ public sealed partial class MainWindow
     }
     private async void ConsoleRun_Click(object sender, RoutedEventArgs e) => await RunConsoleAsync(ConsoleInput.Text);
     private async void ConsoleRerun_Click(object sender, RoutedEventArgs e) { if (ConsoleLogs.SelectedItem is ConsoleEntry { Command: { } command }) await RunConsoleAsync(command); }
-    private void ConsoleUseLog_Click(object sender, RoutedEventArgs e) { if (ConsoleLogs.SelectedItem is ConsoleEntry { Command: { } command }) ConsoleInput.Text = command; }
+    private void ConsoleUseLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (ConsoleLogs.SelectedItem is not ConsoleEntry { Command: { } command }) return;
+        ConsoleInput.Text = command;
+        ConsoleInput.SelectionStart = command.Length;
+        ConsoleInput.Focus(FocusState.Programmatic);
+    }
     private async Task SaveConsoleAsync(string command, bool delete = false)
     {
         if (ConsoleScope is not { } scope) return;
@@ -116,6 +154,8 @@ public sealed partial class MainWindow
     {
         _completionRequest?.Cancel(); _completionRequest?.Dispose(); _completionRequest = new();
         var token = _completionRequest.Token; var input = ConsoleInput.Text;
+        if (SaveConsoleInputButton is not null)
+            RunConsoleButton.IsEnabled = SaveConsoleInputButton.IsEnabled = !string.IsNullOrWhiteSpace(input);
         if (!ConsoleSession.LooksCompletable(input) || _player.Story is null) { Completions.ItemsSource = null; return; }
         try { await Task.Delay(160, token); var suggestions = await _bridge.CompleteAsync(input, token); if (!token.IsCancellationRequested && ConsoleInput.Text == input) Completions.ItemsSource = suggestions; }
         catch (OperationCanceledException) { }

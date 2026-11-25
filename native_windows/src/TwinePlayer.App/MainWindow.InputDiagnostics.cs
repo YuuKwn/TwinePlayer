@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using System.Reflection;
 using TwinePlayer.Native.Core;
 using Windows.ApplicationModel.DataTransfer;
@@ -26,14 +27,28 @@ public sealed partial class MainWindow
             var panel = new StackPanel { Spacing = 12, MinWidth = Math.Max(160, Math.Min(350, Root.ActualWidth - 96)) };
             var enable = new ToggleSwitch { Header = "Record input metadata (this session only)", IsOn = _diagnostics.Enabled };
             enable.Toggled += async (_, _) => { try { await EnableDiagnosticsAsync(enable.IsOn); } catch (Exception error) { ShowPresentationError(error.Message); } };
-            var label = new TextBox { Header = "Scenario label (session only; do not enter personal information)", Text = _diagnostics.ScenarioLabel, MaxLength = 64 }; label.TextChanged += (_, _) => { _diagnostics.SetScenarioLabel(label.Text); RefreshDiagnosticDisplay(); };
+            var label = new TextBox { Header = "Scenario label (optional)", Description = "Use a short label without personal information.", Text = _diagnostics.ScenarioLabel, MaxLength = 64 }; label.TextChanged += (_, _) => { _diagnostics.SetScenarioLabel(label.Text); RefreshDiagnosticDisplay(); };
             _diagnosticDisplay = new TextBox { Text = DiagnosticReport(), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = Math.Max(120, Math.Min(320, Root.ActualHeight - 420)) }; AutomationProperties.SetName(_diagnosticDisplay, "Privacy-safe input report");
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var copy = new Button { Content = "Copy report" }; copy.Click += (_, _) => { var data = new DataPackage(); data.SetText(DiagnosticReport()); Clipboard.SetContent(data); };
-            var clear = new Button { Content = "Clear events" }; clear.Click += (_, _) => { _diagnostics.Clear(); _chromeContacts.Clear(); RefreshDiagnosticDisplay(); };
+            var feedback = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            AutomationProperties.SetLiveSetting(feedback, AutomationLiveSetting.Polite);
+            void Report(string message) { feedback.Text = message; Announce(feedback); }
+            var copy = new Button { Content = "Copy report" };
+            copy.Click += (_, _) =>
+            {
+                try
+                {
+                    var data = new DataPackage();
+                    data.SetText(DiagnosticReport());
+                    Clipboard.SetContent(data);
+                    Report("Report copied.");
+                }
+                catch (Exception error) { Report("Could not copy the report. " + error.Message); }
+            };
+            var clear = new Button { Content = "Clear events" }; clear.Click += (_, _) => { _diagnostics.Clear(); _chromeContacts.Clear(); RefreshDiagnosticDisplay(); Report("Recorded events cleared."); };
             buttons.Children.Add(copy); buttons.Children.Add(clear);
             panel.Children.Add(new TextBlock { Text = "Disabled by default. Keeps at most 200 events in memory. Reports contain device/category/contact counts and build identity; no story text, paths, coordinates, raw keys or timestamps. Scenario labels are copied exactly after sanitization.", TextWrapping = TextWrapping.Wrap });
-            panel.Children.Add(enable); panel.Children.Add(label); panel.Children.Add(_diagnosticDisplay); panel.Children.Add(buttons);
+            panel.Children.Add(enable); panel.Children.Add(label); panel.Children.Add(_diagnosticDisplay); panel.Children.Add(buttons); panel.Children.Add(feedback);
             await new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Input diagnostics", Content = new ScrollViewer { Content = panel, MaxHeight = Math.Max(180, Root.ActualHeight - 200) }, CloseButtonText = "Close" }.ShowAsync();
         }
         catch (Exception error) { ShowPresentationError(error.Message); }

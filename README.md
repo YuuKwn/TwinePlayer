@@ -4,7 +4,7 @@ TwinePlayer is a Windows desktop app for playing Twine HTML games outside your r
 
 ## Native Windows release
 
-[Download TwinePlayer 1.0](https://github.com/YuuKwn/TwinePlayer/releases/tag/native-v1.0.0) for Windows 11 x64. Use the Setup EXE for Start menu access and uninstall support, or extract the entire portable ZIP and run `TwinePlayer.Native.exe`. .NET and Windows App SDK are included. Setup handles WebView2 Evergreen Runtime if missing (Internet required for that step). See [release notes](native_windows/docs/RELEASE-1.0.md) and [installer details](native_windows/docs/INSTALLER.md).
+[Download TwinePlayer 1.2.0](https://github.com/YuuKwn/TwinePlayer/releases/tag/native-v1.2.0) for Windows 11 x64. Use the Setup EXE for Start menu access and uninstall support, or extract the entire portable ZIP and run `TwinePlayer.Native.exe`. .NET and Windows App SDK are included. Setup handles WebView2 Evergreen Runtime if missing (Internet required for that step). See [release notes](native_windows/docs/RELEASE-1.2.md) and [installer details](native_windows/docs/INSTALLER.md).
 
 The first official native release includes the right sidebar with icon/label states, an opaque console, and native Save/Load UI without the standard SugarCube or browser file dialogs. Save, Load and Console buttons close their panels when clicked again; Home asks before leaving a game. It uses the existing native app-data profile, supports explicit Flutter import, and has a new original icon. See [native documentation](native_windows/README.md).
 

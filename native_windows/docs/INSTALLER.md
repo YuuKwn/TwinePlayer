@@ -1,6 +1,6 @@
 # TwinePlayer installer
 
-Version 1.1.0 uses the same installer AppId and upgrades an existing native installation in place. See RELEASE-1.1.md for current release details. Version-specific examples below document the prior 1.0 release.
+Version 1.2.0 uses the same installer AppId and upgrades an existing native installation in place. See RELEASE-1.2.md for current release details. Version-specific examples below document the prior 1.0 release.
 
 The installer is a per-user Windows 11 x64 installer for the official
 `native-v1.0.0` release. It wraps the same application files as the 1.0 ZIP.

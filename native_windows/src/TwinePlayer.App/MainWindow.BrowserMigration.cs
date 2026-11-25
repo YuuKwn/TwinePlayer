@@ -18,8 +18,10 @@ public sealed partial class MainWindow
         BrowserProfileCopy? snapshot = null;
         try
         {
-            var source = new TextBox { Header = "Closed Flutter WebView2 user-data folder", Text = BrowserProfileSnapshot.DefaultSource, MinWidth = Math.Max(160, Math.Min(450, Root.ActualWidth - 96)) };
-            var content = new StackPanel { Spacing = 12 }; content.Children.Add(new TextBlock { Text = "Close Flutter first. A read-only-source profile backup and a separate working copy are created before previewing localStorage, IndexedDB and cookies. Legacy games shared one origin: select only data belonging to the selected game. No import runs automatically.", TextWrapping = TextWrapping.Wrap }); content.Children.Add(source);
+            var source = new TextBox { Header = "Flutter WebView2 data folder", Text = BrowserProfileSnapshot.DefaultSource, MinWidth = Math.Max(160, Math.Min(450, Root.ActualWidth - 96)) };
+            var content = new StackPanel { Spacing = 12 };
+            content.Children.Add(new TextBlock { Text = "Close Flutter before continuing. TwinePlayer creates a backup and previews the browser data from a separate working copy. You’ll choose what to transfer to this game.", TextWrapping = TextWrapping.Wrap });
+            content.Children.Add(source);
             var choose = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Preview browser data for " + game.Title, Content = content, PrimaryButtonText = "Copy profile and preview", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
             if (await choose.ShowAsync() != ContentDialogResult.Primary) return;
             EnsureSingleNativeWindow();
@@ -34,10 +36,25 @@ public sealed partial class MainWindow
             var index = 0; foreach (var cookie in cookies.EnumerateArray()) { var name = cookie.GetProperty("name").GetString()!; choices.Add(new("cookie", name, index++, $"Cookie · {name} · path {cookie.GetProperty("path").GetString()}")); }
             var list = new ListView { ItemsSource = choices, SelectionMode = ListViewSelectionMode.Multiple, MaxHeight = Math.Max(150, Root.ActualHeight - 400) }; Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(list, "Legacy browser items to import");
             var panel = new StackPanel { Spacing = 12, MinWidth = Math.Max(160, Math.Min(500, Root.ActualWidth - 96)) };
-            panel.Children.Add(new TextBlock { Text = $"Target: {game.Title}\nOrigin: https://{game.Identity.HostName}\n{choices.Count} items. Nothing is selected by default. Existing native keys/databases/cookies are kept; conflicts are skipped and reported. Session storage and other remote origins are not copied. Unsupported value types/partitioned cookies fail visibly. Backup: {snapshot.BackupDirectory}", TextWrapping = TextWrapping.Wrap });
-            panel.Children.Add(list); var select = new Button { Content = "Select all shown (shared legacy data)" }; select.Click += (_, _) => list.SelectAll(); panel.Children.Add(select);
-            var confirm = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Choose browser data to transfer", Content = new ScrollViewer { Content = panel, MaxHeight = Math.Max(200, Root.ActualHeight - 200) }, PrimaryButtonText = "Import selected without overwrite", IsPrimaryButtonEnabled = false, CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
-            list.SelectionChanged += (_, _) => confirm.IsPrimaryButtonEnabled = list.SelectedItems.Count != 0;
+            panel.Children.Add(new TextBlock { Text = $"Destination game: {game.Title}", TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            panel.Children.Add(new TextBlock { Text = "Flutter games shared one browser profile. Select only items that belong to this game. Existing native data takes precedence when items conflict.", TextWrapping = TextWrapping.Wrap });
+            var selection = new TextBlock { Text = choices.Count == 0 ? "No transferable items found in this profile." : $"0 of {choices.Count} selected", TextWrapping = TextWrapping.Wrap };
+            panel.Children.Add(selection);
+            if (choices.Count > 0)
+            {
+                panel.Children.Add(list);
+                var select = new Button { Content = "Select all shown" };
+                select.Click += (_, _) => list.SelectAll();
+                panel.Children.Add(select);
+            }
+            panel.Children.Add(new TextBlock { Text = $"Origin: https://{game.Identity.HostName}\nBackup: {snapshot.BackupDirectory}\nThis transfer supports localStorage, IndexedDB and supported cookies from Flutter’s story origin.", TextWrapping = TextWrapping.Wrap });
+            var confirm = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Choose browser data to transfer", Content = new ScrollViewer { Content = panel, MaxHeight = Math.Max(200, Root.ActualHeight - 200) }, PrimaryButtonText = "Import selected", IsPrimaryButtonEnabled = false, CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+            list.SelectionChanged += (_, _) =>
+            {
+                var count = list.SelectedItems.Count;
+                confirm.IsPrimaryButtonEnabled = count > 0;
+                selection.Text = $"{count} of {choices.Count} selected";
+            };
             if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
             var selected = list.SelectedItems.Cast<StorageChoice>().ToArray();
             var json = await legacy.ExportAsync(selected.Where(item => item.Kind == "localStorage").Select(item => item.Name).ToArray(), selected.Where(item => item.Kind == "database").Select(item => item.Name).ToArray(), token);

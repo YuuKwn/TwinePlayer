@@ -82,7 +82,13 @@ public sealed partial class MainWindow
             var lengthEnabled = new ToggleSwitch { Header = "Limit readable line length", IsOn = _assistance.ReadableLineLengthEnabled };
             var length = Number("Maximum line length (ch)", _assistance.ReadableLineLength, 45, 90, 5);
             var spacing = Number("Target spacing", _assistance.TargetSpacing, .75, 1.75, .1);
-            var status = new TextBlock { Text = "Changes apply to this story. Readability and choice enhancements work with supported story formats.", TextWrapping = TextWrapping.Wrap };
+            var status = new TextBlock
+            {
+                Text = _assistanceStatus is { Verified: false }
+                    ? "Zoom works with this story. Readability and choice enhancements require a recognized story format and reading area."
+                    : "Changes apply to this story. Select Apply to keep them.",
+                TextWrapping = TextWrapping.Wrap
+            };
             panel.Children.Add(status);
             panel.Children.Add(SettingsSection("Story display", "Zoom and choice enhancements are saved for this story.", true, zoom, choices));
             panel.Children.Add(SettingsSection("Readability", "Optional text adjustments for verified story engines.", _assistance.ReadabilityEnabled, readable, text, line, paragraph, lengthEnabled, length, spacing));
