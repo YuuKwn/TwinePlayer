@@ -21,6 +21,8 @@ public sealed partial class MainWindow
     private bool _saveSmokeMode;
     private bool _saveActionInProgress;
 
+    public static string SaveDetails(DateTime modifiedUtc, long bytes) => $"Modified {modifiedUtc.ToLocalTime():g} · {bytes:N0} bytes";
+
     private async Task RunSaveActionAsync(Func<Task> action)
     {
         if (_saveActionInProgress || _saveDialogOpen) { ViewModel.Status = "Finish the current save/load action first."; return; }
@@ -191,28 +193,56 @@ public sealed partial class MainWindow
         {
             var isSave = captured is not null;
             var filename = new TextBox { Header = "Save filename", Text = suggested ?? $"save_{DateTime.Now:yyyyMMdd_HHmmss}.save", Visibility = isSave ? Visibility.Visible : Visibility.Collapsed };
-            var list = new ListView { MinWidth = Math.Max(160, Math.Min(400, Root.ActualWidth - 96)), MaxHeight = 300, SelectionMode = ListViewSelectionMode.Single };
-            AutomationProperties.SetName(list, "Save files with modification dates and sizes");
-            var error = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            var list = new ListView
+            {
+                MaxHeight = Math.Clamp(Root.ActualHeight - 340, 116, 280),
+                SelectionMode = ListViewSelectionMode.Single, ItemTemplate = (DataTemplate)Root.Resources["SaveEntryTemplate"]
+            };
+            AutomationProperties.SetName(list, isSave ? "Existing saves. Select a file to reuse its name." : "Available saves");
+            var hint = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            var error = new TextBlock { Style = (Style)Root.Resources["InlineErrorStyle"], Visibility = Visibility.Collapsed };
             AutomationProperties.SetLiveSetting(error, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
-            var content = new StackPanel { Spacing = 12 };
-            content.Children.Add(new TextBlock { Text = "Saves remain beside this game in its _saves folder. SugarCube controls the save format.", TextWrapping = TextWrapping.Wrap });
+            var content = new StackPanel { Spacing = 10 };
+            content.Children.Add(hint);
             var createSave = new Button { Content = "Create a new save…", Visibility = isSave ? Visibility.Collapsed : Visibility.Visible };
-            content.Children.Add(createSave);
             content.Children.Add(filename);
             content.Children.Add(list);
+            content.Children.Add(createSave);
             content.Children.Add(error);
             var dialog = new Controls.SaveManagerPanel { Title = isSave ? "Save game" : "Load game", Content = content, PrimaryButtonText = isSave ? "Save" : "Load", SecondaryButtonText = "Delete selected", CloseButtonText = "Cancel", IsSecondaryButtonEnabled = false };
+            dialog.Opened += (_, _) =>
+            {
+                if (isSave)
+                {
+                    filename.Focus(FocusState.Programmatic);
+                    filename.Select(0, filename.Text.EndsWith(".save", StringComparison.OrdinalIgnoreCase) ? filename.Text.Length - 5 : filename.Text.Length);
+                }
+                else if (list.Items.Count > 0) list.Focus(FocusState.Programmatic);
+                else createSave.Focus(FocusState.Programmatic);
+                if (error.Visibility == Visibility.Visible) Announce(error);
+            };
             createSave.Click += (_, _) => { createSaveRequested = true; dialog.Hide(); };
+            void SetError(string message)
+            {
+                error.Text = message;
+                error.Visibility = message.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
             void UpdateActions()
             {
                 dialog.IsSecondaryButtonEnabled = list.SelectedItem is SaveEntry;
                 if (!isSave) { dialog.IsPrimaryButtonEnabled = list.SelectedItem is SaveEntry; return; }
-                try { SaveRules.Filename(filename.Text); dialog.IsPrimaryButtonEnabled = true; filename.Description = "Choose a filename ending in .save."; }
+                try
+                {
+                    SaveRules.Filename(filename.Text);
+                    dialog.IsPrimaryButtonEnabled = true;
+                    filename.Description = "Choose a filename ending in .save.";
+                    AutomationProperties.SetItemStatus(filename, "");
+                }
                 catch (ArgumentException invalid)
                 {
                     dialog.IsPrimaryButtonEnabled = false;
                     filename.Description = string.IsNullOrWhiteSpace(filename.Text) ? "Enter a filename ending in .save." : invalid.Message;
+                    AutomationProperties.SetItemStatus(filename, string.IsNullOrWhiteSpace(filename.Text) ? "Filename required" : "Invalid filename");
                 }
             }
             filename.TextChanged += (_, _) => UpdateActions();
@@ -226,8 +256,15 @@ public sealed partial class MainWindow
                 {
                     var saves = await _saves.ListAsync(story.FilePath, token);
                     list.ItemsSource = saves;
+                    list.Visibility = saves.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
                     UpdateActions();
-                    if (saves.Count == 0) error.Text = "No sidecar saves yet.";
+                    hint.Text = (isSave, saves.Count) switch
+                    {
+                        (true, 0) => "Your save will appear in the game’s _saves folder.",
+                        (true, _) => "Enter a new name or select an existing save to reuse its name.",
+                        (false, 0) => "No saves in this game’s _saves folder. Create a save to record your current progress.",
+                        _ => "Select a save from this game’s _saves folder."
+                    };
                     refresh = false;
                 }
                 _activeSaveManager = dialog; _saveManagerIsSave = isSave;
@@ -242,11 +279,12 @@ public sealed partial class MainWindow
                 {
                     if (action == ContentDialogResult.Secondary)
                     {
-                        if (list.SelectedItem is not SaveEntry selected) { error.Text = "Select a save to delete."; continue; }
+                        if (list.SelectedItem is not SaveEntry selected) { SetError("Select a save to delete."); continue; }
                         if (!await ConfirmSaveActionAsync("Delete save?", $"Delete {selected.Filename}?", "Delete")) continue;
                         await _saves.DeleteAsync(story.FilePath, selected.Filename, token);
                         refresh = true;
-                        error.Text = "Save deleted.";
+                        SetError("");
+                        ViewModel.Status = $"Deleted {selected.Filename}.";
                     }
                     else if (isSave)
                     {
@@ -260,13 +298,13 @@ public sealed partial class MainWindow
                     }
                     else
                     {
-                        if (list.SelectedItem is not SaveEntry selected) { error.Text = "Select a save to load."; continue; }
+                        if (list.SelectedItem is not SaveEntry selected) { SetError("Select a save to load."); continue; }
                         await RestoreBytesAsync(await _saves.ReadAsync(story.FilePath, selected.Filename, token), token);
                         return;
                     }
                 }
                 catch (OperationCanceledException) { throw; }
-                catch (Exception failure) { error.Text = failure.Message; ViewModel.Status = "Save operation failed; the dialog remains available to retry."; }
+                catch (Exception failure) { SetError(failure.Message); ViewModel.Status = "Save operation failed. Review the error and retry."; }
             }
         }
         finally

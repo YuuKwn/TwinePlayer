@@ -5,6 +5,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics.Imaging;
@@ -29,17 +30,35 @@ public sealed class ImagePreviewPane : Grid
         RowDefinitions.Add(new() { Height = GridLength.Auto }); RowDefinitions.Add(new() { Height = GridLength.Auto }); RowDefinitions.Add(new() { Height = GridLength.Auto });
         _image = new Image { Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetName(_image, string.IsNullOrWhiteSpace(alt) ? "Story image" : alt);
-        Viewer = new ScrollViewer { Content = _image, Width = _width, Height = _height, MinZoomFactor = 1, MaxZoomFactor = 6, ZoomMode = ZoomMode.Enabled, HorizontalScrollMode = ScrollMode.Enabled, VerticalScrollMode = ScrollMode.Enabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, IsHorizontalRailEnabled = false, IsVerticalRailEnabled = false };
-        var commands = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var copy = Button("Copy source", "Copy image source"); copy.Click += (_, _) => { var package = new DataPackage(); package.SetText(source); Clipboard.SetContent(package); };
+        Viewer = new ScrollViewer { Content = _image, Width = _width, Height = _height, MinZoomFactor = 1, MaxZoomFactor = 6, ZoomMode = ZoomMode.Enabled, HorizontalScrollMode = ScrollMode.Enabled, VerticalScrollMode = ScrollMode.Enabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, IsHorizontalRailEnabled = false, IsVerticalRailEnabled = false, IsTabStop = true };
+        var commands = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var copy = Button("Copy source", "Copy image source");
+        copy.Click += (_, _) =>
+        {
+            try
+            {
+                var package = new DataPackage();
+                package.SetText(source);
+                Clipboard.SetContent(package);
+                ShowStatus("Image source copied.");
+            }
+            catch (Exception error) { ShowStatus("Could not copy image source. " + error.Message); }
+        };
         var plus = Button("+", "Zoom in image"); plus.Click += (_, _) => SetZoom(Viewer.ZoomFactor * 1.25);
         var minus = Button("−", "Zoom out image"); minus.Click += (_, _) => SetZoom(Viewer.ZoomFactor * .8);
         var reset = Button("Reset", "Reset image zoom"); reset.Click += (_, _) => SetZoom(1);
-        DoubleTap = new() { Header = "Double-tap zoom", IsOn = false }; AutomationProperties.SetName(DoubleTap, "Enable double-tap zoom");
+        DoubleTap = new() { Header = "Double-tap to zoom", IsOn = false }; AutomationProperties.SetName(DoubleTap, "Enable double-tap zoom");
         DoubleTap.Toggled += (_, _) => { if (!DoubleTap.IsOn) SetZoom(1); };
-        commands.Children.Add(copy); commands.Children.Add(minus); commands.Children.Add(plus); commands.Children.Add(reset); commands.Children.Add(DoubleTap);
-        Children.Add(new ScrollViewer { Content = commands, Width = _width, HorizontalScrollMode = ScrollMode.Enabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollMode = ScrollMode.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled }); SetRow(_status, 1); Children.Add(_status);
-        AutomationProperties.SetName(Viewer, "Image preview zoom and pan surface"); SetRow(Viewer, 2); Children.Add(Viewer);
+        commands.Children.Add(minus); commands.Children.Add(plus); commands.Children.Add(reset); commands.Children.Add(copy);
+        Children.Add(new ScrollViewer { Content = commands, Width = _width, HorizontalScrollMode = ScrollMode.Enabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollMode = ScrollMode.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        AutomationProperties.SetName(Viewer, "Image preview zoom and pan surface");
+        AutomationProperties.SetHelpText(Viewer, "Use the arrow keys to pan an enlarged image.");
+        SetRow(Viewer, 1); Children.Add(Viewer);
+        var details = new StackPanel { Spacing = 4 };
+        details.Children.Add(_status);
+        details.Children.Add(DoubleTap);
+        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
+        SetRow(details, 2); Children.Add(details);
         _image.DoubleTapped += (_, args) => { HandleDoubleTap(); args.Handled = true; };
         _image.PointerPressed += (_, args) =>
         {
@@ -54,7 +73,12 @@ public sealed class ImagePreviewPane : Grid
     { var control = new Button { Content = text, MinWidth = 44, MinHeight = 44 }; AutomationProperties.SetName(control, name); ToolTipService.SetToolTip(control, name); return control; }
     internal void SetZoom(double value) => Viewer.ChangeView(0, 0, (float)Math.Clamp(value, 1, 6), true);
     internal void HandleDoubleTap() { if (DoubleTap.IsOn) SetZoom(Viewer.ZoomFactor > 1 ? 1 : 2); }
-    internal void ShowFailure(string error) => _status.Text = "Could not load image preview: " + error;
+    private void ShowStatus(string message)
+    {
+        _status.Text = message;
+        MainWindow.Announce(_status);
+    }
+    internal void ShowFailure(string error) => ShowStatus("Could not load image preview. " + error);
     internal async Task LoadAsync(byte[] bytes)
     {
         using var stream = new InMemoryRandomAccessStream();
@@ -81,7 +105,7 @@ public sealed class ImagePreviewPane : Grid
             stream.Seek(0); await source.SetSourceAsync(stream); _image.Source = source;
         }
         var fit = Math.Min(1, Math.Min(_width / width, _height / height)); _image.Width = width * fit; _image.Height = height * fit;
-        _status.Text = $"{width:N0} × {height:N0} · Zoom 1×–6× · Drag or use touch to pan enlarged images.";
+        ShowStatus($"{width:N0} × {height:N0} px · Zoom up to 6×");
     }
     private static XElement ValidateSvg(byte[] bytes)
     {

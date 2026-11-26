@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using TwinePlayer.Native.App.Services;
 using TwinePlayer.Native.App.ViewModels;
 using TwinePlayer.Native.Player;
@@ -37,7 +38,12 @@ public sealed partial class MainWindow : Window
         _commandStore = commandStore;
         _assistanceStore = assistanceStore;
         InitializeComponent();
-        Title = "TwinePlayer 1.1";
+        InitializeConsolePresentation();
+        Title = "TwinePlayer 1.2";
+        ViewModel.PropertyChanged += (_, args) =>
+        {
+            if (!_closed && args.PropertyName == nameof(PlayerViewModel.Status)) UpdateStatusPresentation();
+        };
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1200, 820));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.ico"));
         InitializeWindowing();
@@ -88,7 +94,7 @@ public sealed partial class MainWindow : Window
         {
             _isInputLab = inputLab;
             ResetConsole();
-            _assistanceStory = null; _assistance = new(); _assistanceRevision++; _zoomResize?.Cancel();
+            _assistanceStory = null; _assistanceStatus = null; _assistance = new(); _assistanceRevision++; _zoomResize?.Cancel();
             _player.Detach();
             if (_browser is not null) { Viewport.Children.Remove(_browser); _browser.Close(); }
             _browser = new WebView2();
@@ -110,7 +116,7 @@ public sealed partial class MainWindow : Window
             Welcome.Visibility = Visibility.Collapsed;
             HomeButton.IsEnabled = true;
             SaveButton.IsEnabled = LoadButton.IsEnabled = !inputLab;
-            ViewModel.Title = Path.GetFileNameWithoutExtension(path);
+            ViewModel.Title = inputLab ? "Offline Input Lab" : metadata.Title;
             await LoadSavedCommandsAsync();
             if (!inputLab) await LoadAssistanceAsync(token);
             await ApplyInputDiagnosticsAsync(); ApplyInteractionLayout();
@@ -126,11 +132,21 @@ public sealed partial class MainWindow : Window
                 ResetConsole();
                 if (_browser is not null) { Viewport.Children.Remove(_browser); _browser.Close(); _browser = null; }
                 Welcome.Visibility = Visibility.Visible; HomeButton.IsEnabled = SaveButton.IsEnabled = LoadButton.IsEnabled = false;
+                ViewModel.Title = "Library";
                 ApplyInteractionLayout(); ShowError(error.Message);
             }
             _logger.LogError(error, "Story initialization failed"); throw;
         }
-        finally { if (!_closed && ReferenceEquals(opening, _opening)) { OpenButton.IsEnabled = true; Loading.Visibility = Visibility.Collapsed; ApplyPinnedCommands(); } }
+        finally
+        {
+            if (!_closed && ReferenceEquals(opening, _opening))
+            {
+                OpenButton.IsEnabled = true;
+                Loading.Visibility = Visibility.Collapsed;
+                UpdateStatusPresentation();
+                ApplyPinnedCommands();
+            }
+        }
     }
 
     private async void Home_Click(object sender, RoutedEventArgs e)
@@ -154,13 +170,15 @@ public sealed partial class MainWindow : Window
             if (await confirm.ShowAsync() != ContentDialogResult.Primary || _closed || _closing || _player.Story?.Id != story.Id) return;
             _activeSaveManager?.Hide();
             await _saves.WaitForIdleAsync();
+            var previousStory = _isInputLab ? (Guid?)null : story.Id;
             ReturnHome();
-            await RefreshLibraryAsync();
+            await RefreshLibraryAsync(previousStory);
+            FocusLibrarySelection();
         }
         finally
         {
             _homeConfirmationOpen = false;
-            if (_activeSaveManager is { IsOpen: true } panel) panel.RestoreFocus(); else RestoreStoryFocus();
+            if (_activeSaveManager is { IsOpen: true } panel) panel.RestoreFocus(); else if (_browser is not null) RestoreStoryFocus();
         }
     }
 
@@ -178,15 +196,45 @@ public sealed partial class MainWindow : Window
         ErrorBar.IsOpen = false;
         ViewModel.Title = "Library";
         ViewModel.Status = "Ready";
-        RestoreStoryFocus();
     }
 
-    private void ShowError(string message)
+    private void ShowError(string message, string title = "Unable to play story")
     {
-        ErrorBar.Title = "Unable to play story";
+        ErrorBar.Title = title;
         ErrorBar.Message = message;
         ErrorBar.IsOpen = true;
-        ViewModel.Status = "The story could not be loaded. You can choose another game or return Home.";
+        ViewModel.Status = "Ready";
+    }
+
+    private void UpdateStatusPresentation()
+    {
+        var status = ViewModel.Status;
+        if (status is "" or "Ready" or "Story ready")
+            status = Loading.Visibility == Visibility.Visible ? "Preparing story…" : "";
+        UndoFeedbackButton.Visibility = _undoRemoval is not null && Welcome.Visibility == Visibility.Visible && Loading.Visibility != Visibility.Visible
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (status.Length == 0 && UndoFeedbackButton.Visibility == Visibility.Visible)
+            status = "A game was removed from the library.";
+        DismissFeedbackButton.Visibility = status.Length > 0 && Welcome.Visibility != Visibility.Visible && Loading.Visibility != Visibility.Visible
+            ? Visibility.Visible : Visibility.Collapsed;
+        StatusArea.Visibility = status.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (StatusText.Text == status) return;
+        StatusText.Text = status;
+        ToolTipService.SetToolTip(StatusText, status.Length == 0 ? null : status);
+        if (status.Length > 0) Announce(StatusText);
+    }
+
+    private void DismissFeedback_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.Status = "Ready";
+        if (ConsolePanel.Visibility == Visibility.Visible) ConsoleInput.Focus(FocusState.Programmatic);
+        else RestoreStoryFocus();
+    }
+
+    internal static void Announce(FrameworkElement element)
+    {
+        if (element.IsLoaded && AutomationPeer.ListenerExists(AutomationEvents.LiveRegionChanged))
+            FrameworkElementAutomationPeer.CreatePeerForElement(element)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
 
     // Invoked only by the locally launched integration runner, never by story content.

@@ -8,13 +8,16 @@ const repo = path.resolve(__dirname, '../..');
 const sources = ['shared/webview/twine-bridge.js', 'native_windows/src/TwinePlayer.Player/Bridge/NativeSaves.js'];
 const script = sources.map(file => fs.readFileSync(path.join(repo, file), 'utf8')).join('\n');
 const stories = ['native_windows/fixtures/sugarcube1/legacy-sugarcube1.html', 'test/fixtures/story-assistance-official/sugarcube_cssselectors_example.html', ...process.argv.slice(2)];
+// Same genuine engine with its public namespace hidden, as in modified games.
+stories.push({ file: stories[1], hidden: true });
 const output = path.join(repo, 'artifacts', 'native-save-dom-' + crypto.randomUUID());
 fs.mkdirSync(output, { recursive: true });
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const results = [];
   try {
-    for (const file of stories) {
+    for (const story of stories) {
+      const { file, hidden = false } = typeof story === 'string' ? { file: story } : story;
       const context = await browser.newContext();
       const page = await context.newPage();
       let downloads = 0, pickers = 0;
@@ -25,14 +28,17 @@ async function main() {
         window.chrome = { webview: { postMessage(value) { __saveTestMessages.push(JSON.parse(value)); } } };
       });
       await page.addInitScript({ content: script });
-      await page.route('**/*', route => route.request().url() === 'http://127.0.0.1/game.html' ? route.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.resolve(repo, file), 'utf8') }) : route.abort());
+      let html = fs.readFileSync(path.resolve(repo, file), 'utf8');
+      if (hidden) html = html.replaceAll('window.SugarCube', 'window.__testSugarCube');
+      await page.route('**/*', route => route.request().url() === 'http://127.0.0.1/game.html' ? route.fulfill({ contentType: 'text/html', body: html }) : route.abort());
       await page.goto('http://127.0.0.1/game.html');
-      await page.waitForFunction(() => !!((window.SugarCube?.State?.passage || window.SugarCube?.state?.active?.title) && document.querySelector('#passages .passage')));
+      await page.waitForFunction(() => !!((window.SugarCube?.State?.passage || window.SugarCube?.state?.active?.title || window.__testSugarCube?.State?.passage) && document.querySelector('#passages .passage')));
       const result = await page.evaluate(async () => {
+        const SugarCube = window.SugarCube || window.__testSugarCube;
         const state = () => SugarCube.State || SugarCube.state;
         const vars = () => state().variables || state().active.variables;
         const passage = () => state().passage || state().active.title;
-        const wait = async predicate => { for (let i = 0; i < 250; i++) { const value = predicate(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 20)); } throw new Error('Engine operation did not settle'); };
+        const wait = async (predicate, timeout = 5000) => { const end = performance.now() + timeout; while (performance.now() < end) { const value = predicate(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 20)); } throw new Error('Engine operation did not settle: ' + JSON.stringify({ hidden: !window.SugarCube, export: document.querySelector('#saves-export')?.outerHTML, dialog: document.documentElement.getAttribute('data-dialog'), messages: __saveTestMessages.slice(-3).map(({bytes, ...rest})=>rest) })); };
         const visible = () => Array.from(document.querySelectorAll('#ui-dialog,#ui-overlay,#ui-body')).some(el => { const s = getComputedStyle(el); return s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0 && el.getBoundingClientRect().height > 0; });
         const captures = [];
         for (let round = 0; round < 2; round++) {
@@ -70,7 +76,9 @@ async function main() {
             config.saves.isAllowed = () => false;
             const deniedId = crypto.randomUUID();
             const denied = __twinePlayerCaptureSave(deniedId);
-            const settlement = denied.ok ? await wait(() => __saveTestMessages.find(m => m.operationId === deniedId)) : denied;
+            // Old menus omit the export handler when saving is disallowed, so
+            // private-engine fallback must settle through its bounded timeout.
+            const settlement = denied.ok ? await wait(() => __saveTestMessages.find(m => m.operationId === deniedId), 16000) : denied;
             if (settlement.bytes || settlement.success === true) throw new Error('Engine-denied save was captured');
             deniedSave = true;
           } finally { config.saves.isAllowed = previous; }
@@ -101,7 +109,7 @@ async function main() {
         await new Promise(resolve => setTimeout(resolve, 250));
         const input = document.createElement('input'); input.type = 'file'; input.id = 'regression-save-import'; input.accept = '.save'; document.body.append(input);
         const label = document.createElement('label'); label.htmlFor = input.id; label.textContent = 'Load regression'; document.body.append(label);
-        return { version: document.querySelector('tw-storydata')?.getAttribute('format-version'), firstAndRepeatedRestore: true, invalidSave: true, retry: true, deniedSave };
+        return { version: document.querySelector('tw-storydata')?.getAttribute('format-version'), hiddenApi: !window.SugarCube, firstAndRepeatedRestore: true, invalidSave: true, retry: true, deniedSave };
       });
       const requestsBefore = await page.evaluate(() => __saveTestMessages.filter(m => m.type === 'load-request').length);
       await page.evaluate(() => document.getElementById('regression-save-import').click());

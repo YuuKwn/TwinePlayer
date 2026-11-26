@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using TwinePlayer.Native.Core;
@@ -25,7 +27,8 @@ public sealed partial class MainWindow
             try
             {
                 await RefreshLibraryAsync();
-                if (Title != "TwinePlayer 1.1" || NativeTitleBar.Title != "TwinePlayer 1.1" || NativeTitleBar.IconSource is not BitmapIconSource || !File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png")))
+                var expectedTitle = $"TwinePlayer {typeof(MainWindow).Assembly.GetName().Version!.ToString(2)}";
+                if (Title != expectedTitle || NativeTitleBar.Title != expectedTitle || NativeTitleBar.Subtitle != "Library" || NativeTitleBar.IconSource is not BitmapIconSource || !File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png")))
                     throw new InvalidDataException($"Official branding mismatch: title={Title}; subtitle={NativeTitleBar.Subtitle}; icon={NativeTitleBar.IconSource?.GetType().FullName}; PNG={File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png"))}.");
                 if (_library.Count != 0) throw new InvalidDataException("UX smoke requires a new isolated library.");
                 async Task Capture(string name, ElementTheme theme, int width, FrameworkElement? target = null, int height = 820)
@@ -77,14 +80,22 @@ public sealed partial class MainWindow
                 if (Grid.GetRow(LibrarySort) != 1 || Grid.GetColumnSpan(LibrarySearch) != 2 || LibrarySearch.ActualWidth > Welcome.ActualWidth)
                     throw new InvalidDataException("Narrow library tools did not reflow.");
                 await Capture("library-short", ElementTheme.Light, 640, height: 480);
-                if (LibraryList.ActualHeight < 40 || LibraryTagline.Visibility != Visibility.Collapsed) throw new InvalidDataException("Short-window library did not preserve usable list space.");
+                if (LibraryList.ActualHeight < 40 || LibraryOpenButton.ActualHeight < 32 || LibrarySettingsButton.ActualHeight < 32)
+                    throw new InvalidDataException("Short-window library did not preserve usable list space and visible primary actions.");
                 LibrarySearch.Text = "no-match-ux-fixture"; await Task.Delay(100);
                 if (LibraryList.Items.Count != 0 || ClearSearchButton.Visibility != Visibility.Visible || EmptyOpenButton.Visibility != Visibility.Collapsed)
                     throw new InvalidDataException("Search empty state is incorrect.");
                 await Capture("search-empty", ElementTheme.Dark, 640);
                 ClearLibrarySearch_Click(this, new RoutedEventArgs()); await Task.Delay(100);
                 if (LibraryList.Items.Count != files.Length + 1) throw new InvalidDataException("Clear search did not restore games.");
-                InteractionSettings_Click(this, new RoutedEventArgs()); await Task.Delay(200);
+                LibraryRemove_Click(this, new RoutedEventArgs()); await Task.Delay(150);
+                if (LibraryList.Items.Count != files.Length || !UndoRemove.IsEnabled || StatusArea.Visibility != Visibility.Visible)
+                    throw new InvalidDataException("A library removal did not show feedback and Undo in compact mode.");
+                await Capture("library-removed", ElementTheme.Light, 640);
+                LibraryUndo_Click(this, new RoutedEventArgs()); await Task.Delay(150);
+                if (LibraryList.Items.Count != files.Length + 1 || LibraryList.SelectedItem is not LibraryGame { Missing: true } || UndoRemove.IsEnabled)
+                    throw new InvalidDataException("Undo did not restore the removed entry and selection.");
+                InteractionSettings_Click(LibrarySettingsButton, new RoutedEventArgs()); await Task.Delay(200);
                 ContentDialog? dialog = null;
                 foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot))
                     if (FindUxDialog(popup.Child) is { } candidate) { dialog = candidate; break; }
@@ -92,12 +103,26 @@ public sealed partial class MainWindow
                 try { await Capture("interaction-settings", ElementTheme.Light, 640, dialog); }
                 finally { dialog.Hide(); }
                 await Task.Delay(150);
-                await OpenAsync(files[0]);
+                if (FocusManager.GetFocusedElement(Root.XamlRoot) is not Button { Name: nameof(LibrarySettingsButton) })
+                    throw new InvalidDataException($"Closing library Settings did not restore focus to its button. Focus: {FocusManager.GetFocusedElement(Root.XamlRoot)}");
+                var openFirstStory = OpenAsync(files[0]);
+                if (Loading.Visibility != Visibility.Visible || StatusArea.Visibility != Visibility.Visible || OpenButton.IsEnabled)
+                    throw new InvalidDataException("Story opening did not expose its busy state.");
+                await openFirstStory;
                 if (NativeTitleBar.IsBackButtonVisible || SaveButton.Visibility != Visibility.Visible || HomeButton.Visibility != Visibility.Visible || Grid.GetColumn(RightSidebar) != 1 || Root.RowDefinitions.Count != 2)
                     throw new InvalidDataException("Player chrome did not replace library chrome.");
                 await Capture("player-sidebar-compact", ElementTheme.Dark, 1200);
                 VerifySidebarPresentation(false);
                 VerifyUxAccessKeys();
+                ViewModel.Status = "Saved a story checkpoint.";
+                await Capture("player-compact-feedback", ElementTheme.Dark, 640, height: 480);
+                if (StatusArea.Visibility != Visibility.Visible || StatusText.Text != ViewModel.Status
+                    || AutomationProperties.GetLiveSetting(StatusText) != Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Polite)
+                    throw new InvalidDataException("Compact player feedback is not visible and exposed as a live status.");
+                DismissFeedback_Click(DismissFeedbackButton, new RoutedEventArgs());
+                if (StatusArea.Visibility != Visibility.Collapsed)
+                    throw new InvalidDataException("Dismissing playback feedback did not return space to the story.");
+                await Capture("player-sidebar-compact-restored", ElementTheme.Dark, 1200);
                 var sidebarPosition = RightSidebar.TransformToVisual(Root).TransformPoint(new Windows.Foundation.Point());
                 if (sidebarPosition.X < Viewport.ActualWidth - 1 || Math.Abs(RightSidebar.ActualHeight - (Viewport.ActualHeight - 8)) > 2)
                     throw new InvalidDataException("Sidebar is not at the right edge for the full content height.");
@@ -208,10 +233,36 @@ public sealed partial class MainWindow
                 finally { savePanel.Hide(); await manager; }
                 if ((await _saves.ListAsync(formGame)).Count != 1) throw new InvalidDataException("Canceled form validation wrote an extra save.");
                 await ExerciseCommandShortcutsAsync(files, (name, theme, width) => Capture(name, theme, width));
+                var currentPath = _player.Story?.FilePath;
                 await ExerciseHomeConfirmationAsync();
-                if (_player.Story is not null || Welcome.Visibility != Visibility.Visible || NativeTitleBar.IsBackButtonEnabled || SaveButton.Visibility != Visibility.Collapsed)
+                if (_player.Story is not null || Welcome.Visibility != Visibility.Visible || NativeTitleBar.IsBackButtonEnabled || SaveButton.Visibility != Visibility.Collapsed
+                    || LibraryList.SelectedItem is not LibraryGame returned || returned.FilePath != currentPath)
                     throw new InvalidDataException("Sidebar library action did not return to a usable library.");
-                await File.WriteAllTextAsync(report, JsonSerializer.Serialize(new { passed = true, captures, menuLabels, scope = "Native XAML layout renders; Mica/WebView/native-flyout pixels excluded; menu uses actual UIA; no physical/client certification", contextualActions = true, missingSelection = true, narrowReflow = true, searchRecovery = true, rightSidebar = true, sidebarIconsAndLabels = true, opaqueThemedConsole = true, sidebarLibrary = true, nativeSettings = true, accessKeysNoVisibleCollisions = true, groupedNativeMenu = true, saveLoadInlineValidation = true, settingsPrimaryAction = true, perGameCommandShortcuts = true, scrollableResizableConsolePanes = true }));
+                var libraryFixture = Path.Combine(output, "large-library");
+                var longTitle = "The story with a long title: " + new string('W', 220);
+                for (var index = 0; index < 192; index++)
+                    await _database.RegisterAsync(Path.Combine(libraryFixture, $"Story-{index:D3}.html"), new GameMetadata(index == 191 ? longTitle : $"Story {index:D3}", "UX fixture", null));
+                await RefreshLibraryAsync();
+                var libraryCount = LibraryList.Items.Count;
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                LibrarySearch.Text = "Story-191";
+                for (var attempt = 0; attempt < 30 && LibraryList.Items.Count != 1; attempt++)
+                    await Task.Delay(15);
+                Root.UpdateLayout();
+                var filterLayoutMs = stopwatch.Elapsed.TotalMilliseconds;
+                if (libraryCount < 192 || LibraryList.Items.Count != 1 || LibraryList.Items[0] is not LibraryGame found || found.Title != longTitle)
+                    throw new InvalidDataException($"Large library search lost the long-title fixture. Entries: {libraryCount}, matches: {LibraryList.Items.Count}.");
+                await Capture("library-long-title", ElementTheme.Dark, 640, height: 480);
+                await File.WriteAllTextAsync(report, JsonSerializer.Serialize(new
+                {
+                    passed = true, captures, menuLabels, libraryCount, filterLayoutMs,
+                    scope = "Native XAML layout renders; Mica/WebView/native-flyout pixels excluded; menu uses actual UIA; no physical/client certification",
+                    contextualActions = true, missingSelection = true, narrowReflow = true, searchRecovery = true, rightSidebar = true,
+                    sidebarIconsAndLabels = true, opaqueThemedConsole = true, sidebarLibrary = true, nativeSettings = true,
+                    accessKeysNoVisibleCollisions = true, groupedNativeMenu = true, saveLoadInlineValidation = true,
+                    settingsPrimaryAction = true, perGameCommandShortcuts = true, scrollableResizableConsolePanes = true,
+                    compactFeedback = true, removalRecovery = true, keyboardFocusRestoration = true, longLibraryContent = true
+                }));
             }
             catch (Exception error) { await File.WriteAllTextAsync(report, JsonSerializer.Serialize(new { passed = false, error = error.ToString(), captures })); }
             finally { await RequestCloseAsync(); }
@@ -219,6 +270,10 @@ public sealed partial class MainWindow
     }
     private async Task ExerciseConsolePanesAsync(Func<string, ElementTheme, int, int, Task> capture)
     {
+        ConsoleLogs.SelectedItem = null;
+        SavedCommands.SelectedItem = null;
+        if (RerunCommandButton.IsEnabled || EditCommandButton.IsEnabled || SaveCommandButton.IsEnabled || RunSavedCommandButton.IsEnabled || PinSavedCommandButton.IsEnabled || DeleteSavedCommandButton.IsEnabled)
+            throw new InvalidDataException("Console actions are enabled without a selection.");
         var commands = Enumerable.Range(0, 50).Select(index => $"window.__savedListSmoke = {index}").ToArray();
         SavedCommands.ItemsSource = commands;
         for (var index = 0; index < 80; index++) AppendConsole("History item " + index, "normal");
@@ -233,6 +288,8 @@ public sealed partial class MainWindow
         if (savedScroll.VerticalOffset <= 0 || Math.Abs(historyScroll.VerticalOffset - historyOffset) > 1)
             throw new InvalidDataException("Saved commands cannot scroll independently of history.");
         SavedCommands.SelectedItem = commands[^1];
+        if (!RunSavedCommandButton.IsEnabled || !PinSavedCommandButton.IsEnabled || !DeleteSavedCommandButton.IsEnabled)
+            throw new InvalidDataException("Selecting a saved command did not enable its actions.");
         ConsoleRunSaved_Click(this, new RoutedEventArgs()); await Task.Delay(80);
         if (await _player.ExecuteScriptAsync("window.__savedListSmoke") != "49") throw new InvalidDataException("A scrolled saved command could not be selected and run.");
         var historyHeight = ConsoleHistoryRow.ActualHeight; var savedHeight = ConsoleSavedRow.ActualHeight;

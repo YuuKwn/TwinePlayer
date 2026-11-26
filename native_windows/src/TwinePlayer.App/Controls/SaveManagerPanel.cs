@@ -17,6 +17,7 @@ public sealed class SaveManagerPanel : Grid
     private readonly Button _close = new();
     private TaskCompletionSource<ContentDialogResult>? _completion;
     private Grid? _host;
+    internal event EventHandler? Opened;
     public bool IsOpen => _completion is not null;
     public string Title { get => _title.Text; set { _title.Text = value; AutomationProperties.SetName(this, value); } }
     public UIElement Content { get => (UIElement)_body.Content; set => _body.Content = value; }
@@ -80,6 +81,7 @@ public sealed class SaveManagerPanel : Grid
     {
         Loaded -= FocusContent;
         RestoreFocus();
+        Opened?.Invoke(this, EventArgs.Empty);
     }
     internal void RestoreFocus()
     {

@@ -6,16 +6,25 @@
   const limit = 50 * 1024 * 1024;
   const api = () => window.Save || window.SugarCube?.Save;
   const legacy = () => window.SugarCube?.SaveSystem;
-  const supported = () => !!(api()?.disk || api()?.export || api()?.serialize || api()?.base64 || legacy()?.exportSave);
+  // Some modified SC2 builds keep Save/State private but retain the standard
+  // engine save menu. Use its own export/import handlers without editing games.
+  let declaredSC2 = false;
+  const rememberFormat = () => { declaredSC2 ||= !!document.querySelector('tw-storydata[format="SugarCube"][format-version^="2."]'); };
+  rememberFormat();
+  // Modified builds may remove story metadata after startup.
+  document.addEventListener('DOMContentLoaded', rememberFormat, { once: true });
+  const domEngine = () => !api() && !legacy() && declaredSC2 && document.querySelector('#menu-item-saves a');
+  const supported = () => !!(api()?.disk || api()?.export || api()?.serialize || api()?.base64 || legacy()?.exportSave || domEngine());
   let operation = null;
   const message = error => String(error?.message || error || 'The game rejected the save.').slice(0, 4096);
   const dialog = () => document.querySelector('#ui-dialog-body,#ui-body');
-  const dialogOpen = () => !!(window.Dialog?.isOpen?.() || window.SugarCube?.Dialog?.isOpen?.() || window.SugarCube?.UISystem?.isOpen?.() || document.documentElement.classList.contains('ui-open'));
+  const dialogOpen = () => !!(window.Dialog?.isOpen?.() || window.SugarCube?.Dialog?.isOpen?.() || window.SugarCube?.UISystem?.isOpen?.() || document.documentElement.classList.contains('ui-open') || document.documentElement.getAttribute('data-dialog') === 'open');
   const closeSaveDialog = (force = false) => {
     const body = dialog();
     if (force || body && /(?:^|\s)(?:saves|alert)(?:\s|$)/.test(body.className)) {
       const ui = window.Dialog || window.SugarCube?.Dialog || window.SugarCube?.UISystem;
-      ui?.close?.();
+      if (ui?.close) ui.close();
+      else if (domEngine()) document.querySelector('#ui-dialog-close')?.click();
       // SC1 queues overlay fades; finish this operation's animation so an error
       // cannot leave a transparent click-blocking layer above the story.
       if (legacy()) window.jQuery?.('#ui-overlay').stop(true, true).hide();
@@ -45,6 +54,7 @@
   }
   function cleanup(value) {
     clearTimeout(value.timer); value.observer.disconnect();
+    value.restoreReader?.();
     if (value.error || dialogOpen()) { closeSaveDialog(true); setTimeout(() => value.style.remove(), 250); }
     else value.style.remove();
     if (operation === value) operation = null;
@@ -61,7 +71,13 @@
   window.__twinePlayerCancelNativeSave = id => { if (operation?.id === id) cleanup(operation); };
 
   const detect = window.__twinePlayerDetectEngine;
-  window.__twinePlayerDetectEngine = () => legacy()?.exportSave ? 'sc1' : detect();
+  window.__twinePlayerDetectEngine = () => legacy()?.exportSave ? 'sc1' : domEngine() ? 'sc2' : detect();
+  function openEngineSaves(selector) {
+    domEngine().click();
+    const control = document.querySelector('#ui-dialog-body.saves ' + selector);
+    if (!control || control.hasAttribute('disabled') || control.getAttribute('aria-disabled') === 'true') throw new Error('The game does not currently allow this save/load action.');
+    return control;
+  }
   window.__twinePlayerCaptureSave = id => {
     let value;
     try {
@@ -71,6 +87,7 @@
       if (save?.disk?.save) save.disk.save('game');
       else if (save?.export) save.export('game');
       else if (legacy()?.exportSave) legacy().exportSave();
+      else if (domEngine()) openEngineSaves('#saves-export').click();
       else {
         const data = save?.base64?.save ? save.base64.save() : save.serialize();
         if (!data) throw new Error('The game did not allow this save.');
@@ -87,7 +104,7 @@
       if (!supported()) throw new Error('Native save/load supports SugarCube 1 and 2.');
       value = begin('load', id);
       const save = api();
-      if (save?.disk?.load || save?.import || legacy()?.importSave) {
+      if (save?.disk?.load || save?.import || legacy()?.importSave || domEngine()) {
         const input = document.createElement('input'); input.type = 'file';
         const transfer = new DataTransfer(); transfer.items.add(new File([text], 'game.save', { type: 'text/plain' })); input.files = transfer.files;
         if (save?.disk?.load) {
@@ -98,18 +115,31 @@
           // engine's loadend handler, then require actual restored engine state.
           const state = window.SugarCube?.State || window.SugarCube?.state;
           const before = state?.active;
+          const beforePassage = document.querySelector('#passages > .passage:last-child');
           const Reader = window.FileReader;
-          window.FileReader = class extends Reader {
-            constructor() {
-              super();
-              queueMicrotask(() => this.addEventListener('loadend', () => setTimeout(() => {
+          const ImportReader = class extends Reader {
+            readAsText(file, ...args) {
+              if (file === transfer.files[0]) this.addEventListener('loadend', () => setTimeout(() => {
                 const restored = (window.SugarCube?.State || window.SugarCube?.state)?.active;
-                finish(value, this.error || value.error || (restored === before ? new Error('The game rejected this save or did not restore its state.') : null));
-              }, 0), { once: true }));
+                const unchanged = state ? restored === before : document.querySelector('#passages > .passage:last-child') === beforePassage;
+                finish(value, this.error || value.error || (unchanged ? new Error('The game rejected this save or did not restore its state.') : null));
+              }, 0), { once: true });
+              return super.readAsText(file, ...args);
             }
           };
-          try { if (save?.import) save.import({ target: input }); else legacy().importSave({ target: input }); }
-          finally { window.FileReader = Reader; }
+          window.FileReader = ImportReader;
+          value.restoreReader = () => { if (window.FileReader === ImportReader) window.FileReader = Reader; };
+          try {
+            if (save?.import) save.import({ target: input });
+            else if (legacy()?.importSave) legacy().importSave({ target: input });
+            else {
+              const control = openEngineSaves('#saves-import-file');
+              control.files = transfer.files;
+              control.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+          // The standard menu defers import until its dialog has closed.
+          finally { if (save?.import || legacy()?.importSave) value.restoreReader(); }
         }
       } else if (save?.base64?.load) {
         Promise.resolve(save.base64.load(text)).then(() => { (window.Engine || window.SugarCube?.Engine)?.show(); finish(value); }).catch(error => finish(value, error));
@@ -163,7 +193,7 @@
   const picker = HTMLInputElement.prototype.showPicker;
   if (picker) HTMLInputElement.prototype.showPicker = function () { if (saveInput(this)) requestLoad(this); else return picker.call(this); };
   document.addEventListener('click', event => {
-    if (supported() && event.target?.closest?.('#menu-item-saves,#menu-saves')) {
+    if (!operation && supported() && event.target?.closest?.('#menu-item-saves,#menu-saves')) {
       event.preventDefault(); event.stopImmediatePropagation(); requestLoad(); return;
     }
     const target = event.target?.closest?.('a,button,input,label');

@@ -57,14 +57,12 @@ public sealed partial class MainWindow
         CompactMoreButton.Visibility = CompactScroll.Visibility;
         ComfortableBar.Visibility = comfortable && playing ? Visibility.Visible : Visibility.Collapsed;
         UpdateSidebarWidth();
-        StatusText.Visibility = _sidebarExpanded ? Visibility.Visible : Visibility.Collapsed;
-        StatusText.TextWrapping = TextWrapping.Wrap;
         foreach (var (button, label, glyph) in new (ContentControl, string, string)[] {
             (OpenButton, "Open game", "\uE8E5"), (HomeButton, "Library", "\uE80F"), (UndoStoryButton, "Undo", "\uE7A7"),
             (SaveButton, "Save", "\uE74E"), (LoadButton, "Load", "\uE898"), (ConsoleEntryButton, "Console", "\uE756"),
             (FullscreenButton, "Fullscreen", "\uE740"), (PlaySelectedButton, "Play selected", "\uE768"),
             (RelinkSelectedButton, "Relink game", "\uE71B"), (UndoRemove, "Undo removal", "\uE7A7"),
-            (ImportButton, "Import", "\uE896"), (LibrarySelectionMore, "Game actions", "\uE712"), (CompactMoreButton, "More", "\uE712") })
+            (ImportButton, "Import", "\uE896"), (LibrarySelectionMore, "File actions", "\uE8B7"), (CompactMoreButton, "More", "\uE712") })
             SetSidebarCommandContent(button, label, glyph);
         ComfortableCommands.Children.Clear(); ComfortablePinned.Children.Clear();
         var preferences = _barPreferences.Normalized;
@@ -149,6 +147,8 @@ public sealed partial class MainWindow
     }
     private async void InteractionSettings_Click(object sender, RoutedEventArgs e)
     {
+        var openedFromLibrary = sender is Button { Name: nameof(LibrarySettingsButton) };
+        if (openedFromLibrary) LibrarySettingsButton.Focus(FocusState.Programmatic);
         try
         {
             var panel = new StackPanel { Spacing = 12, MinWidth = Math.Max(160, Math.Min(350, Root.ActualWidth - 96)) };
@@ -161,11 +161,31 @@ public sealed partial class MainWindow
             foreach (var id in new[] { "pageUp", "pageDown" }) if (!order.Contains(id)) order.Add(id);
             static string Label(string id) => id switch { "back" => "Library", "pageUp" => "Page up", "pageDown" => "Page down", _ => char.ToUpperInvariant(id[0]) + id[1..] };
             var list = new ListView { ItemsSource = order.Select(Label).ToArray(), Height = 170, SelectionMode = ListViewSelectionMode.Single }; AutomationProperties.SetName(list, "Movable commands in order");
-            void Move(int delta) { var index = list.SelectedIndex; if (index < 0 || index + delta < 0 || index + delta >= order.Count) return; (order[index], order[index + delta]) = (order[index + delta], order[index]); list.ItemsSource = order.Select(Label).ToArray(); list.SelectedIndex = index + delta; }
-            var moves = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 }; var earlier = new Button { Content = "Move earlier" }; earlier.Click += (_, _) => Move(-1); var later = new Button { Content = "Move later" }; later.Click += (_, _) => Move(1); moves.Children.Add(earlier); moves.Children.Add(later);
+            var earlier = new Button { Content = "Move up", IsEnabled = false };
+            var later = new Button { Content = "Move down", IsEnabled = false };
+            void Move(int delta)
+            {
+                var index = list.SelectedIndex;
+                if (index < 0 || index + delta < 0 || index + delta >= order.Count) return;
+                (order[index], order[index + delta]) = (order[index + delta], order[index]);
+                list.ItemsSource = order.Select(Label).ToArray();
+                list.SelectedIndex = index + delta;
+                list.ScrollIntoView(list.SelectedItem);
+                if (list.ContainerFromIndex(list.SelectedIndex) is Control item) item.Focus(FocusState.Programmatic);
+            }
+            list.SelectionChanged += (_, _) =>
+            {
+                earlier.IsEnabled = list.SelectedIndex > 0;
+                later.IsEnabled = list.SelectedIndex >= 0 && list.SelectedIndex < order.Count - 1;
+            };
+            earlier.Click += (_, _) => Move(-1);
+            later.Click += (_, _) => Move(1);
+            var moves = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            moves.Children.Add(earlier);
+            moves.Children.Add(later);
             panel.Children.Add(SettingsSection("Input", "Auto adapts when you use a mouse, touch or pen.", true, profile));
-            panel.Children.Add(SettingsSection("Comfortable sidebar", "Choose the size and vertical placement of touch-friendly commands.", false, alignment, size, up, down));
-            panel.Children.Add(SettingsSection("Command order", "Console and More stay pinned at the end.", false, list, moves));
+            panel.Children.Add(SettingsSection("Comfortable sidebar", "These controls apply when the Comfortable profile is active.", false, alignment, size, up, down));
+            panel.Children.Add(SettingsSection("Command order", "Select a command to move it. Console and More stay at the end.", false, list, moves));
             var reset = new Button { Content = "Reset interaction defaults" }; reset.Click += (_, _) => { profile.SelectedIndex = 0; alignment.SelectedIndex = 1; size.SelectedIndex = 1; up.IsOn = down.IsOn = false; order = new CommandBarPreferences().Order.Where(id => id is not ("console" or "more")).Concat(new[] { "pageUp", "pageDown" }).ToList(); list.ItemsSource = order.Select(Label).ToArray(); }; panel.Children.Add(reset);
             var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Interaction settings", Content = new ScrollViewer { Content = panel, MaxHeight = Math.Max(180, Root.ActualHeight - 230) }, PrimaryButtonText = "Apply", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
             if (await dialog.ShowAsync() == ContentDialogResult.Primary)
@@ -173,10 +193,14 @@ public sealed partial class MainWindow
                 var next = new CommandBarPreferences { Alignment = (BarAlignment)alignment.SelectedIndex, Size = (BarSize)size.SelectedIndex, Reach = _barPreferences.Reach, PageUpEnabled = up.IsOn, PageDownEnabled = down.IsOn, Order = order.ToArray() }.Normalized;
                 await new InteractionPreferenceStore(_database).SaveAsync((InteractionProfile)profile.SelectedIndex, next);
                 _interaction.Select((InteractionProfile)profile.SelectedIndex); _barPreferences = next; ApplyInteractionLayout();
+                ViewModel.Status = "Interaction settings applied.";
             }
         }
         catch (Exception error) { ShowPresentationError(error.Message); }
-        finally { RestoreStoryFocus(); }
+        finally
+        {
+            if (!openedFromLibrary) RestoreStoryFocus();
+        }
     }
     private static ComboBox Choice(string header, string[] values, int index)
     { var box = new ComboBox { Header = header, ItemsSource = values, SelectedIndex = index, HorizontalAlignment = HorizontalAlignment.Stretch }; AutomationProperties.SetName(box, header); return box; }
