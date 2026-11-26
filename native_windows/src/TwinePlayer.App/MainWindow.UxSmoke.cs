@@ -27,7 +27,8 @@ public sealed partial class MainWindow
             try
             {
                 await RefreshLibraryAsync();
-                if (Title != "TwinePlayer 1.1" || NativeTitleBar.Title != "TwinePlayer 1.1" || NativeTitleBar.IconSource is not BitmapIconSource || !File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png")))
+                var expectedTitle = $"TwinePlayer {typeof(MainWindow).Assembly.GetName().Version!.ToString(2)}";
+                if (Title != expectedTitle || NativeTitleBar.Title != expectedTitle || NativeTitleBar.Subtitle != "Library" || NativeTitleBar.IconSource is not BitmapIconSource || !File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png")))
                     throw new InvalidDataException($"Official branding mismatch: title={Title}; subtitle={NativeTitleBar.Subtitle}; icon={NativeTitleBar.IconSource?.GetType().FullName}; PNG={File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "app_icon.png"))}.");
                 if (_library.Count != 0) throw new InvalidDataException("UX smoke requires a new isolated library.");
                 async Task Capture(string name, ElementTheme theme, int width, FrameworkElement? target = null, int height = 820)
